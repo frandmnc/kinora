@@ -33,6 +33,8 @@ pub struct FileAnalysis {
     pub video: Option<String>,
     /// Ej. ["aac 2 canales jpn"].
     pub audio: Vec<String>,
+    /// Ej. ["Español (ASS)", "Inglés (SRT, archivo)"].
+    pub subtitles: Vec<String>,
     /// Diferencias con el formato de Kinora. Vacía = se puede importar copiando.
     pub problems: Vec<String>,
     /// Si ffprobe no pudo leer el archivo.
@@ -98,6 +100,8 @@ pub struct ImportedFile {
     pub file: String,
     /// Ruta final dentro de la biblioteca, si salió bien.
     pub destination: Option<String>,
+    /// Cuántas pistas de subtítulos quedaron.
+    pub subtitles: i64,
     pub error: Option<String>,
 }
 

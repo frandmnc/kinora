@@ -1,10 +1,26 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpRight, Cpu, Gauge, MemoryStick, MonitorPlay, Pause, Play, Send, Server } from 'lucide-react'
+import {
+  ArrowUpRight,
+  CircleCheck,
+  Clock,
+  Cpu,
+  Gauge,
+  History,
+  MemoryStick,
+  MonitorPlay,
+  Pause,
+  Play,
+  Send,
+  Server,
+  Trophy,
+} from 'lucide-react'
 import { useApi } from '../../shared/useApi'
-import { formatDuration, formatSize } from '../../shared/format'
+import { formatDuration, formatSize, formatWatchTime } from '../../shared/format'
 import type { ServerStatus } from '../../shared/types/ServerStatus'
 import type { Viewer } from '../../shared/types/Viewer'
-import { Alert, Badge, Card, EmptyState, Meter, PageHeader, Sparkline, StatTile } from '../ui'
+import type { PlaybackSummary } from '../../shared/types/PlaybackSummary'
+import type { Session } from '../../shared/types/Session'
+import { Alert, Badge, Card, EmptyState, Meter, MiniBars, PageHeader, Sparkline, StatTile } from '../ui'
 
 const REFRESH_MS = 2000
 /** Mediciones guardadas para las tendencias: 60 × 2 s = los últimos 2 minutos. */
@@ -15,7 +31,18 @@ type Point = { cpuKinora: number; cpuSystem: number; memoryKinora: number; sendR
 /** Estado del servidor en vivo: CPU, memoria, transferencia y quién está mirando. */
 export function StatusPage() {
   const { data: status, error, reload } = useApi<ServerStatus>('/api/admin/status')
+  const { data: playback, reload: reloadPlayback } = useApi<PlaybackSummary>('/api/admin/metrics/playback')
+  const { data: sessions, reload: reloadSessions } = useApi<Session[]>('/api/admin/metrics/sessions')
   const [history, setHistory] = useState<Point[]>([])
+
+  // Los minutos vistos cambian despacio: alcanza con actualizarlos cada 30 segundos.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      reloadPlayback()
+      reloadSessions()
+    }, 30_000)
+    return () => clearInterval(timer)
+  }, [reloadPlayback, reloadSessions])
 
   useEffect(() => {
     const timer = setInterval(reload, REFRESH_MS)
@@ -67,6 +94,14 @@ export function StatusPage() {
           <Sparkline values={series('cpuSystem')} max={100} label="CPU del equipo, últimos 2 minutos" />
         </StatTile>
         <StatTile
+          icon={Server}
+          label="Memoria del equipo"
+          value={`${Math.round(memoryShare * 100)} %`}
+          sub={`${formatSize(sample.memory_used)} de ${formatSize(sample.memory_total)}`}
+        >
+          <Meter value={memoryShare} warnAt={0.8} criticalAt={0.92} label="Memoria del equipo en uso" />
+        </StatTile>
+        <StatTile
           icon={Send}
           label="Enviando"
           value={`${formatSize(sample.send_rate)}/s`}
@@ -77,14 +112,20 @@ export function StatusPage() {
         <StatTile icon={MemoryStick} label="Memoria de Kinora" value={formatSize(sample.memory_kinora)} sub="del proceso">
           <Sparkline values={series('memoryKinora')} range label="Memoria de Kinora, últimos 2 minutos" />
         </StatTile>
-        <StatTile
-          icon={Server}
-          label="Memoria del equipo"
-          value={`${Math.round(memoryShare * 100)} %`}
-          sub={`${formatSize(sample.memory_used)} de ${formatSize(sample.memory_total)}`}
-        >
-          <Meter value={memoryShare} warnAt={0.8} criticalAt={0.92} label="Memoria del equipo en uso" />
-        </StatTile>
+        {playback && (
+          <StatTile
+            icon={Clock}
+            label="Visto hoy"
+            value={formatWatchTime(playback.today_seconds)}
+            sub={`${formatWatchTime(playback.days.reduce((sum, d) => sum + d.seconds, 0))} en los últimos 7 días`}
+          >
+            <MiniBars
+              values={playback.days.map((d) => d.seconds)}
+              labels={playback.days.map((d) => `${weekday(d.day)}: ${formatWatchTime(d.seconds)}`)}
+              label="Tiempo visto por día, últimos 7 días"
+            />
+          </StatTile>
+        )}
       </div>
 
       <Card
@@ -98,6 +139,60 @@ export function StatusPage() {
           status.viewers.map((viewer) => <ViewerRow key={`${viewer.client}-${viewer.content_id}`} viewer={viewer} />)
         )}
       </Card>
+
+      {playback && playback.top.length > 0 && (
+        <div className="two-columns">
+          <Card title="Lo más visto" description="últimos 30 días">
+            <RankTable items={playback.top} trophy />
+          </Card>
+          <Card title="Por biblioteca" description="últimos 30 días">
+            <RankTable items={playback.libraries} />
+          </Card>
+        </div>
+      )}
+
+      {sessions && sessions.length > 0 && (
+        <Card title="Historial" description="las últimas visualizaciones (de más de 30 segundos)">
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Cuándo</th>
+                  <th>Qué</th>
+                  <th>Biblioteca</th>
+                  <th>Equipo</th>
+                  <th>Tramo</th>
+                  <th className="num">Visto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.map((session) => (
+                  <tr key={session.id}>
+                    <td className="secondary">{when(session.started_at)}</td>
+                    <td>
+                      <span className="row">
+                        <strong>{session.title}</strong>
+                        {session.completed && <CircleCheck size={15} color="var(--good)" aria-label="terminado" />}
+                      </span>
+                    </td>
+                    <td className="secondary">{session.library_name ?? '—'}</td>
+                    <td className="mono">{session.client}</td>
+                    <td className="secondary">
+                      {formatDuration(session.start_position)} → {formatDuration(session.end_position)}
+                    </td>
+                    <td className="num">{formatWatchTime(session.seconds_watched)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+      {sessions && sessions.length === 0 && (
+        <Card title="Historial">
+          <EmptyState icon={History} title="Todavía no hay visualizaciones registradas" />
+        </Card>
+      )}
 
       <Card title="Transferencias en curso" description="descargas de video que el servidor está enviando ahora">
         {status.transfers.length === 0 ? (
@@ -161,6 +256,49 @@ function ViewerRow({ viewer }: { viewer: Viewer }) {
       </div>
     </div>
   )
+}
+
+function RankTable({ items, trophy = false }: { items: { title: string; seconds: number }[]; trophy?: boolean }) {
+  const top = items[0]?.seconds ?? 0
+  return (
+    <table className="table">
+      <tbody>
+        {items.map((item, i) => (
+          <tr key={item.title}>
+            <td style={{ width: 36 }} className="muted">
+              {trophy && i === 0 ? <Trophy size={16} /> : i + 1}
+            </td>
+            <td>
+              <strong>{item.title}</strong>
+            </td>
+            <td>
+              <div className="size-cell">
+                <span>{formatWatchTime(item.seconds)}</span>
+                <Meter value={top > 0 ? item.seconds / top : 0} small label={item.title} />
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+/** "hoy 14:05", "ayer 21:30" o "lun 12 21:30". */
+function when(seconds: number) {
+  const date = new Date(seconds * 1000)
+  const hour = date.toLocaleTimeString('es-AR', { hour12: false, hour: '2-digit', minute: '2-digit' })
+  const today = new Date()
+  const yesterday = new Date(Date.now() - 86_400_000)
+  if (date.toDateString() === today.toDateString()) return `hoy ${hour}`
+  if (date.toDateString() === yesterday.toDateString()) return `ayer ${hour}`
+  return `${date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })} ${hour}`
+}
+
+/** "2026-10-12" → "lun 12" */
+function weekday(day: string) {
+  const date = new Date(`${day}T12:00:00`)
+  return date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' })
 }
 
 function time(seconds: number) {

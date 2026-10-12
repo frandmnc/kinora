@@ -178,7 +178,10 @@ La UN43RU7100 no admite Dolby Vision. Admite HDR10, HDR10+ y HLG.
 
 ### Subtítulos
 
-Los subtítulos de texto incrustados se extraen como archivos externos. Los subtítulos ASS se conservan en `.ass`, junto con sus fuentes, y además se convierten a `.vtt` para mostrarlos de forma simple.
+Todos los subtítulos se guardan como `.vtt` al lado del video (`… - S01E01.spa.vtt`), que es lo que entienden los navegadores y la TV. Los ASS conservan además su original en `.ass`, para dibujar sus estilos más adelante. Llegan por dos caminos:
+
+- **Al importar**, los de texto que vienen dentro del video (SRT, ASS, MP4) se extraen solos. Los de imagen (PGS de Blu-ray) se avisan en el análisis y por ahora no se usan.
+- **Después**, desde Bibliotecas: cada archivo tiene "Agregar subtítulo", que acepta un `.srt`, `.ass`, `.ssa` o `.vtt`, con su idioma (sugerido por el nombre) y si es forzado. Los archivos que no están en UTF-8 se leen como Windows-1252, que es como suelen venir los `.srt` viejos en castellano. La bandeja de importación es solo para videos.
 
 ## Modelo de datos
 
@@ -189,7 +192,7 @@ The Office (show)                     agrupa
 ├─ Temporada 1 (season)               agrupa
 │  ├─ E01 "Pilot" (episode)           reproducible
 │  │   └─ archivo .../S01E01.mp4
-│  │        └─ subtítulo .../S01E01.spa.srt
+│  │        └─ subtítulo .../S01E01.spa.vtt
 │  └─ E02 "Diversity Day" (episode)   sin archivo: válido
 Interstellar (movie)                  reproducible
    ├─ archivo 1080p
@@ -244,9 +247,12 @@ CREATE TABLE media_files (
 CREATE TABLE subtitles (
   id INTEGER PRIMARY KEY,
   media_file_id INTEGER NOT NULL REFERENCES media_files(id),
-  rel_path TEXT NOT NULL,
-  lang TEXT,
-  format TEXT NOT NULL,          -- srt, vtt, ass
+  rel_path TEXT NOT NULL UNIQUE, -- siempre un .vtt (lo que entienden navegadores y TV)
+  original_rel_path TEXT,        -- el .ass original, si lo había (estilos)
+  language TEXT,                 -- ISO 639 tal como venía (spa, eng…)
+  srclang TEXT,                  -- 2 letras para el navegador (es, en…)
+  label TEXT NOT NULL,           -- "Español", "Inglés (forzados)"…
+  is_default INTEGER NOT NULL DEFAULT 0,
   forced INTEGER NOT NULL DEFAULT 0
 );
 
@@ -274,10 +280,29 @@ CREATE TABLE import_jobs (
 );
 
 CREATE TABLE playback_daily (
-  day TEXT NOT NULL,             -- AAAA-MM-DD
+  day TEXT NOT NULL,             -- AAAA-MM-DD, hora local
   content_id INTEGER NOT NULL REFERENCES contents(id),
-  seconds INTEGER NOT NULL,
+  seconds REAL NOT NULL,
   PRIMARY KEY (day, content_id)
+);
+
+-- Historial: una fila por visualización. Copia título y biblioteca para que el historial
+-- sobreviva a renombres y borrados. De acá salen las métricas por biblioteca, contenido,
+-- equipo, día u hora.
+CREATE TABLE playback_sessions (
+  id INTEGER PRIMARY KEY,
+  content_id INTEGER REFERENCES contents(id) ON DELETE SET NULL,
+  library_id INTEGER REFERENCES libraries(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  library_name TEXT,
+  client TEXT NOT NULL,
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER NOT NULL,
+  seconds_watched REAL NOT NULL DEFAULT 0,
+  start_position REAL NOT NULL,
+  end_position REAL NOT NULL,
+  duration REAL,
+  completed INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE server_samples (
@@ -378,7 +403,7 @@ El original nunca se borra automáticamente. El Admin ofrecerá borrar los origi
 1. El Player pide el detalle de un contenido. La respuesta incluye sus archivos, subtítulos y progreso.
 2. El Player comprueba con `video.canPlayType()` que puede reproducir el códec del archivo. Si no puede, muestra el motivo.
 3. El Player reproduce `/api/files/{id}/stream` desde la posición guardada.
-4. Los subtítulos `.srt` se convierten a WebVTT al vuelo.
+4. Los subtítulos se piden como `<track>` a `/api/subtitles/{id}`: ya están en WebVTT desde que se agregaron.
 5. El Player envía la posición y el estado (reproduciendo o en pausa) cada 10 segundos, al pausar y al salir.
 
 El servidor guarda la última posición recibida. Retroceder reduce la posición guardada. Un contenido se marca como visto al superar el 90% de su duración.
@@ -461,6 +486,8 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Bandeja de entrada: listar, subir, descartar | `GET /api/admin/uploads`, `POST /api/admin/uploads?name=`, `DELETE /api/admin/uploads/{name}` |
 | Analizar archivos | `POST /api/admin/imports/analyze` |
 | Confirmar una importación | `POST /api/admin/imports` |
+| Agregar un subtítulo a un archivo (el cuerpo es el archivo) | `POST /api/admin/files/{id}/subtitles?name=&language=&forced=` |
+| Quitar un subtítulo (y sus archivos) | `DELETE /api/admin/subtitles/{id}` |
 | Consultar la cola | `GET /api/admin/jobs` |
 | Cancelar o reintentar un trabajo | `POST /api/admin/jobs/{id}/cancel`, `POST /api/admin/jobs/{id}/retry` |
 | Editar un contenido | `PATCH /api/admin/contents/{id}` |

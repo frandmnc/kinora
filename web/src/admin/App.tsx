@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useApi } from '../shared/useApi'
 import type { Health } from '../shared/types/Health'
 import { LibrariesPage } from './pages/LibrariesPage'
+import { LibraryPage } from './pages/LibraryPage'
 import { ImportPage } from './pages/ImportPage'
 import { DatabasePage } from './pages/DatabasePage'
 import { StatusPage } from './pages/StatusPage'
@@ -19,6 +20,7 @@ export function App() {
             <Route path="/" element={<Navigate to="/status" replace />} />
             <Route path="/status" element={<StatusPage />} />
             <Route path="/libraries" element={<LibrariesPage />} />
+            <Route path="/libraries/:id" element={<LibraryPage />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/database" element={<DatabasePage />} />

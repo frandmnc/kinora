@@ -16,7 +16,7 @@ use crate::contents::ContentKind;
 use crate::contents::repo::{NewContent, NewMediaFile, insert_content, insert_media_file};
 use crate::error::{AppError, AppResult};
 use crate::probe::{self, Analysis};
-use crate::{libraries, uploads};
+use crate::{libraries, subtitles, uploads};
 
 /// POST /api/admin/imports/analyze
 pub async fn analyze(
@@ -46,6 +46,7 @@ async fn analyze_file(path: &Path) -> FileAnalysis {
         duration: None,
         video: None,
         audio: Vec::new(),
+        subtitles: Vec::new(),
         problems: Vec::new(),
         error: None,
     };
@@ -74,6 +75,7 @@ async fn analyze_file(path: &Path) -> FileAnalysis {
                     }
                 })
                 .collect();
+            analysis.subtitles = subtitles::describe(&probe);
             analysis.problems = probe.problems(path);
         }
     }
@@ -206,10 +208,25 @@ pub async fn create(
     // 3. Mover y registrar cada archivo. Si uno falla, los demás siguen.
     let mut files = Vec::new();
     for (file, content_id) in planned.iter().zip(file_content_ids) {
+        let tracks = subtitles::find_tracks(&file.analysis.probe);
         let result = move_and_register(&state, &root, content_id, file).await;
+        let attached = match &result {
+            Ok(media_file_id) => {
+                subtitles::attach_subtitles(
+                    &state.db,
+                    &root,
+                    *media_file_id,
+                    &file.rel_path,
+                    tracks,
+                )
+                .await
+            }
+            Err(_) => 0,
+        };
         files.push(ImportedFile {
             file: file_name(&file.source),
             destination: result.is_ok().then(|| file.rel_path.clone()),
+            subtitles: attached as i64,
             error: result.err().map(|err| format!("{err:#}")),
         });
     }
@@ -231,7 +248,7 @@ async fn move_and_register(
     root: &Path,
     content_id: i64,
     file: &PlannedFile,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<i64> {
     let destination = root.join(&file.rel_path);
     if destination.exists() {
         bail!("ya existe {}", destination.display());
@@ -273,8 +290,8 @@ async fn move_and_register(
         probe_json: file.analysis.json.clone(),
         source_path: file_name(&file.source),
     };
-    insert_media_file(&mut *state.db.acquire().await?, &media_file).await?;
-    Ok(())
+    let id = insert_media_file(&mut *state.db.acquire().await?, &media_file).await?;
+    Ok(id)
 }
 
 fn clean_title(title: &str) -> AppResult<String> {

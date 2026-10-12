@@ -15,6 +15,9 @@ use tracing::info;
 use super::{Content, ContentDetail, ContentKind, MediaFile, PlaybackReport, Progress, repo};
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
+use crate::monitor::SessionStep;
+use crate::playback;
+use crate::subtitles::{self, SubtitleTrack};
 
 #[derive(Deserialize)]
 pub struct ListParams {
@@ -43,7 +46,15 @@ pub async fn detail(
 
     // Agrupar hijos por padre, archivos y progreso por contenido, y armar el árbol desde la raíz.
     let mut parts = TreeParts::default();
-    for file in repo::files_of(&state.db, &ids).await? {
+    let files = repo::files_of(&state.db, &ids).await?;
+    let file_ids: Vec<i64> = files.iter().map(|f| f.id).collect();
+    let content_of_file: HashMap<i64, i64> = files.iter().map(|f| (f.id, f.content_id)).collect();
+    for track in subtitles::repo::for_files(&state.db, &file_ids).await? {
+        if let Some(content_id) = content_of_file.get(&track.media_file_id) {
+            parts.subtitles.entry(*content_id).or_default().push(track);
+        }
+    }
+    for file in files {
         parts.files.entry(file.content_id).or_default().push(file);
     }
     for progress in repo::progress_of(&state.db, &ids).await? {
@@ -69,6 +80,7 @@ struct TreeParts {
     children: HashMap<i64, Vec<Content>>,
     files: HashMap<i64, Vec<MediaFile>>,
     progress: HashMap<i64, Progress>,
+    subtitles: HashMap<i64, Vec<SubtitleTrack>>,
 }
 
 /// Arma el árbol de forma recursiva. Cada pieza se mueve (no se copia) a su lugar.
@@ -78,6 +90,7 @@ fn build_tree(content: Content, parts: &mut TreeParts) -> ContentDetail {
     ContentDetail {
         files: parts.files.remove(&content.id).unwrap_or_default(),
         progress: parts.progress.remove(&content.id),
+        subtitles: parts.subtitles.remove(&content.id).unwrap_or_default(),
         children: kids
             .into_iter()
             .map(|child| build_tree(child, parts))
@@ -105,14 +118,46 @@ pub async fn report_progress(
         .is_some_and(|duration| duration > 0.0 && position >= duration * WATCHED_AT);
     repo::save_progress(&state.db, id, position, report.duration, watched).await?;
 
-    state.monitor.report_viewer(
-        client.ip().to_string(),
+    let client_ip = client.ip().to_string();
+    let viewer = state.monitor.report_viewer(
+        client_ip.clone(),
         id,
-        title,
+        title.clone(),
         position,
         report.duration,
         report.state,
     );
+    if viewer.watched > 0.0 {
+        playback::repo::add_seconds(&state.db, &playback::local_day(0), id, viewer.watched).await?;
+    }
+
+    // Historial: una sesión por visualización, actualizada con cada aviso.
+    match viewer.session {
+        SessionStep::Start => {
+            let session = playback::repo::start_session(
+                &state.db,
+                id,
+                &title,
+                &client_ip,
+                position,
+                report.duration,
+            )
+            .await?;
+            state.monitor.set_session(&client_ip, id, session);
+        }
+        SessionStep::Update(session) => {
+            playback::repo::update_session(
+                &state.db,
+                session,
+                viewer.watched,
+                position,
+                report.duration,
+                watched,
+            )
+            .await?;
+        }
+        SessionStep::Pending => {}
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

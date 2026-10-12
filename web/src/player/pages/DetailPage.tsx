@@ -1,8 +1,10 @@
-import { Link, useParams } from 'react-router'
+import { useParams } from 'react-router'
+import { ArrowLeft, Play } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
 import { formatDuration } from '../../shared/format'
 import type { ContentDetail } from '../../shared/types/ContentDetail'
 import { Poster } from '../Poster'
+import { FocusGroup, FocusableLink } from '../focus'
 import { Message } from './HomePage'
 
 /** Detalle de una película o una serie. En una serie lista temporadas y episodios. */
@@ -15,14 +17,18 @@ export function DetailPage() {
 
   const { content } = detail
   const seasons = detail.children
+  const next = content.kind === 'show' ? nextEpisode(detail) : undefined
+  const playable = content.kind === 'movie' ? (detail.files.length > 0 ? detail : undefined) : next?.episode
 
   return (
-    <div className="screen">
-      <Link to="/" className="back">
-        ← Inicio
-      </Link>
+    // El foco arranca en el botón de reproducir.
+    <FocusGroup className="screen" autoFocus preferredChildFocusKey={playable ? 'PLAY' : undefined}>
+      <FocusableLink to="/" className="back">
+        <ArrowLeft size={20} /> Inicio
+      </FocusableLink>
+
       <div className="detail-header">
-        <Poster content={content} />
+        <Poster title={content.title} />
         <div>
           <h1>{content.title}</h1>
           <p className="meta">
@@ -31,16 +37,19 @@ export function DetailPage() {
               .join(' · ')}
           </p>
           {content.overview && <p className="overview">{content.overview}</p>}
-          {content.kind === 'movie' &&
-            (detail.files.length > 0 ? (
-              <Link to={`/play/${content.id}`} state={{ title: content.title }} className="play-button" autoFocus>
-                {detail.progress && !detail.progress.watched
-                  ? `▶ Continuar (${formatDuration(detail.progress.position)})`
-                  : '▶ Reproducir'}
-              </Link>
-            ) : (
-              <p className="meta">Sin archivo para reproducir.</p>
-            ))}
+          {playable ? (
+            <FocusableLink
+              focusKey="PLAY"
+              to={`/play/${playable.content.id}`}
+              state={{ title: next ? `${content.title} · ${next.label}` : content.title }}
+              className="play-button"
+            >
+              <Play size={22} fill="currentColor" />
+              {playLabel(playable, next?.label)}
+            </FocusableLink>
+          ) : (
+            <p className="meta">Sin archivo para reproducir.</p>
+          )}
         </div>
       </div>
 
@@ -51,16 +60,15 @@ export function DetailPage() {
           <ol className="episodes">
             {season.children.map((episode) => {
               const title = `${content.title} · T${season.content.number} E${episode.content.number}`
-              const playable = episode.files.length > 0
               return (
                 <li key={episode.content.id}>
-                  {playable ? (
-                    <Link to={`/play/${episode.content.id}`} state={{ title }} className="episode">
+                  {episode.files.length > 0 ? (
+                    <FocusableLink to={`/play/${episode.content.id}`} state={{ title }} className="episode">
                       <span className="episode-number">{episode.content.number}</span>
                       <span className="episode-title">{episode.content.title}</span>
                       <ProgressMark detail={episode} />
                       <span className="meta">{duration(episode)}</span>
-                    </Link>
+                    </FocusableLink>
                   ) : (
                     <div className="episode unavailable">
                       <span className="episode-number">{episode.content.number}</span>
@@ -74,8 +82,27 @@ export function DetailPage() {
           </ol>
         </section>
       ))}
-    </div>
+    </FocusGroup>
   )
+}
+
+/** El episodio a reproducir: el primero (en orden) que no esté visto; si todos lo están, el primero. */
+function nextEpisode(show: ContentDetail) {
+  const episodes = show.children.flatMap((season) =>
+    season.children
+      .filter((episode) => episode.files.length > 0)
+      .map((episode) => ({ episode, label: `T${season.content.number} E${episode.content.number}` })),
+  )
+  return episodes.find(({ episode }) => !episode.progress?.watched) ?? episodes[0]
+}
+
+function playLabel(playable: ContentDetail, episodeLabel?: string) {
+  const progress = playable.progress
+  const resuming = progress && !progress.watched && progress.position > 10
+  const action = resuming ? 'Continuar' : 'Reproducir'
+  const what = episodeLabel ? ` ${episodeLabel}` : ''
+  const at = resuming ? ` (${formatDuration(progress.position)})` : ''
+  return `${action}${what}${at}`
 }
 
 /** "✓ Visto", una barra con el avance, o nada si no se empezó. */

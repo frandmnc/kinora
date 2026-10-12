@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import { Check, Folder, LibraryBig, Pencil, Plus, Trash, X } from 'lucide-react'
+import { Check, Folder, FolderOpen, LibraryBig, Pencil, Plus, Trash, X } from 'lucide-react'
 import { api } from '../../shared/api'
 import { useApi } from '../../shared/useApi'
 import type { Library } from '../../shared/types/Library'
@@ -162,7 +162,9 @@ function LibraryRow({
             </button>
           </form>
         ) : (
-          <strong>{library.name}</strong>
+          <Link to={`/libraries/${library.id}`} className="library-link">
+            {library.name}
+          </Link>
         )}
       </td>
       <td>
@@ -174,6 +176,9 @@ function LibraryRow({
       <td className="actions-cell">
         {!editing && (
           <>
+            <Link to={`/libraries/${library.id}`} className="btn btn-ghost btn-sm">
+              <FolderOpen /> Ver contenido
+            </Link>
             <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
               <Pencil /> Renombrar
             </button>

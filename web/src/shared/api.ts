@@ -19,6 +19,8 @@ export class ApiError extends Error {
 type Options = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
+  /** Un archivo como cuerpo, tal cual (en lugar de `body` en JSON). */
+  file?: Blob
   /** El pedido se completa aunque la página se cierre (para el último aviso del reproductor). */
   keepalive?: boolean
 }
@@ -27,8 +29,12 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
   const hasBody = options.body !== undefined
   const response = await fetch(serverUrl + path, {
     method: options.method ?? 'GET',
-    headers: hasBody ? { 'content-type': 'application/json' } : undefined,
-    body: hasBody ? JSON.stringify(options.body) : undefined,
+    headers: options.file
+      ? { 'content-type': 'application/octet-stream' }
+      : hasBody
+        ? { 'content-type': 'application/json' }
+        : undefined,
+    body: options.file ?? (hasBody ? JSON.stringify(options.body) : undefined),
     keepalive: options.keepalive,
   })
 

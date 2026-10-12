@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState, type DragEvent, type FormEvent } from 'r
 import { Link } from 'react-router'
 import {
   ArrowLeft,
+  Captions,
   Check,
   CircleCheck,
   CircleX,
@@ -301,6 +302,7 @@ function AnalysisTable({ files }: { files: FileAnalysis[] }) {
               <th>Duración</th>
               <th>Video</th>
               <th>Audio</th>
+              <th>Subtítulos</th>
               <th>Estado</th>
             </tr>
           </thead>
@@ -314,6 +316,7 @@ function AnalysisTable({ files }: { files: FileAnalysis[] }) {
                 <td className="secondary">{formatDuration(file.duration)}</td>
                 <td className="secondary">{file.video ?? '—'}</td>
                 <td className="secondary">{file.audio.join(', ') || '—'}</td>
+                <td className="secondary">{file.subtitles.join(', ') || '—'}</td>
                 <td>
                   {file.error ? (
                     <Badge tone="critical" icon={CircleX}>
@@ -533,6 +536,11 @@ function ResultView({ result, onRestart }: { result: ImportResult; onRestart: ()
             <>
               <CircleCheck className="icon" color="var(--good)" />
               <span className="mono grow">{file.destination}</span>
+              {file.subtitles > 0 && (
+                <Badge icon={Captions}>
+                  {file.subtitles} subtítulo{file.subtitles === 1 ? '' : 's'}
+                </Badge>
+              )}
             </>
           )}
         </div>

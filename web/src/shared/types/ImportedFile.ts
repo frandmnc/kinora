@@ -4,4 +4,8 @@ export type ImportedFile = { file: string,
 /**
  * Ruta final dentro de la biblioteca, si salió bien.
  */
-destination: string | null, error: string | null, };
+destination: string | null, 
+/**
+ * Cuántas pistas de subtítulos quedaron.
+ */
+subtitles: number, error: string | null, };

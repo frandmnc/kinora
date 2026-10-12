@@ -1,17 +1,21 @@
-/* El Player siempre es oscuro y grande: se diseña para la TV (1920×1080, a 3 metros). */
+/* El Player siempre es oscuro y grande: se diseña para la TV (1920×1080, a 3 metros).
+   Mismo lenguaje que el Admin: DM Sans y el coral de la marca para el avance. */
 :root {
-  --player-bg: #0b0b0d;
-  --player-surface: #18181c;
-  --player-surface-2: #23232a;
-  --player-text: #f1f1f3;
-  --player-muted: #9a9aa3;
-  --player-focus: #f5c84c;
   color-scheme: dark;
+  --player-bg: #0e0e0e;
+  --player-surface: #1b1b1b;
+  --player-surface-2: #262626;
+  --player-text: #f7f7f7;
+  --player-muted: #a3a3a3;
+  --brand: #ff385c;
+  --brand-gradient: linear-gradient(90deg, #e61e4d 0%, #e31c5f 50%, #d70466 100%);
+  --focus: #ffffff;
 }
 
 body {
   background: var(--player-bg);
   color: var(--player-text);
+  font-family: 'DM Sans Variable', system-ui, sans-serif;
   font-size: 20px;
 }
 
@@ -20,10 +24,17 @@ a {
   text-decoration: none;
 }
 
-/* El foco tiene que verse desde el sillón: es lo que reemplaza al mouse. */
+/* El foco tiene que verse desde el sillón: es lo que reemplaza al mouse.
+   `is-focused` lo pone la navegación con flechas; `:focus-visible`, el teclado. */
+a:focus,
+button:focus {
+  outline: none;
+}
+
+.is-focused,
 a:focus-visible,
 button:focus-visible {
-  outline: 4px solid var(--player-focus);
+  outline: 4px solid var(--focus);
   outline-offset: 4px;
 }
 
@@ -32,10 +43,11 @@ button:focus-visible {
 }
 
 .brand-bar {
-  font-size: 36px;
+  font-size: 34px;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  margin-bottom: 32px;
+  letter-spacing: -0.03em;
+  color: var(--brand);
+  margin-bottom: 28px;
 }
 
 .message {
@@ -53,25 +65,31 @@ button:focus-visible {
   color: var(--player-text);
   font-size: 40px;
   margin: 0 0 12px;
+  letter-spacing: -0.02em;
 }
 
 /* Inicio */
 
 .shelf {
-  margin-bottom: 40px;
+  margin-bottom: 36px;
 }
 
 .shelf h2 {
   font-size: 26px;
-  margin: 0 0 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
 }
 
 .shelf-row {
   display: flex;
   gap: 28px;
   overflow-x: auto;
-  padding: 8px 8px 16px;
-  margin: -8px;
+  scrollbar-width: none;
+  padding: 10px 10px 18px;
+  margin: -10px;
+  /* Al moverse con las flechas, el elemento enfocado no queda pegado al borde. */
+  scroll-padding: 0 60px;
 }
 
 .card {
@@ -79,33 +97,38 @@ button:focus-visible {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  border-radius: 10px;
+  gap: 2px;
+  border-radius: 8px;
+  outline-offset: 6px !important;
 }
 
 .card .poster {
   transition: transform 0.15s;
 }
 
-.card:focus-visible .poster,
+.card.is-focused .poster,
 .card:hover .poster {
   transform: scale(1.04);
 }
 
 .card-title {
-  font-weight: 600;
-  margin-top: 6px;
+  font-weight: 700;
+  margin-top: 8px;
 }
 
-.card-year {
+.card-sub {
   color: var(--player-muted);
   font-size: 17px;
+}
+
+.poster-wrap {
+  position: relative;
 }
 
 .poster {
   aspect-ratio: 2 / 3;
   width: 100%;
-  border-radius: 10px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -118,14 +141,32 @@ button:focus-visible {
   color: rgb(255 255 255 / 0.85);
 }
 
+.poster-progress {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.25);
+  overflow: hidden;
+}
+
+.poster-progress div {
+  height: 100%;
+  background: var(--brand);
+}
+
 /* Detalle */
 
 .back {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--player-muted);
   margin-bottom: 28px;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
 }
 
 .detail-header {
@@ -142,8 +183,9 @@ button:focus-visible {
 
 .detail-header h1 {
   font-size: 56px;
+  font-weight: 800;
   margin: 0 0 8px;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .meta {
@@ -156,13 +198,15 @@ button:focus-visible {
 }
 
 .play-button {
-  display: inline-block;
-  margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
   background: var(--player-text);
   color: var(--player-bg);
   border: none;
   border-radius: 8px;
-  padding: 14px 32px;
+  padding: 14px 30px;
   font-size: 22px;
   font-weight: 700;
   cursor: pointer;
@@ -185,13 +229,13 @@ button:focus-visible {
   align-items: center;
   gap: 24px;
   padding: 18px 20px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--player-surface);
   margin-bottom: 10px;
 }
 
 a.episode:hover,
-a.episode:focus-visible {
+a.episode.is-focused {
   background: var(--player-surface-2);
 }
 
@@ -212,44 +256,6 @@ a.episode:focus-visible {
   font-weight: 600;
 }
 
-/* Reproductor */
-
-.player {
-  position: fixed;
-  inset: 0;
-  background: #000;
-}
-
-.player video {
-  width: 100%;
-  height: 100%;
-}
-
-.player-back {
-  position: absolute;
-  top: 24px;
-  left: 24px;
-  z-index: 1;
-  background: rgb(0 0 0 / 0.6);
-  color: var(--player-text);
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.player-toast {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  background: rgb(0 0 0 / 0.7);
-  border-radius: 8px;
-  padding: 10px 18px;
-}
-
-/* Progreso en la lista de episodios */
-
 .episode-progress {
   width: 120px;
   height: 6px;
@@ -260,12 +266,155 @@ a.episode:focus-visible {
 
 .episode-progress div {
   height: 100%;
-  background: var(--player-focus);
+  background: var(--brand);
 }
 
 .watched {
   color: var(--player-muted);
   font-size: 17px;
+}
+
+/* Reproductor */
+
+.player {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  cursor: none;
+}
+
+.player.show-controls {
+  cursor: default;
+}
+
+.player video {
+  width: 100%;
+  height: 100%;
+}
+
+.player-top,
+.player-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: 28px 40px;
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+
+.show-controls .player-top,
+.show-controls .player-bottom {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.player-top {
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(rgb(0 0 0 / 0.7), transparent);
+}
+
+.player-title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.player-bottom {
+  bottom: 0;
+  padding-top: 60px;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.8));
+}
+
+.player-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.25);
+  cursor: pointer;
+  overflow: hidden;
+  margin-bottom: 14px;
+  transition: height 0.15s;
+}
+
+.player-progress:hover {
+  height: 10px;
+}
+
+.player-progress-fill {
+  height: 100%;
+  background: var(--brand-gradient);
+}
+
+.player-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.player-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+}
+
+.player-hint {
+  margin-left: auto;
+  font-size: 15px;
+  color: var(--player-muted);
+}
+
+.player-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.12);
+  color: var(--player-text);
+  cursor: pointer;
+}
+
+.player-icon:hover {
+  background: rgb(255 255 255 / 0.24);
+}
+
+.player-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.player-center,
+.player-flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.player-center {
+  display: grid;
+  place-items: center;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.player-center svg {
+  width: 48px;
+  height: 48px;
+  margin-left: 6px;
+}
+
+.player-flash {
+  background: rgb(0 0 0 / 0.65);
+  border-radius: 8px;
+  padding: 12px 22px;
+  font-size: 24px;
+  font-weight: 700;
 }
 
 /* Celular y pantallas angostas: el Player se diseña para la TV, esto solo lo hace usable. */
@@ -291,7 +440,7 @@ a.episode:focus-visible {
     width: 130px;
   }
 
-  .card-year {
+  .card-sub {
     font-size: 14px;
   }
 
@@ -312,6 +461,11 @@ a.episode:focus-visible {
     font-size: 32px;
   }
 
+  .play-button {
+    font-size: 18px;
+    padding: 12px 22px;
+  }
+
   .episode {
     gap: 12px;
     padding: 14px 12px;
@@ -326,17 +480,124 @@ a.episode:focus-visible {
     width: 60px;
   }
 
-  .player-back,
-  .player-toast {
+  .player-top,
+  .player-bottom {
+    padding: 16px;
+  }
+
+  .player-bottom {
+    padding-top: 40px;
+  }
+
+  .player-title {
+    font-size: 17px;
+  }
+
+  .player-hint {
+    display: none;
+  }
+
+  .player-time {
     font-size: 15px;
-    top: 12px;
+    margin-right: auto;
   }
+}
 
-  .player-back {
-    left: 12px;
+/* Cargando y subtítulos */
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
+}
 
-  .player-toast {
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+.player-center .spin {
+  width: 56px;
+  height: 56px;
+  margin: 0;
+}
+
+.player-center .play-icon {
+  margin-left: 6px;
+}
+
+.player-icon.active {
+  background: var(--player-text);
+  color: var(--player-bg);
+}
+
+.subtitle-menu {
+  position: absolute;
+  right: 40px;
+  bottom: 130px;
+  min-width: 320px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgb(20 20 20 / 0.92);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+}
+
+.subtitle-menu-title {
+  font-size: 15px;
+  color: var(--player-muted);
+  padding: 6px 12px 10px;
+}
+
+.subtitle-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--player-text);
+  font-size: 19px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subtitle-option.highlighted {
+  background: var(--player-text);
+  color: var(--player-bg);
+}
+
+.subtitle-option .check {
+  width: 22px;
+  display: grid;
+  place-items: center;
+}
+
+.subtitle-option .check svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* El texto de los subtítulos, legible desde el sillón. */
+.player video::cue {
+  font-family: 'DM Sans Variable', system-ui, sans-serif;
+  font-size: 2.6vh;
+  line-height: 1.35;
+  color: #ffffff;
+  background: rgb(0 0 0 / 0.6);
+}
+
+@media (max-width: 700px) {
+  .subtitle-menu {
     right: 12px;
+    left: 12px;
+    bottom: 100px;
+    min-width: 0;
   }
 }

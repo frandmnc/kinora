@@ -4,10 +4,18 @@ import { mediaUrl } from './api'
 import type { InboxFile } from './types/InboxFile'
 
 const VIDEO_EXTENSIONS = ['mkv', 'mp4', 'm4v', 'mov', 'avi', 'webm', 'ts', 'm2ts']
+const SUBTITLE_EXTENSIONS = ['srt', 'ass', 'ssa', 'vtt']
+
+function extension(name: string) {
+  return name.split('.').pop()?.toLowerCase() ?? ''
+}
 
 export function isVideo(name: string) {
-  const extension = name.split('.').pop()?.toLowerCase() ?? ''
-  return VIDEO_EXTENSIONS.includes(extension) && !name.startsWith('.')
+  return VIDEO_EXTENSIONS.includes(extension(name)) && !name.startsWith('.')
+}
+
+export function isSubtitle(name: string) {
+  return SUBTITLE_EXTENSIONS.includes(extension(name)) && !name.startsWith('.')
 }
 
 /**

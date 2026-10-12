@@ -11,6 +11,10 @@ video: string | null,
  */
 audio: Array<string>, 
 /**
+ * Ej. ["Español (ASS)", "Inglés (SRT, archivo)"].
+ */
+subtitles: Array<string>, 
+/**
  * Diferencias con el formato de Kinora. Vacía = se puede importar copiando.
  */
 problems: Array<string>, 

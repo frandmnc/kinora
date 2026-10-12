@@ -225,3 +225,38 @@ export function StatTile({
     </div>
   )
 }
+
+/**
+ * Barras de pocos valores (por ejemplo, los últimos 7 días). Barras finas con la punta
+ * redondeada sobre una línea base; la última (el período actual) va resaltada.
+ * Cada barra tiene su texto al pasar el mouse.
+ */
+export function MiniBars({ values, labels, label }: { values: number[]; labels: string[]; label: string }) {
+  const width = 200
+  const height = 34
+  const top = Math.max(...values, 1e-9)
+  const slot = width / values.length
+  const barWidth = Math.min(16, slot * 0.55)
+  return (
+    <svg className="sparkline" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}>
+      {values.map((value, i) => {
+        const h = Math.max((value / top) * (height - 4), value > 0 ? 3 : 1.5)
+        const x = i * slot + (slot - barWidth) / 2
+        const current = i === values.length - 1
+        return (
+          <rect
+            key={labels[i]}
+            x={x}
+            y={height - h}
+            width={barWidth}
+            height={h}
+            rx={Math.min(4, barWidth / 2)}
+            fill={current ? 'var(--accent)' : 'var(--deemph)'}
+          >
+            <title>{labels[i]}</title>
+          </rect>
+        )
+      })}
+    </svg>
+  )
+}

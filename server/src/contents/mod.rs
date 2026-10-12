@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::app::AppState;
+use crate::subtitles::SubtitleTrack;
 
 /// Se guarda como texto en la columna `kind`: "movie", "show", "season", "episode".
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, sqlx::Type, TS)]
@@ -61,6 +62,8 @@ pub struct ContentDetail {
     pub files: Vec<MediaFile>,
     /// Solo en películas y episodios que ya se empezaron a ver.
     pub progress: Option<Progress>,
+    /// Los subtítulos de sus archivos.
+    pub subtitles: Vec<SubtitleTrack>,
     pub children: Vec<ContentDetail>,
 }
 

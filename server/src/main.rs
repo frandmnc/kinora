@@ -10,8 +10,10 @@ mod imports;
 mod libraries;
 mod monitor;
 mod naming;
+mod playback;
 mod probe;
 mod settings;
+mod subtitles;
 mod uploads;
 mod web;
 

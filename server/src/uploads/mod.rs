@@ -67,11 +67,12 @@ fn validate_name(name: &str) -> AppResult<()> {
             "\"{name}\" no es un nombre de archivo válido"
         )));
     }
-    let is_video = Path::new(name)
+    let extension = Path::new(name)
         .extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|e| VIDEO_EXTENSIONS.contains(&e.to_lowercase().as_str()));
-    if !is_video {
+        .map(str::to_lowercase)
+        .unwrap_or_default();
+    if !VIDEO_EXTENSIONS.contains(&extension.as_str()) {
         return Err(AppError::BadRequest(format!("{name} no es un video")));
     }
     Ok(())
@@ -88,5 +89,6 @@ mod tests {
         assert!(validate_name("a/b.mkv").is_err());
         assert!(validate_name(".oculto.mkv").is_err());
         assert!(validate_name("notas.txt").is_err());
+        assert!(validate_name("Frieren - 01.spa.srt").is_err());
     }
 }

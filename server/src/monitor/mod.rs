@@ -51,6 +51,43 @@ pub struct Viewer {
     #[serde(skip)]
     #[ts(skip)]
     last_seen: Instant,
+    /// La fila de `playback_sessions` de esta visualización, cuando ya se creó.
+    #[serde(skip)]
+    #[ts(skip)]
+    session_id: Option<i64>,
+}
+
+/// Qué hacer con el historial después de un aviso del reproductor.
+#[derive(Debug, PartialEq)]
+pub enum SessionStep {
+    /// Empezó a mirar: hay que crear la sesión.
+    Start,
+    /// Sigue (o terminó) una sesión ya creada.
+    Update(i64),
+    /// La sesión se está creando todavía: este aviso se saltea.
+    Pending,
+}
+
+#[derive(Debug)]
+pub struct ViewerReport {
+    /// Segundos de reproducción desde el aviso anterior.
+    pub watched: f64,
+    pub session: SessionStep,
+}
+
+impl Viewer {
+    fn session_step(&self) -> SessionStep {
+        self.session_id
+            .map_or(SessionStep::Pending, SessionStep::Update)
+    }
+
+    fn watched_since_last_report(&self) -> f64 {
+        if self.playing {
+            self.last_seen.elapsed().min(VIEWER_TIMEOUT).as_secs_f64()
+        } else {
+            0.0
+        }
+    }
 }
 
 /// Una descarga de video en curso (un pedido HTTP que todavía está enviando datos).
@@ -148,6 +185,10 @@ impl Monitor {
     }
 
     /// Actualiza "viendo ahora" con lo que informa un Player, y anota los cambios en la terminal.
+    ///
+    /// Devuelve los segundos de reproducción desde el aviso anterior: el tiempo real transcurrido
+    /// si estaba reproduciendo, con un tope (si la TV se apagó sin avisar, no se cuentan horas).
+    /// Así adelantar no suma tiempo y una pausa tampoco.
     pub fn report_viewer(
         &self,
         client: String,
@@ -156,21 +197,31 @@ impl Monitor {
         position: f64,
         duration: Option<f64>,
         state: PlaybackState,
-    ) {
+    ) -> ViewerReport {
         let mut viewers = self.viewers.lock().unwrap();
         let key = (client.clone(), content_id);
         let at = clock(position);
 
         if state == PlaybackState::Stopped {
-            if viewers.remove(&key).is_some() {
-                info!("■ {client} stopped watching {title} at {at}");
-            }
-            return;
+            return match viewers.remove(&key) {
+                Some(viewer) => {
+                    info!("■ {client} stopped watching {title} at {at}");
+                    ViewerReport {
+                        watched: viewer.watched_since_last_report(),
+                        session: viewer.session_step(),
+                    }
+                }
+                None => ViewerReport {
+                    watched: 0.0,
+                    session: SessionStep::Pending,
+                },
+            };
         }
 
         let playing = state == PlaybackState::Playing;
         match viewers.get_mut(&key) {
             Some(viewer) => {
+                let watched = viewer.watched_since_last_report();
                 if viewer.playing != playing {
                     if playing {
                         info!("▶ {client} resumed {title} at {at}");
@@ -182,6 +233,10 @@ impl Monitor {
                 viewer.duration = duration;
                 viewer.playing = playing;
                 viewer.last_seen = Instant::now();
+                ViewerReport {
+                    watched,
+                    session: viewer.session_step(),
+                }
             }
             None => {
                 info!("▶ {client} started watching {title} from {at}");
@@ -196,9 +251,26 @@ impl Monitor {
                         playing,
                         started_at: crate::db::now(),
                         last_seen: Instant::now(),
+                        session_id: None,
                     },
                 );
+                ViewerReport {
+                    watched: 0.0,
+                    session: SessionStep::Start,
+                }
             }
+        }
+    }
+
+    /// Anota la sesión de historial creada para una visualización.
+    pub fn set_session(&self, client: &str, content_id: i64, session_id: i64) {
+        if let Some(viewer) = self
+            .viewers
+            .lock()
+            .unwrap()
+            .get_mut(&(client.to_string(), content_id))
+        {
+            viewer.session_id = Some(session_id);
         }
     }
 
@@ -310,8 +382,13 @@ mod tests {
             )
         };
 
-        report(PlaybackState::Playing);
-        report(PlaybackState::Paused);
+        assert_eq!(report(PlaybackState::Playing).session, SessionStep::Start);
+        assert_eq!(report(PlaybackState::Paused).session, SessionStep::Pending);
+        monitor.set_session("tv", 3, 42);
+        assert_eq!(
+            report(PlaybackState::Paused).session,
+            SessionStep::Update(42)
+        );
         let viewers = monitor.status().viewers;
         assert_eq!(viewers.len(), 1);
         assert!(!viewers[0].playing);
