@@ -15,12 +15,12 @@ pub async fn connect(data_dir: &Path) -> Result<SqlitePool> {
     let db = SqlitePoolOptions::new()
         .connect_with(options)
         .await
-        .context("no se pudo abrir la base de datos")?;
+        .context("could not open the database")?;
 
     sqlx::migrate!()
         .run(&db)
         .await
-        .context("no se pudieron aplicar las migraciones")?;
+        .context("could not apply the migrations")?;
 
     Ok(db)
 }

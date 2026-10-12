@@ -1,16 +1,6 @@
-# Configuración de Kinora
+# Configuración de Kinora: lo que hace falta antes de abrir la base de datos.
+# La carpeta media y lo demás se configuran desde el Admin.
 
-bind = "0.0.0.0"     # 127.0.0.1 para aceptar conexiones solo desde esta computadora
+bind = "0.0.0.0"           # 127.0.0.1 para aceptar conexiones solo desde esta computadora
 port = 8090
 data_dir = "~/.kinora"     # base de datos
-
-# Carpeta donde Kinora guarda todo lo importado. Cada biblioteca es una subcarpeta
-# que crea y administra Kinora.
-media_dir = "~/Movies/Kinora"
-
-# Carpetas desde las que se puede importar
-import_sources = [
-  "~/Downloads",
-  "~/Desktop",
-  "~/work/personal/hronir-media-server/pruebas/origen",
-]

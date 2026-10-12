@@ -364,3 +364,231 @@ input.narrow {
   font-family: var(--mono);
   font-size: 13px;
 }
+
+/* Estado */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-detail {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.small {
+  font-size: 13px;
+}
+
+.position {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+/* Zona para soltar archivos */
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 140px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dropzone:hover,
+.dropzone.dragging {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.uploads {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.uploads li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.file-row button {
+  padding: 2px 10px;
+  font-size: 13px;
+}
+
+/* Configuración y explorador de carpetas */
+
+.card-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 20px 20px;
+  max-width: 820px;
+}
+
+.folder-picker {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--bg);
+}
+
+.picker-shortcuts,
+.picker-path,
+.picker-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.picker-path {
+  margin: 10px 0;
+}
+
+.picker-folders {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.picker-folders button {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 6px 8px;
+}
+
+.picker-folders li.muted {
+  padding: 6px 8px;
+}
+
+.move-choice {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 16px 16px;
+  background: var(--bg);
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+button.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 14px 16px;
+  background: var(--surface);
+}
+
+button.choice:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button.choice span {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Uso de la carpeta media */
+
+.usage {
+  margin-top: 20px;
+}
+
+.usage h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.disk-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--surface-2);
+  margin-bottom: 6px;
+}
+
+.disk-bar .kinora,
+.dot.kinora {
+  background: var(--accent);
+}
+
+/* Al lado de un disco de cientos de GB, la parte de Kinora puede ser invisible: siempre se ve un poco. */
+.disk-bar .kinora {
+  min-width: 3px;
+}
+
+.disk-bar .other,
+.dot.other {
+  background: var(--text-muted);
+  opacity: 0.45;
+}
+
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  vertical-align: middle;
+}

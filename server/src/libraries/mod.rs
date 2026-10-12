@@ -10,7 +10,7 @@ use ts_rs::TS;
 
 use crate::app::AppState;
 
-pub use repo::find;
+pub use repo::{find, list_all};
 
 #[derive(Debug, Serialize, sqlx::FromRow, TS)]
 #[ts(export)]
@@ -19,6 +19,11 @@ pub struct Library {
     pub name: String,
     /// Nombre de la carpeta dentro de `media_dir`.
     pub dir: String,
+}
+
+/// Rutas del Player. Se montan bajo /api.
+pub fn routes() -> Router<AppState> {
+    Router::new().route("/libraries", get(handlers::list))
 }
 
 /// Rutas del Admin. Se montan bajo /api/admin.

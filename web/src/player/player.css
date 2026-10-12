@@ -1,26 +1,342 @@
-/* El Player siempre es oscuro: se diseña para la TV. */
-body {
-  background: #0b0b0d;
-  color: #f1f1f1;
+/* El Player siempre es oscuro y grande: se diseña para la TV (1920×1080, a 3 metros). */
+:root {
+  --player-bg: #0b0b0d;
+  --player-surface: #18181c;
+  --player-surface-2: #23232a;
+  --player-text: #f1f1f3;
+  --player-muted: #9a9aa3;
+  --player-focus: #f5c84c;
+  color-scheme: dark;
 }
 
-.player {
+body {
+  background: var(--player-bg);
+  color: var(--player-text);
+  font-size: 20px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* El foco tiene que verse desde el sillón: es lo que reemplaza al mouse. */
+a:focus-visible,
+button:focus-visible {
+  outline: 4px solid var(--player-focus);
+  outline-offset: 4px;
+}
+
+.screen {
+  padding: 40px 60px 80px;
+}
+
+.brand-bar {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 32px;
+}
+
+.message {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font-size: 22px;
+  text-align: center;
+  padding: 40px;
+  color: var(--player-muted);
 }
 
-.player h1 {
-  font-size: 72px;
-  margin: 0;
+.message h1 {
+  color: var(--player-text);
+  font-size: 40px;
+  margin: 0 0 12px;
+}
+
+/* Inicio */
+
+.shelf {
+  margin-bottom: 40px;
+}
+
+.shelf h2 {
+  font-size: 26px;
+  margin: 0 0 16px;
+}
+
+.shelf-row {
+  display: flex;
+  gap: 28px;
+  overflow-x: auto;
+  padding: 8px 8px 16px;
+  margin: -8px;
+}
+
+.card {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 10px;
+}
+
+.card .poster {
+  transition: transform 0.15s;
+}
+
+.card:focus-visible .poster,
+.card:hover .poster {
+  transform: scale(1.04);
+}
+
+.card-title {
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.card-year {
+  color: var(--player-muted);
+  font-size: 17px;
+}
+
+.poster {
+  aspect-ratio: 2 / 3;
+  width: 100%;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+}
+
+.poster span {
+  font-size: 96px;
+  font-weight: 800;
+  color: rgb(255 255 255 / 0.85);
+}
+
+/* Detalle */
+
+.back {
+  display: inline-block;
+  color: var(--player-muted);
+  margin-bottom: 28px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.detail-header {
+  display: flex;
+  gap: 48px;
+  align-items: flex-start;
+  margin-bottom: 40px;
+}
+
+.detail-header .poster {
+  width: 260px;
+  flex-shrink: 0;
+}
+
+.detail-header h1 {
+  font-size: 56px;
+  margin: 0 0 8px;
   letter-spacing: -0.02em;
 }
 
-.player .status {
-  font-size: 16px;
-  color: #8a8a90;
+.meta {
+  color: var(--player-muted);
+}
+
+.overview {
+  max-width: 900px;
+  line-height: 1.5;
+}
+
+.play-button {
+  display: inline-block;
+  margin-top: 20px;
+  background: var(--player-text);
+  color: var(--player-bg);
+  border: none;
+  border-radius: 8px;
+  padding: 14px 32px;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.season h2 {
+  font-size: 28px;
+  margin: 0 0 12px;
+}
+
+.episodes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 1100px;
+}
+
+.episode {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 18px 20px;
+  border-radius: 10px;
+  background: var(--player-surface);
+  margin-bottom: 10px;
+}
+
+a.episode:hover,
+a.episode:focus-visible {
+  background: var(--player-surface-2);
+}
+
+.episode.unavailable {
+  opacity: 0.5;
+}
+
+.episode-number {
+  font-size: 28px;
+  font-weight: 700;
+  width: 48px;
+  text-align: center;
+  color: var(--player-muted);
+}
+
+.episode-title {
+  flex: 1;
+  font-weight: 600;
+}
+
+/* Reproductor */
+
+.player {
+  position: fixed;
+  inset: 0;
+  background: #000;
+}
+
+.player video {
+  width: 100%;
+  height: 100%;
+}
+
+.player-back {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  z-index: 1;
+  background: rgb(0 0 0 / 0.6);
+  color: var(--player-text);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.player-toast {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: rgb(0 0 0 / 0.7);
+  border-radius: 8px;
+  padding: 10px 18px;
+}
+
+/* Progreso en la lista de episodios */
+
+.episode-progress {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--player-surface-2);
+  overflow: hidden;
+}
+
+.episode-progress div {
+  height: 100%;
+  background: var(--player-focus);
+}
+
+.watched {
+  color: var(--player-muted);
+  font-size: 17px;
+}
+
+/* Celular y pantallas angostas: el Player se diseña para la TV, esto solo lo hace usable. */
+@media (max-width: 700px) {
+  body {
+    font-size: 16px;
+  }
+
+  .screen {
+    padding: 20px 16px 60px;
+  }
+
+  .brand-bar {
+    font-size: 26px;
+    margin-bottom: 20px;
+  }
+
+  .shelf-row {
+    gap: 14px;
+  }
+
+  .card {
+    width: 130px;
+  }
+
+  .card-year {
+    font-size: 14px;
+  }
+
+  .poster span {
+    font-size: 56px;
+  }
+
+  .detail-header {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .detail-header .poster {
+    width: 150px;
+  }
+
+  .detail-header h1 {
+    font-size: 32px;
+  }
+
+  .episode {
+    gap: 12px;
+    padding: 14px 12px;
+  }
+
+  .episode-number {
+    font-size: 20px;
+    width: 28px;
+  }
+
+  .episode-progress {
+    width: 60px;
+  }
+
+  .player-back,
+  .player-toast {
+    font-size: 15px;
+    top: 12px;
+  }
+
+  .player-back {
+    left: 12px;
+  }
+
+  .player-toast {
+    right: 12px;
+  }
 }

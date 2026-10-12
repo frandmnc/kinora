@@ -5,7 +5,7 @@
 
 use sqlx::{AssertSqlSafe, SqliteConnection, SqlitePool};
 
-use super::{Content, ContentKind, MediaFile};
+use super::{Content, ContentKind, MediaFile, Progress};
 use crate::db::now;
 
 const CONTENT_COLUMNS: &str =
@@ -64,6 +64,97 @@ pub async fn files_of(db: &SqlitePool, content_ids: &[i64]) -> sqlx::Result<Vec<
         query = query.bind(id);
     }
     query.fetch_all(db).await
+}
+
+/// El progreso de varios contenidos.
+pub async fn progress_of(db: &SqlitePool, content_ids: &[i64]) -> sqlx::Result<Vec<Progress>> {
+    if content_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = vec!["?"; content_ids.len()].join(", ");
+    let sql = format!(
+        "SELECT content_id, position, duration, watched, updated_at \
+         FROM progress WHERE content_id IN ({placeholders})"
+    );
+    let mut query = sqlx::query_as(AssertSqlSafe(sql));
+    for id in content_ids {
+        query = query.bind(id);
+    }
+    query.fetch_all(db).await
+}
+
+/// Guarda el progreso: inserta la fila o, si ya existe, la actualiza ("upsert").
+pub async fn save_progress(
+    db: &SqlitePool,
+    content_id: i64,
+    position: f64,
+    duration: Option<f64>,
+    watched: bool,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "INSERT INTO progress (content_id, position, duration, watched, updated_at) \
+         VALUES (?, ?, ?, ?, ?) \
+         ON CONFLICT (content_id) DO UPDATE SET \
+           position = excluded.position, duration = excluded.duration, \
+           watched = excluded.watched, updated_at = excluded.updated_at",
+    )
+    .bind(content_id)
+    .bind(position)
+    .bind(duration)
+    .bind(watched)
+    .bind(now())
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+#[derive(sqlx::FromRow)]
+struct TitleParts {
+    title: String,
+    kind: ContentKind,
+    number: Option<i64>,
+    season_number: Option<i64>,
+    show_title: Option<String>,
+}
+
+/// Nombre para mostrar: "Interstellar" o "Sousou no Frieren · T1 E1".
+pub async fn display_title(db: &SqlitePool, content_id: i64) -> sqlx::Result<Option<String>> {
+    let parts: Option<TitleParts> = sqlx::query_as(
+        "SELECT c.title, c.kind, c.number, \
+                season.number AS season_number, show.title AS show_title \
+         FROM contents c \
+         LEFT JOIN contents season ON season.id = c.parent_id \
+         LEFT JOIN contents show ON show.id = season.parent_id \
+         WHERE c.id = ?",
+    )
+    .bind(content_id)
+    .fetch_optional(db)
+    .await?;
+
+    Ok(parts.map(|p| match (p.kind, p.show_title) {
+        (ContentKind::Episode, Some(show)) => format!(
+            "{show} · T{} E{}",
+            p.season_number.unwrap_or_default(),
+            p.number.unwrap_or_default()
+        ),
+        _ => p.title,
+    }))
+}
+
+/// Carpeta de la biblioteca y ruta relativa de un archivo, para ubicarlo en el disco.
+pub async fn file_location(
+    db: &SqlitePool,
+    file_id: i64,
+) -> sqlx::Result<Option<(String, String)>> {
+    sqlx::query_as(
+        "SELECT l.dir, f.rel_path FROM media_files f \
+         JOIN contents c ON c.id = f.content_id \
+         JOIN libraries l ON l.id = c.library_id \
+         WHERE f.id = ?",
+    )
+    .bind(file_id)
+    .fetch_optional(db)
+    .await
 }
 
 pub struct NewContent {

@@ -1,0 +1,97 @@
+//! Tarea en segundo plano que mide CPU y memoria cada 2 segundos
+//! y escribe un resumen en la terminal.
+
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
+
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+use tracing::info;
+
+use super::{Monitor, Sample, clock};
+
+const SAMPLE_EVERY: Duration = Duration::from_secs(2);
+/// Con streams activos se informa seguido; sin actividad, cada tanto.
+const LOG_EVERY_ACTIVE: Duration = Duration::from_secs(10);
+const LOG_EVERY_IDLE: Duration = Duration::from_secs(60);
+
+pub fn spawn_sampler(monitor: Arc<Monitor>) {
+    tokio::spawn(async move {
+        let mut system = System::new();
+        let pid = sysinfo::get_current_pid().ok();
+        let mut interval = tokio::time::interval(SAMPLE_EVERY);
+        let mut last_bytes = 0;
+        let mut last_log = Instant::now();
+
+        loop {
+            interval.tick().await;
+
+            // La CPU se calcula comparando con la medición anterior: por eso se mide en intervalos.
+            // Primero se actualiza todo (préstamos mutables de `system`) y recién después se lee
+            // (préstamos compartidos). Rust no permite mezclarlos al mismo tiempo.
+            system.refresh_cpu_usage();
+            system.refresh_memory();
+            if let Some(pid) = pid {
+                system.refresh_processes_specifics(
+                    ProcessesToUpdate::Some(&[pid]),
+                    true,
+                    ProcessRefreshKind::nothing().with_cpu().with_memory(),
+                );
+            }
+            let process = pid.and_then(|pid| system.process(pid));
+
+            let bytes = monitor.bytes_sent.load(Ordering::Relaxed);
+            let sample = Sample {
+                cpu_kinora: process.map_or(0.0, |p| p.cpu_usage()),
+                cpu_system: system.global_cpu_usage(),
+                cpu_cores: system.cpus().len() as i64,
+                memory_kinora: process.map_or(0, |p| p.memory() as i64),
+                memory_used: system.used_memory() as i64,
+                memory_total: system.total_memory() as i64,
+                send_rate: ((bytes - last_bytes) as f64 / SAMPLE_EVERY.as_secs_f64()) as i64,
+            };
+            last_bytes = bytes;
+            *monitor.latest.write().unwrap() = sample.clone();
+
+            monitor.expire_viewers();
+            let viewers = monitor.viewer_list();
+            let log_every = if viewers.is_empty() {
+                LOG_EVERY_IDLE
+            } else {
+                LOG_EVERY_ACTIVE
+            };
+            if last_log.elapsed() >= log_every {
+                last_log = Instant::now();
+                let watching: Vec<String> = viewers
+                    .iter()
+                    .map(|v| {
+                        let state = if v.playing { "▶" } else { "⏸" };
+                        let total = v.duration.map(clock).unwrap_or_else(|| "?".to_string());
+                        format!(
+                            "{state} {} → {} {}/{total}",
+                            v.client,
+                            v.title,
+                            clock(v.position)
+                        )
+                    })
+                    .collect();
+                info!(
+                    "CPU kinora {:.1}% · CPU total {:.0}% · memory kinora {} · sending {}/s · watching: {}",
+                    sample.cpu_kinora,
+                    sample.cpu_system,
+                    megabytes(sample.memory_kinora),
+                    megabytes(sample.send_rate),
+                    if watching.is_empty() {
+                        "nobody".to_string()
+                    } else {
+                        watching.join(", ")
+                    }
+                );
+            }
+        }
+    });
+}
+
+fn megabytes(bytes: i64) -> String {
+    format!("{:.1} MB", bytes as f64 / 1_000_000.0)
+}

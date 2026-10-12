@@ -4,11 +4,12 @@ import { useApi } from '../../shared/useApi'
 import type { Library } from '../../shared/types/Library'
 import type { NewLibrary } from '../../shared/types/NewLibrary'
 import type { LibraryChanges } from '../../shared/types/LibraryChanges'
-import type { ServerInfo } from '../../shared/types/ServerInfo'
+import type { MediaDirSetting } from '../../shared/types/MediaDirSetting'
+import { Link } from 'react-router'
 
 export function LibrariesPage() {
   const { data: libraries, error, loading, reload } = useApi<Library[]>('/api/admin/libraries')
-  const { data: info } = useApi<ServerInfo>('/api/admin/info')
+  const { data: mediaDir } = useApi<MediaDirSetting>('/api/admin/settings/media-dir')
   const [actionError, setActionError] = useState<string>()
 
   // Ejecuta una acción, muestra su error si falla y recarga la lista.
@@ -31,13 +32,21 @@ export function LibrariesPage() {
         Cada biblioteca es una categoría con su propia carpeta dentro de la carpeta media. Kinora crea la carpeta
         y la renombra si cambiás el nombre.
       </p>
-      {info && (
-        <p>
-          Carpeta media: <span className="mono">{info.media_dir}</span>
-          {!info.media_available && <span className="error"> (no disponible)</span>}
-          <span className="muted"> · se cambia en config.toml</span>
-        </p>
-      )}
+      {mediaDir &&
+        (mediaDir.path ? (
+          <p>
+            Carpeta media: <span className="mono">{mediaDir.path}</span>
+            {!mediaDir.available && <span className="error"> (no disponible)</span>}
+            <span className="muted">
+              {' '}
+              · <Link to="/settings">cambiar</Link>
+            </span>
+          </p>
+        ) : (
+          <p className="error">
+            Primero elegí la carpeta media en <Link to="/settings">Configuración</Link>.
+          </p>
+        ))}
 
       <CreateForm onCreate={(library) => run(() => api('/api/admin/libraries', { method: 'POST', body: library }))} />
 

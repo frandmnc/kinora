@@ -16,7 +16,12 @@ export class ApiError extends Error {
   }
 }
 
-type Options = { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown }
+type Options = {
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  body?: unknown
+  /** El pedido se completa aunque la página se cierre (para el último aviso del reproductor). */
+  keepalive?: boolean
+}
 
 export async function api<T>(path: string, options: Options = {}): Promise<T> {
   const hasBody = options.body !== undefined
@@ -24,6 +29,7 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
     method: options.method ?? 'GET',
     headers: hasBody ? { 'content-type': 'application/json' } : undefined,
     body: hasBody ? JSON.stringify(options.body) : undefined,
+    keepalive: options.keepalive,
   })
 
   if (!response.ok) {
@@ -40,4 +46,9 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
 
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+/** URL completa de un recurso del servidor, para usar en `<video src>` o `<img src>`. */
+export function mediaUrl(path: string): string {
+  return serverUrl + path
 }

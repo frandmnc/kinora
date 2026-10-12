@@ -4,7 +4,7 @@
 
 Este plan describe la arquitectura, las decisiones tomadas y el orden de implementación. Usa lenguaje controlado en español inspirado en STE100.
 
-**El objetivo de la primera versión será completar este recorrido:** importar archivos desde una carpeta de origen, convertirlos al formato de Kinora, organizarlos como contenido, verlos desde Chrome y conservar el progreso después de reiniciar el servidor. La televisión se incorporará al final, cuando todo funcione sin ella.
+**El objetivo de la primera versión será completar este recorrido:** subir archivos desde el Admin, convertirlos al formato de Kinora, organizarlos como contenido, verlos desde Chrome y conservar el progreso después de reiniciar el servidor. La televisión se incorporará al final, cuando todo funcione sin ella.
 
 ## Principios
 
@@ -33,18 +33,16 @@ flowchart LR
     subgraph EQUIPO["Computadora del servidor"]
         S["Kinora Server<br/>:8090"]
         D["SQLite<br/>Catálogo, trabajos, progreso, métricas"]
-        O["Carpetas de origen<br/>~/Downloads, etc."]
-        M["Bibliotecas<br/>media/..."]
+        M["Carpeta media<br/>bandeja de entrada y bibliotecas"]
         F["ffprobe / ffmpeg"]
 
         S -->|"Consulta y guarda"| D
-        S -->|"Lista y lee"| O
         S -->|"Escribe al importar,<br/>lee al reproducir"| M
         S -->|"Analiza y convierte"| F
     end
 
     P <-->|"/api/* y video"| S
-    A <-->|"/api/admin/*"| S
+    A <-->|"/api/admin/*<br/>y subida de archivos"| S
 ```
 
 **Las rutas estarán separadas por función:**
@@ -103,16 +101,18 @@ La distribución será el binario con las dos interfaces embebidas, más `ffmpeg
 
 ## Configuración
 
-**La configuración estará en `config.toml`.** Las bibliotecas se administran desde el Admin y se guardan en la base de datos.
+**`config.toml` tiene solo lo que hace falta antes de abrir la base de datos.** Todo lo demás se configura desde el Admin y se guarda en la tabla `settings`.
+
+| Dónde | Qué |
+|---|---|
+| `config.toml` | Interfaz de red, puerto, carpeta de datos (base de datos y backups), formato |
+| Admin → Configuración | Carpeta media, elegida con un explorador de carpetas del servidor. Si ya hay bibliotecas, se elige entre "moverlas" (renombrado instantáneo, solo dentro del mismo disco; entre discos llega con la cola de la Etapa 4) o "ya las moví yo" (se verifica que estén) |
+| Admin → Bibliotecas | Bibliotecas: subcarpetas de la carpeta media que Kinora crea y renombra |
 
 ```toml
 bind = "0.0.0.0"
 port = 8090
 data_dir = "~/.kinora"              # base de datos y backups
-media_dir = "~/Movies/Kinora"       # todo lo importado; cada biblioteca es una subcarpeta
-
-# Carpetas desde las que se puede importar
-import_sources = ["~/Downloads", "/Volumes/Viejo/Plex"]
 
 [formato]
 contenedor = "mp4"
@@ -322,17 +322,19 @@ CREATE TABLE server_samples (
 │  └─ Season 02/
 ├─ .kinora-tmp/       archivos en conversión
 └─ .kinora-trash/     archivos reemplazados o eliminados
+
+<media_dir>/.kinora-inbox/   bandeja de entrada: archivos subidos que esperan ser importados
 ```
 
 `kinora.json` describe el contenido de su carpeta: tipo, título, año, temporadas, episodios y archivos. Kinora lo reescribe en cada importación o edición. Permite reconstruir el catálogo desde el disco si se pierde la base de datos. La reconstrucción es una acción manual, no un escaneo periódico.
 
-`.kinora-tmp/` está dentro de cada biblioteca para que el movimiento final sea un renombrado atómico en el mismo disco.
+`.kinora-tmp/` está dentro de cada biblioteca, y la bandeja de entrada dentro de la carpeta media, para que mover un archivo a su lugar final sea un renombrado atómico e instantáneo en el mismo disco.
 
 ## Importación
 
 **El contenido entra a Kinora solo mediante importación.**
 
-1. **Elegir archivos.** El Admin lista los videos de las carpetas de `import_sources`. El usuario elige archivos o una carpeta.
+1. **Subir archivos.** El usuario suelta videos o una carpeta entera en el Admin. Se suben a la bandeja de entrada. El navegador no expone las rutas de los archivos, así que subirlos es la única forma de que lleguen al servidor; funciona desde cualquier equipo de la red.
 2. **Analizar.** El servidor ejecuta ffprobe sobre cada archivo y devuelve la operación necesaria, el tamaño estimado y los subtítulos encontrados.
 3. **Elegir destino.**
    - Contenido nuevo: película o serie, con título, año y biblioteca.
@@ -344,7 +346,7 @@ CREATE TABLE server_samples (
 
 Antes de confirmar, el servidor comprueba que haya espacio libre suficiente para los archivos resultantes.
 
-**El servidor registrará el origen de cada archivo importado.** El Admin marcará como "ya importado" cualquier archivo de origen con la misma ruta y el mismo tamaño.
+Al importar, el archivo se mueve de la bandeja a la biblioteca. Los archivos que no se importan se pueden descartar desde la bandeja.
 
 ## Cola de conversión
 
@@ -426,7 +428,8 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 |---|---|
 | Panel | Métricas, viendo ahora, estado de la cola |
 | Bibliotecas | Crear, editar y eliminar bibliotecas |
-| Importar | Elegir archivos, analizar, asignar destino y confirmar |
+| Importar | Subir archivos a la bandeja, analizar, asignar destino y confirmar |
+| Configuración | Carpeta media, con un explorador de carpetas del servidor |
 | Cola | Trabajos en curso, pendientes y fallidos; cancelar y reintentar |
 | Contenido | Explorar el catálogo, corregir títulos, años y números |
 | Mantenimiento | Verificar integridad, reconstruir desde disco, backup |
@@ -453,7 +456,9 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Operación | Ruta |
 |---|---|
 | Administrar bibliotecas | `GET`, `POST`, `PATCH`, `DELETE /api/admin/libraries[/{id}]` |
-| Listar archivos de origen | `GET /api/admin/sources` |
+| Carpeta media | `GET`, `PUT /api/admin/settings/media-dir` |
+| Explorar y crear carpetas del servidor | `GET /api/admin/folders?path=`, `POST /api/admin/folders` |
+| Bandeja de entrada: listar, subir, descartar | `GET /api/admin/uploads`, `POST /api/admin/uploads?name=`, `DELETE /api/admin/uploads/{name}` |
 | Analizar archivos | `POST /api/admin/imports/analyze` |
 | Confirmar una importación | `POST /api/admin/imports` |
 | Consultar la cola | `GET /api/admin/jobs` |

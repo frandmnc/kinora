@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use axum::Json;
 use axum::extract::{Path as UrlPath, State};
 use axum::http::StatusCode;
@@ -39,7 +37,7 @@ pub async fn create(
 ) -> AppResult<(StatusCode, Json<Library>)> {
     let name = validate_name(&new.name)?;
     let dir = folder_for(&name)?;
-    let media_dir = available_media_dir(&state)?;
+    let media_dir = state.settings.require_media_dir()?;
 
     // Primero la base: detecta nombres o carpetas repetidos antes de tocar el disco.
     let library = repo::insert(&state.db, &name, &dir).await?;
@@ -66,7 +64,7 @@ pub async fn rename(
         return Ok(Json(repo::update(&state.db, id, &name, &new_dir).await?));
     }
 
-    let media_dir = available_media_dir(&state)?;
+    let media_dir = state.settings.require_media_dir()?;
     let old_path = media_dir.join(&library.dir);
     let new_path = media_dir.join(&new_dir);
     // En macOS "anime" y "Anime" son la misma carpeta: cambiar solo mayúsculas no es un conflicto.
@@ -123,17 +121,6 @@ fn folder_for(name: &str) -> AppResult<String> {
         )));
     }
     Ok(dir)
-}
-
-fn available_media_dir(state: &AppState) -> AppResult<&Path> {
-    let media_dir = state.config.media_dir.as_path();
-    if !media_dir.is_dir() {
-        return Err(AppError::BadRequest(format!(
-            "la carpeta media {} no está disponible",
-            media_dir.display()
-        )));
-    }
-    Ok(media_dir)
 }
 
 #[cfg(test)]

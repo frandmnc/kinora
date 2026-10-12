@@ -1,6 +1,7 @@
 //! Importación: analizar archivos de las carpetas de origen y agregarlos al catálogo.
 //!
-//! Etapa 1: solo se importan archivos que ya cumplen el formato de Kinora (se copian),
+//! Los archivos vienen de la bandeja de entrada (ver `uploads`) y se identifican por su nombre.
+//! Etapa 1: solo se importan archivos que ya cumplen el formato de Kinora (se mueven tal cual),
 //! y siempre como contenido nuevo.
 
 mod guess;
@@ -18,13 +19,13 @@ use crate::app::AppState;
 #[serde(deny_unknown_fields)]
 #[ts(export)]
 pub struct AnalyzeRequest {
-    pub paths: Vec<String>,
+    /// Nombres de archivos de la bandeja de entrada.
+    pub files: Vec<String>,
 }
 
 #[derive(Serialize, TS)]
 #[ts(export)]
 pub struct FileAnalysis {
-    pub path: String,
     pub name: String,
     pub size: i64,
     pub duration: Option<f64>,
@@ -65,7 +66,7 @@ pub enum ImportTarget {
     Movie {
         title: String,
         year: Option<i64>,
-        path: String,
+        file: String,
     },
     Show {
         title: String,
@@ -80,7 +81,7 @@ pub enum ImportTarget {
 #[ts(export)]
 pub struct EpisodeFile {
     pub number: i64,
-    pub path: String,
+    pub file: String,
 }
 
 #[derive(Serialize, TS)]
@@ -94,8 +95,8 @@ pub struct ImportResult {
 #[derive(Serialize, TS)]
 #[ts(export)]
 pub struct ImportedFile {
-    pub source_path: String,
-    /// Ruta final dentro de la biblioteca, si la copia salió bien.
+    pub file: String,
+    /// Ruta final dentro de la biblioteca, si salió bien.
     pub destination: Option<String>,
     pub error: Option<String>,
 }

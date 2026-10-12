@@ -27,7 +27,7 @@ impl IntoResponse for AppError {
             AppError::Conflict(message) => (StatusCode::CONFLICT, message),
             AppError::Internal(err) => {
                 // El detalle va al registro del servidor, no al cliente.
-                eprintln!("Error interno: {err:#}");
+                tracing::error!("internal error: {err:#}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "error interno del servidor".to_string(),

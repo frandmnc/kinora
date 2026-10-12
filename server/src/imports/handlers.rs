@@ -16,16 +16,17 @@ use crate::contents::ContentKind;
 use crate::contents::repo::{NewContent, NewMediaFile, insert_content, insert_media_file};
 use crate::error::{AppError, AppResult};
 use crate::probe::{self, Analysis};
-use crate::{libraries, sources};
+use crate::{libraries, uploads};
 
 /// POST /api/admin/imports/analyze
 pub async fn analyze(
     State(state): State<AppState>,
     Json(request): Json<AnalyzeRequest>,
 ) -> AppResult<Json<Vec<FileAnalysis>>> {
-    let mut results = Vec::with_capacity(request.paths.len());
-    for path in &request.paths {
-        let path = sources::resolve_inside(&state.config.import_sources, path)?;
+    let media_dir = state.settings.require_media_dir()?;
+    let mut results = Vec::with_capacity(request.files.len());
+    for name in &request.files {
+        let path = uploads::resolve(&media_dir, name)?;
         results.push(analyze_file(&path).await);
     }
     Ok(Json(results))
@@ -39,7 +40,6 @@ async fn analyze_file(path: &Path) -> FileAnalysis {
         .unwrap_or(0);
 
     let mut analysis = FileAnalysis {
-        path: path.to_string_lossy().into_owned(),
         guess: guess(&name),
         name,
         size,
@@ -94,7 +94,8 @@ pub async fn create(
     Json(request): Json<ImportRequest>,
 ) -> AppResult<(StatusCode, Json<ImportResult>)> {
     let library = libraries::find(&state.db, request.library_id).await?;
-    let root = state.config.media_dir.join(&library.dir);
+    let media_dir = state.settings.require_media_dir()?;
+    let root = media_dir.join(&library.dir);
 
     // 1. Validar todo antes de crear o copiar nada.
     let (title, year) = match &request.target {
@@ -111,22 +112,21 @@ pub async fn create(
     }
 
     let files: Vec<(Option<i64>, &str)> = match &request.target {
-        ImportTarget::Movie { path, .. } => vec![(None, path)],
+        ImportTarget::Movie { file, .. } => vec![(None, file.as_str())],
         ImportTarget::Show {
             season, episodes, ..
         } => {
             validate_episodes(*season, episodes)?;
             episodes
                 .iter()
-                .map(|e| (Some(e.number), e.path.as_str()))
+                .map(|e| (Some(e.number), e.file.as_str()))
                 .collect()
         }
     };
 
     let mut planned = Vec::new();
-    for (episode, path) in files {
-        let source = sources::resolve_inside(&state.config.import_sources, path)?;
-        let name = file_name(&source);
+    for (episode, name) in files {
+        let source = uploads::resolve(&media_dir, name)?;
         let analysis = probe::run(&source)
             .await
             .map_err(|err| AppError::BadRequest(format!("{name}: {err:#}")))?;
@@ -203,12 +203,12 @@ pub async fn create(
     };
     tx.commit().await?;
 
-    // 3. Copiar y registrar cada archivo. Si uno falla, los demás siguen.
+    // 3. Mover y registrar cada archivo. Si uno falla, los demás siguen.
     let mut files = Vec::new();
     for (file, content_id) in planned.iter().zip(file_content_ids) {
-        let result = copy_and_register(&state, &root, content_id, file).await;
+        let result = move_and_register(&state, &root, content_id, file).await;
         files.push(ImportedFile {
-            source_path: file.source.to_string_lossy().into_owned(),
+            file: file_name(&file.source),
             destination: result.is_ok().then(|| file.rel_path.clone()),
             error: result.err().map(|err| format!("{err:#}")),
         });
@@ -223,9 +223,10 @@ pub async fn create(
     ))
 }
 
-/// Copia a `.kinora-tmp/` y recién al terminar mueve el archivo a su lugar,
-/// para que nunca quede un archivo a medio copiar dentro de la biblioteca.
-async fn copy_and_register(
+/// Mueve el archivo de la bandeja a su lugar en la biblioteca. Como están en el mismo disco,
+/// es un renombrado: instantáneo y atómico. Si la biblioteca estuviera en otro disco, se copia
+/// a `.kinora-tmp/` y recién al terminar se mueve, para que nunca quede un archivo a medias.
+async fn move_and_register(
     state: &AppState,
     root: &Path,
     content_id: i64,
@@ -235,27 +236,29 @@ async fn copy_and_register(
     if destination.exists() {
         bail!("ya existe {}", destination.display());
     }
-
-    let tmp_dir = root.join(".kinora-tmp");
-    tokio::fs::create_dir_all(&tmp_dir).await?;
     if let Some(parent) = destination.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
 
-    let tmp = tmp_dir.join(format!("{content_id}.mp4.part"));
-    let copied = async {
-        tokio::fs::copy(&file.source, &tmp)
-            .await
-            .context("no se pudo copiar")?;
-        tokio::fs::rename(&tmp, &destination)
-            .await
-            .context("no se pudo mover a la biblioteca")
+    if tokio::fs::rename(&file.source, &destination).await.is_err() {
+        let tmp_dir = root.join(".kinora-tmp");
+        tokio::fs::create_dir_all(&tmp_dir).await?;
+        let tmp = tmp_dir.join(format!("{content_id}.mp4.part"));
+        let copied = async {
+            tokio::fs::copy(&file.source, &tmp)
+                .await
+                .context("no se pudo copiar")?;
+            tokio::fs::rename(&tmp, &destination)
+                .await
+                .context("no se pudo mover a la biblioteca")
+        }
+        .await;
+        if copied.is_err() {
+            let _ = tokio::fs::remove_file(&tmp).await;
+        }
+        copied?;
+        tokio::fs::remove_file(&file.source).await?;
     }
-    .await;
-    if copied.is_err() {
-        let _ = tokio::fs::remove_file(&tmp).await;
-    }
-    copied?;
 
     let size = tokio::fs::metadata(&destination).await?.len() as i64;
     let video = file.analysis.probe.video();
@@ -268,7 +271,7 @@ async fn copy_and_register(
         width: video.and_then(|v| v.width),
         height: video.and_then(|v| v.height),
         probe_json: file.analysis.json.clone(),
-        source_path: file.source.to_string_lossy().into_owned(),
+        source_path: file_name(&file.source),
     };
     insert_media_file(&mut *state.db.acquire().await?, &media_file).await?;
     Ok(())
@@ -309,10 +312,10 @@ fn validate_episodes(season: i64, episodes: &[EpisodeFile]) -> AppResult<()> {
                 episode.number
             )));
         }
-        if !paths.insert(&episode.path) {
+        if !paths.insert(&episode.file) {
             return Err(AppError::BadRequest(format!(
                 "{} está dos veces",
-                episode.path
+                episode.file
             )));
         }
     }

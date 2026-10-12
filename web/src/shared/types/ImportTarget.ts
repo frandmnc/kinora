@@ -4,4 +4,4 @@ import type { EpisodeFile } from "./EpisodeFile";
 /**
  * Qué crear. En JSON lleva un campo `kind`: `{"kind": "movie", ...}` o `{"kind": "show", ...}`.
  */
-export type ImportTarget = { "kind": "movie", title: string, year: number | null, path: string, } | { "kind": "show", title: string, year: number | null, season: number, episodes: Array<EpisodeFile>, };
+export type ImportTarget = { "kind": "movie", title: string, year: number | null, file: string, } | { "kind": "show", title: string, year: number | null, season: number, episodes: Array<EpisodeFile>, };

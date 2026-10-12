@@ -1,16 +1,18 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type DragEvent, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { api } from '../../shared/api'
 import { useApi } from '../../shared/useApi'
 import { formatDuration, formatSize } from '../../shared/format'
-import type { Source } from '../../shared/types/Source'
+import { isVideo, uploadFile, videosFromDrop } from '../../shared/upload'
+import type { InboxFile } from '../../shared/types/InboxFile'
+import type { MediaDirSetting } from '../../shared/types/MediaDirSetting'
 import type { Library } from '../../shared/types/Library'
 import type { FileAnalysis } from '../../shared/types/FileAnalysis'
 import type { ImportRequest } from '../../shared/types/ImportRequest'
 import type { ImportResult } from '../../shared/types/ImportResult'
 
 /**
- * Importar en tres pasos: elegir archivos → revisar el análisis y elegir el destino → ver el resultado.
+ * Importar en tres pasos: subir archivos a la bandeja → revisar el análisis y elegir el destino → ver el resultado.
  * Etapa 1: solo archivos que ya están en el formato de Kinora, y siempre como contenido nuevo.
  */
 export function ImportPage() {
@@ -31,15 +33,15 @@ export function ImportPage() {
     }
   }
 
-  async function analyze(paths: string[]) {
+  async function analyze(names: string[]) {
     const files = await run('Analizando con ffprobe…', () =>
-      api<FileAnalysis[]>('/api/admin/imports/analyze', { method: 'POST', body: { paths } }),
+      api<FileAnalysis[]>('/api/admin/imports/analyze', { method: 'POST', body: { files: names } }),
     )
     if (files) setAnalysis(files)
   }
 
   async function importFiles(request: ImportRequest) {
-    const imported = await run('Copiando archivos…', () =>
+    const imported = await run('Importando…', () =>
       api<ImportResult>('/api/admin/imports', { method: 'POST', body: request }),
     )
     if (imported) setResult(imported)
@@ -55,8 +57,8 @@ export function ImportPage() {
     <>
       <h1>Importar</h1>
       <p className="muted">
-        Por ahora solo se importan archivos que ya están en el formato de Kinora (MP4, HEVC, AAC), copiándolos
-        como contenido nuevo. La conversión llega en la Etapa 4.
+        Por ahora solo se importan archivos que ya están en el formato de Kinora (MP4, HEVC, AAC), como contenido
+        nuevo. La conversión llega en la Etapa 4.
       </p>
 
       {busy && <p className="notice">{busy}</p>}
@@ -75,7 +77,7 @@ export function ImportPage() {
           <button onClick={restart}>← Elegir otros archivos</button>
         </>
       ) : (
-        <SourcePicker disabled={!!busy} onAnalyze={analyze} />
+        <Inbox disabled={!!busy} onAnalyze={analyze} />
       )}
     </>
   )
@@ -85,43 +87,146 @@ function isReady(file: FileAnalysis) {
   return !file.error && file.problems.length === 0
 }
 
-// --- Paso 1: elegir archivos ---
+// --- Paso 1: subir archivos a la bandeja de entrada ---
 
-function SourcePicker({ disabled, onAnalyze }: { disabled: boolean; onAnalyze: (paths: string[]) => void }) {
-  const { data: sources, error, loading, reload } = useApi<Source[]>('/api/admin/sources')
+type Upload = { name: string; size: number; sent: number; error?: string }
+
+function Inbox({ disabled, onAnalyze }: { disabled: boolean; onAnalyze: (names: string[]) => void }) {
+  const { data: mediaDir } = useApi<MediaDirSetting>('/api/admin/settings/media-dir')
+  const { data: inbox, error, reload } = useApi<InboxFile[]>('/api/admin/uploads')
+  const [uploads, setUploads] = useState<Upload[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [dragging, setDragging] = useState(false)
+  const uploading = uploads.some((u) => u.sent < u.size && !u.error)
 
-  function toggle(path: string) {
+  // Al cargar la bandeja, se marca todo para analizar.
+  useEffect(() => {
+    if (inbox) setSelected(new Set(inbox.map((file) => file.name)))
+  }, [inbox])
+
+  // Sube los archivos de a uno, mostrando el avance de cada uno.
+  async function upload(files: File[]) {
+    const queue: Upload[] = files.map((file) => ({ name: file.name, size: file.size, sent: 0 }))
+    setUploads(queue)
+    const update = (i: number, change: Partial<Upload>) =>
+      setUploads((current) => current.map((u, j) => (j === i ? { ...u, ...change } : u)))
+
+    for (const [i, file] of files.entries()) {
+      try {
+        await uploadFile(file, (sent) => update(i, { sent }))
+        update(i, { sent: file.size })
+      } catch (err) {
+        update(i, { error: (err as Error).message })
+      }
+    }
+    reload()
+  }
+
+  async function onDrop(event: DragEvent) {
+    event.preventDefault()
+    setDragging(false)
+    const files = await videosFromDrop(event.dataTransfer)
+    if (files.length > 0) upload(files)
+  }
+
+  async function discard(name: string) {
+    await api(`/api/admin/uploads/${encodeURIComponent(name)}`, { method: 'DELETE' })
+    reload()
+  }
+
+  function toggle(name: string) {
     const next = new Set(selected)
-    if (next.has(path)) next.delete(path)
-    else next.add(path)
+    if (next.has(name)) next.delete(name)
+    else next.add(name)
     setSelected(next)
+  }
+
+  if (mediaDir && !mediaDir.path) {
+    return (
+      <p className="error">
+        Primero elegí la carpeta media en <Link to="/settings">Configuración</Link>.
+      </p>
+    )
   }
 
   return (
     <>
+      <h2>1. Subí los archivos</h2>
+      <label
+        className={`dropzone ${dragging ? 'dragging' : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+      >
+        <strong>Soltá acá videos o una carpeta</strong>
+        <span className="muted">o hacé clic para elegirlos</span>
+        <input
+          type="file"
+          multiple
+          hidden
+          disabled={uploading}
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])].filter((f) => isVideo(f.name))
+            e.target.value = ''
+            if (files.length > 0) upload(files)
+          }}
+        />
+      </label>
+
+      {uploads.length > 0 && (
+        <ul className="uploads">
+          {uploads.map((u) => (
+            <li key={u.name}>
+              <span className="mono grow">{u.name}</span>
+              {u.error ? (
+                <span className="error">{u.error}</span>
+              ) : u.sent >= u.size ? (
+                <span className="ok">✓ subido</span>
+              ) : (
+                <>
+                  <span className="bar">
+                    <span style={{ width: `${(u.sent / u.size) * 100}%` }} />
+                  </span>
+                  <span className="muted">
+                    {formatSize(u.sent)} / {formatSize(u.size)}
+                  </span>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="page-header">
-        <h2>1. Elegí los archivos</h2>
-        <button onClick={reload}>Actualizar</button>
-        <button className="primary" disabled={disabled || selected.size === 0} onClick={() => onAnalyze([...selected])}>
+        <h2>Bandeja de entrada</h2>
+        <button
+          className="primary"
+          disabled={disabled || uploading || selected.size === 0}
+          onClick={() => onAnalyze([...selected])}
+        >
           Analizar {selected.size > 0 && `(${selected.size})`}
         </button>
       </div>
       {error && <p className="error">{error}</p>}
-      {loading && !sources && <p className="muted">Buscando videos…</p>}
-      {sources?.map((source) => (
-        <section key={source.path} className="source">
-          <h3 className="mono">{source.path}</h3>
-          {!source.available && <p className="error">La carpeta no existe o no está disponible.</p>}
-          {source.available && source.files.length === 0 && <p className="muted">No hay videos.</p>}
-          {source.files.map((file) => (
-            <label key={file.path} className="file-row">
-              <input type="checkbox" checked={selected.has(file.path)} onChange={() => toggle(file.path)} />
-              <span className="mono grow">{file.name}</span>
-              <span className="muted">{formatSize(file.size)}</span>
-            </label>
-          ))}
-        </section>
+      {inbox?.length === 0 && <p className="muted">La bandeja está vacía.</p>}
+      {inbox?.map((file) => (
+        <label key={file.name} className="file-row">
+          <input type="checkbox" checked={selected.has(file.name)} onChange={() => toggle(file.name)} />
+          <span className="mono grow">{file.name}</span>
+          <span className="muted">{formatSize(file.size)}</span>
+          <button
+            className="danger"
+            onClick={(e) => {
+              e.preventDefault()
+              if (confirm(`¿Descartar ${file.name}? Se borra de la bandeja.`)) discard(file.name)
+            }}
+          >
+            Descartar
+          </button>
+        </label>
       ))}
     </>
   )
@@ -145,7 +250,7 @@ function AnalysisTable({ files }: { files: FileAnalysis[] }) {
         </thead>
         <tbody>
           {files.map((file) => (
-            <tr key={file.path}>
+            <tr key={file.name}>
               <td className="mono">
                 {file.name}
                 <div className="muted">{formatSize(file.size)}</div>
@@ -193,7 +298,7 @@ function DestinationForm({
   const [year, setYear] = useState(first.year?.toString() ?? '')
   const [season, setSeason] = useState(String(first.season ?? 1))
   const [episodes, setEpisodes] = useState<Record<string, string>>(() =>
-    Object.fromEntries(files.map((file, i) => [file.path, String(file.guess.episode ?? i + 1)])),
+    Object.fromEntries(files.map((file, i) => [file.name, String(file.guess.episode ?? i + 1)])),
   )
 
   const selectedLibrary = libraryId ?? libraries?.[0]?.id
@@ -206,12 +311,12 @@ function DestinationForm({
       library_id: selectedLibrary,
       target:
         kind === 'movie'
-          ? { kind: 'movie', ...common, path: files[0].path }
+          ? { kind: 'movie', ...common, file: files[0].name }
           : {
               kind: 'show',
               ...common,
               season: Number(season),
-              episodes: files.map((file) => ({ path: file.path, number: Number(episodes[file.path]) })),
+              episodes: files.map((file) => ({ file: file.name, number: Number(episodes[file.name]) })),
             },
     })
   }
@@ -280,15 +385,15 @@ function DestinationForm({
           </thead>
           <tbody>
             {files.map((file) => (
-              <tr key={file.path}>
+              <tr key={file.name}>
                 <td className="mono">{file.name}</td>
                 <td>
                   <input
                     className="narrow"
                     type="number"
                     min={0}
-                    value={episodes[file.path]}
-                    onChange={(e) => setEpisodes({ ...episodes, [file.path]: e.target.value })}
+                    value={episodes[file.name]}
+                    onChange={(e) => setEpisodes({ ...episodes, [file.name]: e.target.value })}
                     required
                   />
                 </td>
@@ -314,9 +419,9 @@ function ResultView({ result, onRestart }: { result: ImportResult; onRestart: ()
       <h2>{failed === 0 ? 'Importación completa' : `Importación con ${failed} error(es)`}</h2>
       <ul className="results">
         {result.files.map((file) => (
-          <li key={file.source_path}>
+          <li key={file.file}>
             {file.error ? (
-              <span className="error">✗ {file.source_path}: {file.error}</span>
+              <span className="error">✗ {file.file}: {file.error}</span>
             ) : (
               <span className="ok">✓ {file.destination}</span>
             )}

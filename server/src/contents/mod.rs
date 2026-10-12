@@ -4,7 +4,7 @@ mod handlers;
 pub mod repo;
 
 use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, put};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -59,7 +59,39 @@ pub struct MediaFile {
 pub struct ContentDetail {
     pub content: Content,
     pub files: Vec<MediaFile>,
+    /// Solo en películas y episodios que ya se empezaron a ver.
+    pub progress: Option<Progress>,
     pub children: Vec<ContentDetail>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow, TS)]
+#[ts(export)]
+pub struct Progress {
+    pub content_id: i64,
+    pub position: f64,
+    pub duration: Option<f64>,
+    pub watched: bool,
+    pub updated_at: i64,
+}
+
+/// Lo que informa el Player cada 10 segundos y en cada cambio.
+#[derive(Debug, Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+#[ts(export)]
+pub struct PlaybackReport {
+    pub position: f64,
+    pub duration: Option<f64>,
+    pub state: PlaybackState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum PlaybackState {
+    Playing,
+    Paused,
+    /// El Player se cerró: la persona dejó de mirar.
+    Stopped,
 }
 
 /// Rutas del Player. Se montan bajo /api.
@@ -67,4 +99,6 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/contents", get(handlers::list))
         .route("/contents/{id}", get(handlers::detail))
+        .route("/contents/{id}/progress", put(handlers::report_progress))
+        .route("/files/{id}/stream", get(handlers::stream))
 }
