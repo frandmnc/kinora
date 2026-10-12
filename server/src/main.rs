@@ -1,14 +1,20 @@
 mod app;
 mod config;
+mod contents;
 mod db;
 mod debug;
 mod error;
 mod health;
+mod imports;
 mod libraries;
+mod naming;
+mod probe;
+mod sources;
 mod web;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 
@@ -22,10 +28,13 @@ async fn main() -> Result<()> {
         .nth(1)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("config.toml"));
-    let config = Config::load(&config_path)?;
+    let config = Arc::new(Config::load(&config_path)?);
 
     let db = db::connect(&config.data_dir).await?;
-    let app = app::router(AppState { db });
+    let app = app::router(AppState {
+        db,
+        config: config.clone(),
+    });
 
     let addr = SocketAddr::new(config.bind, config.port);
     let listener = tokio::net::TcpListener::bind(addr)
@@ -42,6 +51,7 @@ async fn main() -> Result<()> {
         "Admin:                http://localhost:{}/admin/",
         config.port
     );
+    println!("Media en {}", config.media_dir.display());
     println!("Datos en {}", config.data_dir.display());
     if !web::is_built() {
         println!(

@@ -251,3 +251,116 @@ td.long pre {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* Importar */
+
+h2 {
+  font-size: 18px;
+  margin: 24px 0 12px;
+}
+
+.page-header h2 {
+  margin: 0;
+}
+
+.notice {
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+
+.ok {
+  color: var(--success);
+}
+
+select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  font: inherit;
+  color: inherit;
+}
+
+.source {
+  margin-bottom: 20px;
+}
+
+.source h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--text-muted);
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  cursor: pointer;
+}
+
+.file-row:first-of-type {
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+}
+
+.file-row:last-of-type {
+  border-bottom: 1px solid var(--border);
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
+.file-row:hover {
+  background: var(--surface-2);
+}
+
+.problems {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--danger);
+}
+
+.destination {
+  margin: 8px 0 20px;
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.fields input,
+.fields select {
+  color: var(--text);
+  font-size: 15px;
+}
+
+input.narrow {
+  width: 90px;
+}
+
+.destination .table {
+  margin-bottom: 14px;
+}
+
+.results {
+  list-style: none;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+}

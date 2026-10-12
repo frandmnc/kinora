@@ -4,9 +4,11 @@ import { useApi } from '../../shared/useApi'
 import type { Library } from '../../shared/types/Library'
 import type { NewLibrary } from '../../shared/types/NewLibrary'
 import type { LibraryChanges } from '../../shared/types/LibraryChanges'
+import type { ServerInfo } from '../../shared/types/ServerInfo'
 
 export function LibrariesPage() {
   const { data: libraries, error, loading, reload } = useApi<Library[]>('/api/admin/libraries')
+  const { data: info } = useApi<ServerInfo>('/api/admin/info')
   const [actionError, setActionError] = useState<string>()
 
   // Ejecuta una acción, muestra su error si falla y recarga la lista.
@@ -26,8 +28,16 @@ export function LibrariesPage() {
     <>
       <h1>Bibliotecas</h1>
       <p className="muted">
-        Cada biblioteca es una categoría con su carpeta destino. Lo que importes se guardará ahí.
+        Cada biblioteca es una categoría con su propia carpeta dentro de la carpeta media. Kinora crea la carpeta
+        y la renombra si cambiás el nombre.
       </p>
+      {info && (
+        <p>
+          Carpeta media: <span className="mono">{info.media_dir}</span>
+          {!info.media_available && <span className="error"> (no disponible)</span>}
+          <span className="muted"> · se cambia en config.toml</span>
+        </p>
+      )}
 
       <CreateForm onCreate={(library) => run(() => api('/api/admin/libraries', { method: 'POST', body: library }))} />
 
@@ -65,26 +75,15 @@ export function LibrariesPage() {
 
 function CreateForm({ onCreate }: { onCreate: (library: NewLibrary) => Promise<boolean> }) {
   const [name, setName] = useState('')
-  const [rootDir, setRootDir] = useState('')
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (await onCreate({ name, root_dir: rootDir })) {
-      setName('')
-      setRootDir('')
-    }
+    if (await onCreate({ name })) setName('')
   }
 
   return (
     <form className="inline-form" onSubmit={submit}>
       <input placeholder="Nombre (ej. Anime)" value={name} onChange={(e) => setName(e.target.value)} required />
-      <input
-        className="grow mono"
-        placeholder="Carpeta en el servidor (ej. ~/Movies/Kinora/Anime)"
-        value={rootDir}
-        onChange={(e) => setRootDir(e.target.value)}
-        required
-      />
       <button className="primary" type="submit">
         Crear
       </button>
@@ -124,7 +123,7 @@ function LibraryRow({
           library.name
         )}
       </td>
-      <td className="mono">{library.root_dir}</td>
+      <td className="mono">{library.dir}/</td>
       <td className="actions">
         {!editing && (
           <>
@@ -132,7 +131,7 @@ function LibraryRow({
             <button
               className="danger"
               onClick={() => {
-                if (confirm(`¿Eliminar la biblioteca "${library.name}"? Los archivos de la carpeta no se tocan.`)) {
+                if (confirm(`¿Eliminar la biblioteca "${library.name}"? La carpeta y sus archivos quedan en el disco.`)) {
                   onDelete()
                 }
               }}

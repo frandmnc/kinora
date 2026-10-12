@@ -109,6 +109,7 @@ La distribución será el binario con las dos interfaces embebidas, más `ffmpeg
 bind = "0.0.0.0"
 port = 8090
 data_dir = "~/.kinora"              # base de datos y backups
+media_dir = "~/Movies/Kinora"       # todo lo importado; cada biblioteca es una subcarpeta
 
 # Carpetas desde las que se puede importar
 import_sources = ["~/Downloads", "/Volumes/Viejo/Plex"]
@@ -208,8 +209,8 @@ Las reglas se validan en la capa de dominio de Rust.
 ```sql
 CREATE TABLE libraries (
   id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL,            -- "Películas", "Series", "Anime"
-  root_dir TEXT NOT NULL         -- carpeta destino en el disco
+  name TEXT NOT NULL UNIQUE,     -- "Películas", "Series", "Anime"
+  dir TEXT NOT NULL UNIQUE       -- subcarpeta de media_dir; Kinora la crea y la renombra
 );
 
 CREATE TABLE contents (
@@ -221,7 +222,7 @@ CREATE TABLE contents (
   title TEXT NOT NULL,
   year INTEGER,
   overview TEXT,
-  dir TEXT,                      -- solo movie/show, relativo a root_dir
+  dir TEXT,                      -- solo movie/show, relativo a la carpeta de la biblioteca
   created_at INTEGER NOT NULL,
   UNIQUE (parent_id, number)
 );
@@ -229,7 +230,7 @@ CREATE TABLE contents (
 CREATE TABLE media_files (
   id INTEGER PRIMARY KEY,
   content_id INTEGER NOT NULL REFERENCES contents(id),
-  rel_path TEXT NOT NULL UNIQUE, -- relativo a root_dir
+  rel_path TEXT NOT NULL UNIQUE, -- relativo a la carpeta de la biblioteca
   size INTEGER NOT NULL,
   duration REAL,
   video_codec TEXT,              -- ej. "hvc1.2.4.L120.90"
@@ -289,7 +290,7 @@ CREATE TABLE server_samples (
 **Decisiones que sostienen el modelo:**
 
 - **El progreso pertenece al contenido.** Si se reemplaza el archivo de un episodio, el progreso se conserva.
-- **Las rutas son relativas a la biblioteca.** Mover todo a otro disco exige cambiar solo `root_dir`.
+- **Las rutas son relativas.** Las bibliotecas guardan solo el nombre de su carpeta dentro de `media_dir`, y los archivos su ruta dentro de la biblioteca. Mover todo a otro disco exige cambiar solo `media_dir`. Renombrar una biblioteca renombra su carpeta sin tocar los registros de archivos.
 - **La carpeta es una consecuencia del contenido, no su identidad.** El contenido se identifica por su `id`. La carpeta se calcula al importar a partir del título y el año. Corregir un título permite mover la carpeta sin perder relaciones.
 - **El JSON de ffprobe se guarda completo.** Las columnas `duration`, `video_codec`, `width` y `height` se derivan de él para ordenar y filtrar. Otros datos se consultan con las funciones JSON de SQLite.
 
@@ -308,7 +309,7 @@ CREATE TABLE server_samples (
 **Kinora organizará cada biblioteca con nombres compatibles con Plex.** Plex podrá leer la misma carpeta mientras se usan los dos en paralelo.
 
 ```
-<root_dir>/
+<media_dir>/<biblioteca>/
 ├─ Interstellar (2014)/
 │  ├─ kinora.json
 │  └─ Interstellar (2014).mp4

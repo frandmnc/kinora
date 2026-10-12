@@ -6,26 +6,33 @@ use super::Library;
 use crate::error::{AppError, AppResult};
 
 pub async fn list_all(db: &SqlitePool) -> AppResult<Vec<Library>> {
-    let libraries = sqlx::query_as("SELECT id, name, root_dir FROM libraries ORDER BY name")
+    let libraries = sqlx::query_as("SELECT id, name, dir FROM libraries ORDER BY name")
         .fetch_all(db)
         .await?;
     Ok(libraries)
 }
 
-pub async fn insert(db: &SqlitePool, name: &str, root_dir: &str) -> AppResult<Library> {
-    sqlx::query_as(
-        "INSERT INTO libraries (name, root_dir) VALUES (?, ?) RETURNING id, name, root_dir",
-    )
-    .bind(name)
-    .bind(root_dir)
-    .fetch_one(db)
-    .await
-    .map_err(duplicate_as_conflict)
+pub async fn find(db: &SqlitePool, id: i64) -> AppResult<Library> {
+    sqlx::query_as("SELECT id, name, dir FROM libraries WHERE id = ?")
+        .bind(id)
+        .fetch_optional(db)
+        .await?
+        .ok_or_else(|| not_found(id))
 }
 
-pub async fn update_name(db: &SqlitePool, id: i64, name: &str) -> AppResult<Library> {
-    sqlx::query_as("UPDATE libraries SET name = ? WHERE id = ? RETURNING id, name, root_dir")
+pub async fn insert(db: &SqlitePool, name: &str, dir: &str) -> AppResult<Library> {
+    sqlx::query_as("INSERT INTO libraries (name, dir) VALUES (?, ?) RETURNING id, name, dir")
         .bind(name)
+        .bind(dir)
+        .fetch_one(db)
+        .await
+        .map_err(duplicate_as_conflict)
+}
+
+pub async fn update(db: &SqlitePool, id: i64, name: &str, dir: &str) -> AppResult<Library> {
+    sqlx::query_as("UPDATE libraries SET name = ?, dir = ? WHERE id = ? RETURNING id, name, dir")
+        .bind(name)
+        .bind(dir)
         .bind(id)
         .fetch_optional(db)
         .await
@@ -37,7 +44,15 @@ pub async fn remove(db: &SqlitePool, id: i64) -> AppResult<()> {
     let result = sqlx::query("DELETE FROM libraries WHERE id = ?")
         .bind(id)
         .execute(db)
-        .await?;
+        .await
+        .map_err(|err| match &err {
+            sqlx::Error::Database(db_err) if db_err.is_foreign_key_violation() => {
+                AppError::Conflict(
+                    "la biblioteca tiene contenido: no se puede eliminar".to_string(),
+                )
+            }
+            _ => AppError::Internal(err.into()),
+        })?;
     if result.rows_affected() == 0 {
         return Err(not_found(id));
     }
@@ -66,8 +81,8 @@ mod tests {
     #[tokio::test]
     async fn insert_and_list_sorted_by_name() {
         let db = connect_in_memory().await;
-        insert(&db, "Series", "/media/series").await.unwrap();
-        insert(&db, "Anime", "/media/anime").await.unwrap();
+        insert(&db, "Series", "Series").await.unwrap();
+        insert(&db, "Anime", "Anime").await.unwrap();
 
         let names: Vec<String> = list_all(&db)
             .await
@@ -81,8 +96,8 @@ mod tests {
     #[tokio::test]
     async fn duplicate_name_is_conflict() {
         let db = connect_in_memory().await;
-        insert(&db, "Anime", "/media/anime").await.unwrap();
-        let result = insert(&db, "Anime", "/media/otra").await;
+        insert(&db, "Anime", "Anime").await.unwrap();
+        let result = insert(&db, "Anime", "Otra").await;
         assert!(matches!(result, Err(AppError::Conflict(_))));
     }
 
@@ -90,7 +105,7 @@ mod tests {
     async fn rename_and_delete_missing_are_not_found() {
         let db = connect_in_memory().await;
         assert!(matches!(
-            update_name(&db, 99, "X").await,
+            update(&db, 99, "X", "X").await,
             Err(AppError::NotFound(_))
         ));
         assert!(matches!(remove(&db, 99).await, Err(AppError::NotFound(_))));

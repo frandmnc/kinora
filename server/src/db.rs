@@ -40,3 +40,11 @@ pub async fn connect_in_memory() -> SqlitePool {
     sqlx::migrate!().run(&db).await.unwrap();
     db
 }
+
+/// Segundos desde 1970 (UTC): el formato de las columnas de fecha (`created_at`, `imported_at`...).
+pub fn now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}

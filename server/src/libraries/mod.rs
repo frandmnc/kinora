@@ -10,12 +10,15 @@ use ts_rs::TS;
 
 use crate::app::AppState;
 
+pub use repo::find;
+
 #[derive(Debug, Serialize, sqlx::FromRow, TS)]
 #[ts(export)]
 pub struct Library {
     pub id: i64,
     pub name: String,
-    pub root_dir: String,
+    /// Nombre de la carpeta dentro de `media_dir`.
+    pub dir: String,
 }
 
 /// Rutas del Admin. Se montan bajo /api/admin.

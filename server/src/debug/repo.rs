@@ -82,7 +82,7 @@ mod tests {
     #[tokio::test]
     async fn reads_any_table_as_json() {
         let db = connect_in_memory().await;
-        sqlx::query("INSERT INTO libraries (name, root_dir) VALUES ('Anime', '/media/anime')")
+        sqlx::query("INSERT INTO libraries (name, dir) VALUES ('Anime', 'Anime')")
             .execute(&db)
             .await
             .unwrap();
@@ -99,13 +99,13 @@ mod tests {
             .into_iter()
             .map(|c| c.name)
             .collect();
-        assert_eq!(names, ["id", "name", "root_dir"]);
+        assert_eq!(names, ["id", "name", "dir"]);
         assert_eq!(
             rows(&db, "libraries", 10, 0).await.unwrap(),
             vec![vec![
                 Value::from(1),
                 Value::from("Anime"),
-                Value::from("/media/anime")
+                Value::from("Anime")
             ]]
         );
     }
