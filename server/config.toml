@@ -1,0 +1,8 @@
+# Configuración de Kinora
+
+bind = "0.0.0.0"     # 127.0.0.1 para aceptar conexiones solo desde esta computadora
+port = 8090
+data_dir = "~/.kinora"
+
+# Carpetas desde las que se puede importar
+import_sources = ["~/Downloads", "~/Desktop"]
