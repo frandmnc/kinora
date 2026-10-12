@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router'
 import { App } from './App'
+import '@fontsource-variable/dm-sans'
 import '../shared/base.css'
 import './admin.css'
 

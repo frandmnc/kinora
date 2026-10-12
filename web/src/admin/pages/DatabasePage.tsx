@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { NavLink, useParams, useSearchParams } from 'react-router'
+import { ChevronLeft, ChevronRight, RefreshCw, Table2 } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
 import type { TableSummary } from '../../shared/types/TableSummary'
 import type { TablePage } from '../../shared/types/TablePage'
 import type { JsonValue } from '../../shared/types/serde_json/JsonValue'
+import { Alert, Badge, Card, EmptyState, PageHeader } from '../ui'
 
 const PAGE_SIZE = 100
 
@@ -14,25 +16,36 @@ export function DatabasePage() {
 
   return (
     <>
-      <div className="page-header">
-        <h1>Base de datos</h1>
-        <button onClick={reload}>Actualizar</button>
-      </div>
-      {error && <p className="error">{error}</p>}
+      <PageHeader
+        title="Base de datos"
+        description="Las tablas de SQLite tal como están, de solo lectura. Para depurar."
+        actions={
+          <button className="btn" onClick={reload}>
+            <RefreshCw /> Actualizar
+          </button>
+        }
+      />
+      {error && <Alert>{error}</Alert>}
       <div className="db-layout">
-        <ul className="db-tables">
-          {tables?.map((t) => (
-            <li key={t.name}>
-              <NavLink to={`/database/${t.name}`}>
-                <span className="mono">{t.name}</span>
-                <span className="count">{t.rows}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-        <div className="db-rows">
-          {table ? <TableView key={table} table={table} /> : <p className="muted">Elegí una tabla.</p>}
-        </div>
+        <Card title="Tablas">
+          <ul className="db-tables">
+            {tables?.map((t) => (
+              <li key={t.name}>
+                <NavLink to={`/database/${t.name}`}>
+                  <span className="mono">{t.name}</span>
+                  <Badge>{t.rows}</Badge>
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </Card>
+        {table ? (
+          <TableView key={table} table={table} />
+        ) : (
+          <Card>
+            <EmptyState icon={Table2} title="Elegí una tabla" />
+          </Card>
+        )}
       </div>
     </>
   )
@@ -45,27 +58,39 @@ function TableView({ table }: { table: string }) {
     `/api/admin/debug/tables/${encodeURIComponent(table)}?limit=${PAGE_SIZE}&offset=${offset}`,
   )
 
-  if (error) return <p className="error">{error}</p>
+  if (error) return <Alert>{error}</Alert>
   if (!page) return loading ? <p className="muted">Cargando…</p> : null
 
   const last = Math.min(offset + page.rows.length, page.total)
   const goTo = (newOffset: number) => setParams(newOffset > 0 ? { offset: String(newOffset) } : {})
 
   return (
-    <>
-      <div className="pager">
-        <span className="muted">
-          {page.total === 0 ? 'Sin filas' : `Filas ${offset + 1}–${last} de ${page.total}`}
-        </span>
-        <button disabled={offset === 0} onClick={() => goTo(Math.max(0, offset - PAGE_SIZE))}>
-          ← Anterior
-        </button>
-        <button disabled={last >= page.total} onClick={() => goTo(offset + PAGE_SIZE)}>
-          Siguiente →
-        </button>
-      </div>
+    <Card
+      title={<span className="mono">{table}</span>}
+      description={page.total === 0 ? 'sin filas' : `filas ${offset + 1}–${last} de ${page.total}`}
+      actions={
+        <>
+          <button
+            className="btn btn-sm btn-icon"
+            title="Anterior"
+            disabled={offset === 0}
+            onClick={() => goTo(Math.max(0, offset - PAGE_SIZE))}
+          >
+            <ChevronLeft />
+          </button>
+          <button
+            className="btn btn-sm btn-icon"
+            title="Siguiente"
+            disabled={last >= page.total}
+            onClick={() => goTo(offset + PAGE_SIZE)}
+          >
+            <ChevronRight />
+          </button>
+        </>
+      }
+    >
       <div className="table-scroll">
-        <table className="table compact">
+        <table className="table compact data">
           <thead>
             <tr>
               {page.columns.map((column) => (
@@ -86,7 +111,7 @@ function TableView({ table }: { table: string }) {
           </tbody>
         </table>
       </div>
-    </>
+    </Card>
   )
 }
 

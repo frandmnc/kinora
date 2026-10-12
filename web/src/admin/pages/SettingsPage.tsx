@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { FolderCheck, FolderInput, FolderOpen, HardDrive, RefreshCw } from 'lucide-react'
 import { api } from '../../shared/api'
 import { formatSize } from '../../shared/format'
 import { useApi } from '../../shared/useApi'
@@ -9,6 +10,7 @@ import type { MediaDirSetting } from '../../shared/types/MediaDirSetting'
 import type { MediaUsage } from '../../shared/types/MediaUsage'
 import type { SetMediaDir } from '../../shared/types/SetMediaDir'
 import { FolderPicker } from '../FolderPicker'
+import { Alert, Badge, Card, PageHeader } from '../ui'
 
 export function SettingsPage() {
   const { data: mediaDir, error, reload } = useApi<MediaDirSetting>('/api/admin/settings/media-dir')
@@ -44,51 +46,59 @@ export function SettingsPage() {
 
   return (
     <>
-      <h1>Configuración</h1>
+      <PageHeader title="Configuración" />
 
-      <section className="card-section">
-        <h2>Carpeta media</h2>
-        <p className="muted">
-          Donde Kinora guarda todo lo importado. Cada biblioteca es una subcarpeta que Kinora crea y administra.
-        </p>
-        {error && <p className="error">{error}</p>}
-        {mediaDir && (
-          <p>
-            {mediaDir.path ? (
-              <>
-                <span className="mono">{mediaDir.path}</span>
-                {!mediaDir.available && <span className="error"> (no disponible)</span>}
-              </>
+      <Card
+        title="Carpeta media"
+        description="donde Kinora guarda todo lo importado; cada biblioteca es una subcarpeta"
+        actions={
+          !picking &&
+          !pending && (
+            <button className="btn btn-primary" onClick={() => setPicking(true)}>
+              <FolderOpen /> {mediaDir?.path ? 'Cambiar' : 'Elegir carpeta'}
+            </button>
+          )
+        }
+      >
+        <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {error && <Alert>{error}</Alert>}
+          {mediaDir &&
+            (mediaDir.path ? (
+              <div className="row">
+                <span className="path-chip">
+                  <HardDrive />
+                  {mediaDir.path}
+                </span>
+                {mediaDir.available ? (
+                  <Badge tone="good">Disponible</Badge>
+                ) : (
+                  <Badge tone="critical">No disponible</Badge>
+                )}
+              </div>
             ) : (
-              <span className="error">Todavía no elegiste una carpeta.</span>
-            )}
-          </p>
-        )}
-        {saveError && <p className="error">{saveError}</p>}
+              <Alert tone="warning">Todavía no elegiste una carpeta. Sin ella no se pueden crear bibliotecas.</Alert>
+            ))}
+          {saveError && <Alert>{saveError}</Alert>}
 
-        {pending ? (
-          <MoveChoice
-            from={mediaDir?.path ?? ''}
-            to={pending}
-            libraries={libraries ?? []}
-            saving={saving}
-            onChoose={(change) => save(pending, change)}
-            onCancel={() => {
-              setPending(undefined)
-              setSaveError(undefined)
-            }}
-          />
-        ) : picking ? (
-          <FolderPicker start={mediaDir?.path} onSelect={choose} onCancel={() => setPicking(false)} />
-        ) : (
-          <button className="primary" onClick={() => setPicking(true)}>
-            {mediaDir?.path ? 'Cambiar…' : 'Elegir carpeta…'}
-          </button>
-        )}
+          {pending && (
+            <MoveChoice
+              from={mediaDir?.path ?? ''}
+              to={pending}
+              libraries={libraries ?? []}
+              saving={saving}
+              onChoose={(change) => save(pending, change)}
+              onCancel={() => {
+                setPending(undefined)
+                setSaveError(undefined)
+              }}
+            />
+          )}
+          {picking && <FolderPicker start={mediaDir?.path} onSelect={choose} onCancel={() => setPicking(false)} />}
+        </div>
+      </Card>
 
-        {/* `key`: al cambiar la carpeta, el componente se vuelve a crear y mide de nuevo. */}
-        {mediaDir?.available && !picking && !pending && <UsageView key={mediaDir.path} />}
-      </section>
+      {/* `key`: al cambiar la carpeta, el componente se vuelve a crear y mide de nuevo. */}
+      {mediaDir?.available && <UsageView key={mediaDir.path} />}
     </>
   )
 }
@@ -111,31 +121,35 @@ function MoveChoice({
 }) {
   const folders = libraries.map((library) => library.dir).join(', ')
   return (
-    <div className="move-choice">
-      <p>
-        Nueva carpeta: <span className="mono">{to}</span>
-      </p>
-      <p className="muted">
-        Hay {libraries.length === 1 ? 'una biblioteca' : `${libraries.length} bibliotecas`} ({folders}). ¿Qué hacemos
-        con sus carpetas?
-      </p>
+    <>
+      <Alert tone="info">
+        Nueva carpeta: <span className="mono">{to}</span>. Hay{' '}
+        {libraries.length === 1 ? 'una biblioteca' : `${libraries.length} bibliotecas`} ({folders}). ¿Qué hacemos con
+        sus carpetas?
+      </Alert>
       <div className="choices">
         <button className="choice" disabled={saving} onClick={() => onChoose('move')}>
-          <strong>Moverlas</strong>
+          <strong>
+            <FolderInput /> Moverlas
+          </strong>
           <span>
             Kinora mueve las carpetas desde <span className="mono">{from}</span>. Es instantáneo si la carpeta nueva
             está en el mismo disco. Entre discos distintos todavía no se puede.
           </span>
         </button>
         <button className="choice" disabled={saving} onClick={() => onChoose('already_moved')}>
-          <strong>Ya las moví yo</strong>
+          <strong>
+            <FolderCheck /> Ya las moví yo
+          </strong>
           <span>Kinora no toca nada: solo verifica que las carpetas estén en la ubicación nueva.</span>
         </button>
       </div>
-      <button onClick={onCancel} disabled={saving}>
-        Cancelar
-      </button>
-    </div>
+      <div>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={saving}>
+          Cancelar
+        </button>
+      </div>
+    </>
   )
 }
 
@@ -143,83 +157,103 @@ function MoveChoice({
 function UsageView() {
   const { data: usage, error, loading, reload } = useApi<MediaUsage>('/api/admin/settings/media-dir/usage')
 
-  if (error) return <p className="error">{error}</p>
-  if (!usage) return <p className="muted">{loading ? 'Midiendo…' : null}</p>
-
-  const total = usage.disk_total ?? 0
-  const free = usage.disk_available ?? 0
-  const percent = (bytes: number) => (total > 0 ? `${(bytes / total) * 100}%` : '0%')
+  const total = usage?.disk_total ?? 0
+  const free = usage?.disk_available ?? 0
+  const other = usage ? Math.max(0, total - free - usage.size) : 0
+  const share = (bytes: number) => (total > 0 ? `${(bytes / total) * 100}%` : '0%')
 
   return (
-    <div className="usage">
-      <div className="page-header">
-        <h3>
-          Ocupa {formatSize(usage.size)} <span className="muted">en {usage.files} archivos</span>
-        </h3>
-        <button onClick={reload}>Medir de nuevo</button>
-      </div>
-
-      {total > 0 && (
-        <>
-          <div className="disk-bar" title="Kinora · otros archivos del disco · libre">
-            <span className="kinora" style={{ width: percent(usage.size) }} />
-            <span className="other" style={{ width: percent(total - free - usage.size) }} />
+    <Card
+      title="Espacio"
+      description={usage ? `${formatSize(usage.size)} en ${usage.files} archivos` : loading ? 'midiendo…' : undefined}
+      actions={
+        <button className="btn btn-sm" onClick={reload} disabled={loading}>
+          <RefreshCw /> Medir de nuevo
+        </button>
+      }
+    >
+      {error && (
+        <div className="card-body">
+          <Alert>{error}</Alert>
+        </div>
+      )}
+      {usage && total > 0 && (
+        <div className="card-body">
+          {/* Barra apilada del disco: Kinora · otros archivos · libre, con leyenda. */}
+          <div className="stack-bar" role="img" aria-label="Uso del disco">
+            <span className="seg-kinora" style={{ width: share(usage.size) }} />
+            <span className="seg-other" style={{ width: share(other) }} />
+            <span className="seg-free" />
           </div>
-          <p className="muted small">
-            <span className="dot kinora" /> Kinora {formatSize(usage.size)} · <span className="dot other" /> Otros{' '}
-            {formatSize(Math.max(0, total - free - usage.size))} · Libre {formatSize(free)} de {formatSize(total)}
-          </p>
-        </>
+          <div className="legend">
+            <span>
+              <i className="swatch kinora" /> Kinora · {formatSize(usage.size)}
+            </span>
+            <span>
+              <i className="swatch other" /> Otros archivos · {formatSize(other)}
+            </span>
+            <span>
+              <i className="swatch free" /> Libre · {formatSize(free)}
+            </span>
+            <span className="muted">Disco de {formatSize(total)}</span>
+          </div>
+        </div>
       )}
 
-      {usage.missing.length > 0 && (
-        <p className="error">
-          Bibliotecas sin su carpeta: {usage.missing.map((library) => library.name).join(', ')}
-        </p>
+      {usage && usage.missing.length > 0 && (
+        <div className="card-body" style={{ paddingTop: 0 }}>
+          <Alert>Bibliotecas sin su carpeta: {usage.missing.map((library) => library.name).join(', ')}</Alert>
+        </div>
       )}
 
-      <table className="table compact">
-        <thead>
-          <tr>
-            <th>Carpeta</th>
-            <th>Es</th>
-            <th>Archivos</th>
-            <th>Tamaño</th>
-          </tr>
-        </thead>
-        <tbody>
-          {usage.folders.length === 0 && (
+      {usage && (
+        <table className="table">
+          <thead>
             <tr>
-              <td colSpan={4} className="muted">
-                La carpeta está vacía.
-              </td>
+              <th>Carpeta</th>
+              <th>Es</th>
+              <th className="num">Archivos</th>
+              <th className="num">Tamaño</th>
             </tr>
-          )}
-          {usage.folders.map((folder) => (
-            <tr key={folder.name}>
-              <td className="mono">{folder.name}/</td>
-              <td>
-                {folder.role === 'library' && folder.library && (
-                  <Link to="/libraries">Biblioteca «{folder.library.name}»</Link>
-                )}
-                {folder.role === 'inbox' && <Link to="/import">Bandeja de entrada</Link>}
-                {folder.role === 'other' && <span className="muted">Sin biblioteca</span>}
-              </td>
-              <td>{folder.files}</td>
-              <td>
-                <div className="position">
-                  <span>{formatSize(folder.size)}</span>
-                  {usage.size > 0 && (
-                    <span className="bar">
-                      <span style={{ width: `${(folder.size / usage.size) * 100}%` }} />
-                    </span>
+          </thead>
+          <tbody>
+            {usage.folders.length === 0 && (
+              <tr>
+                <td colSpan={4} className="muted">
+                  La carpeta está vacía.
+                </td>
+              </tr>
+            )}
+            {usage.folders.map((folder) => (
+              <tr key={folder.name}>
+                <td className="mono">{folder.name}/</td>
+                <td>
+                  {folder.role === 'library' && folder.library && (
+                    <Link to="/libraries">
+                      <Badge tone="accent">Biblioteca «{folder.library.name}»</Badge>
+                    </Link>
                   )}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                  {folder.role === 'inbox' && (
+                    <Link to="/import">
+                      <Badge>Bandeja de entrada</Badge>
+                    </Link>
+                  )}
+                  {folder.role === 'other' && <span className="muted">Sin biblioteca</span>}
+                </td>
+                <td className="num">{folder.files}</td>
+                <td>
+                  <div className="size-cell">
+                    <span>{formatSize(folder.size)}</span>
+                    <div className="meter meter-sm" aria-hidden="true">
+                      <span style={{ width: usage.size > 0 ? `${(folder.size / usage.size) * 100}%` : 0 }} />
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Card>
   )
 }

@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { ArrowUp, Folder as FolderIcon, FolderPlus, HardDrive, House, RefreshCw } from 'lucide-react'
 import { api } from '../shared/api'
 import { useApi } from '../shared/useApi'
 import type { Folder } from '../shared/types/Folder'
 import type { FolderListing } from '../shared/types/FolderListing'
 import type { NewFolder } from '../shared/types/NewFolder'
+import { Alert } from './ui'
 
 /**
  * Explorador de carpetas del servidor (no de la compu desde donde se abre el Admin).
@@ -45,39 +47,58 @@ export function FolderPicker({
   return (
     <div className="folder-picker">
       <div className="picker-shortcuts">
-        {listing?.shortcuts.map((shortcut) => (
-          <button key={shortcut.path} onClick={() => go(shortcut.path)}>
+        {listing?.shortcuts.map((shortcut, i) => (
+          <button key={shortcut.path} className="btn btn-sm" onClick={() => go(shortcut.path)}>
+            {i === 0 ? <House /> : <HardDrive />}
             {shortcut.name}
           </button>
         ))}
       </div>
 
-      <div className="picker-path">
-        <button disabled={!listing?.parent} onClick={() => listing?.parent && go(listing.parent)} title="Subir un nivel">
-          ↑
+      <div className="picker-toolbar" style={{ marginTop: 10 }}>
+        <button
+          className="btn btn-sm btn-icon"
+          disabled={!listing?.parent}
+          onClick={() => listing?.parent && go(listing.parent)}
+          title="Subir un nivel"
+        >
+          <ArrowUp />
         </button>
-        <span className="mono grow">{listing?.path ?? path}</span>
-        <button onClick={reload}>Actualizar</button>
+        <span className="mono grow truncate" title={listing?.path}>
+          {listing?.path ?? path}
+        </span>
+        <button className="btn btn-sm btn-icon btn-ghost" onClick={reload} title="Actualizar">
+          <RefreshCw />
+        </button>
       </div>
 
-      {(error || actionError) && <p className="error">{actionError ?? error}</p>}
+      {(error || actionError) && (
+        <div style={{ padding: 10 }}>
+          <Alert>{actionError ?? error}</Alert>
+        </div>
+      )}
 
       <ul className="picker-folders">
         {listing?.folders.length === 0 && <li className="muted">No hay subcarpetas.</li>}
         {listing?.folders.map((folder) => (
           <li key={folder.path}>
-            <button onClick={() => go(folder.path)}>📁 {folder.name}</button>
+            <button onClick={() => go(folder.path)}>
+              <FolderIcon />
+              <span className="truncate">{folder.name}</span>
+            </button>
           </li>
         ))}
       </ul>
 
-      <div className="picker-actions">
-        <button onClick={createFolder} disabled={!listing}>
-          Nueva carpeta…
+      <div className="picker-footer">
+        <button className="btn btn-sm" onClick={createFolder} disabled={!listing}>
+          <FolderPlus /> Nueva carpeta
         </button>
         <span className="grow" />
-        <button onClick={onCancel}>Cancelar</button>
-        <button className="primary" disabled={!listing} onClick={() => listing && onSelect(listing.path)}>
+        <button className="btn btn-sm btn-ghost" onClick={onCancel}>
+          Cancelar
+        </button>
+        <button className="btn btn-sm btn-primary" disabled={!listing} onClick={() => listing && onSelect(listing.path)}>
           Elegir esta carpeta
         </button>
       </div>
