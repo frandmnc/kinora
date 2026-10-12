@@ -78,12 +78,26 @@ Hoy no hay login. La separación entre `/api/*` y `/api/admin/*` permitirá prot
 
 ```
 kinora/
-├─ server/            crate de Rust
+├─ server/                    crate de Rust
+│  ├─ migrations/             cambios del esquema de SQLite, en orden
+│  └─ src/
+│     ├─ main.rs              arranque
+│     ├─ app.rs               estado compartido y rutas
+│     ├─ config.rs, db.rs, error.rs, web.rs, health.rs
+│     └─ <funcionalidad>/     una carpeta por funcionalidad (libraries/, debug/, ...)
+│        ├─ mod.rs            tipos y rutas
+│        ├─ handlers.rs       HTTP: recibe el pedido, valida, responde
+│        └─ repo.rs           SQL
 └─ web/
-   ├─ shared/         cliente de la API y tipos generados
-   ├─ admin/          Kinora Admin
-   └─ player/         Kinora Player
+   ├─ index.html              entrada del Player (/)
+   ├─ admin/index.html        entrada del Admin (/admin/)
+   └─ src/
+      ├─ shared/              cliente de la API; types/ se genera desde Rust
+      ├─ admin/               Kinora Admin
+      └─ player/              Kinora Player
 ```
+
+Los tipos de `web/src/shared/types/` se regeneran con `cargo test`. No se editan a mano.
 
 La distribución será el binario con las dos interfaces embebidas, más `ffmpeg` como dependencia del sistema.
 

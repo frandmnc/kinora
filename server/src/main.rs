@@ -1,61 +1,19 @@
+mod app;
 mod config;
 mod db;
+mod debug;
 mod error;
+mod health;
 mod libraries;
+mod web;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use axum::routing::{get, patch};
-use axum::{Json, Router};
-use serde::Serialize;
-use sqlx::SqlitePool;
 
+use crate::app::AppState;
 use crate::config::Config;
-use crate::error::AppError;
-
-/// Lo que comparten todos los handlers. Axum le pasa una copia a cada pedido;
-/// copiar un `SqlitePool` es barato porque todas las copias usan las mismas conexiones.
-#[derive(Clone)]
-pub struct AppState {
-    pub db: SqlitePool,
-}
-
-// Lo que devuelve /api/health. `Serialize` permite convertirlo a JSON.
-#[derive(Serialize)]
-struct Health {
-    status: String,
-    version: String,
-}
-
-// Un "handler": la función que responde a una ruta.
-async fn health() -> Json<Health> {
-    Json(Health {
-        status: "ok".to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
-    })
-}
-
-async fn api_not_found() -> AppError {
-    AppError::NotFound("ruta de API inexistente".to_string())
-}
-
-fn router(state: AppState) -> Router {
-    let admin = Router::new()
-        .route("/libraries", get(libraries::list).post(libraries::create))
-        .route(
-            "/libraries/{id}",
-            patch(libraries::rename).delete(libraries::delete),
-        );
-
-    let api = Router::new()
-        .route("/health", get(health))
-        .nest("/admin", admin)
-        .fallback(api_not_found);
-
-    Router::new().nest("/api", api).with_state(state)
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -67,7 +25,7 @@ async fn main() -> Result<()> {
     let config = Config::load(&config_path)?;
 
     let db = db::connect(&config.data_dir).await?;
-    let app = router(AppState { db });
+    let app = app::router(AppState { db });
 
     let addr = SocketAddr::new(config.bind, config.port);
     let listener = tokio::net::TcpListener::bind(addr)
@@ -80,7 +38,17 @@ async fn main() -> Result<()> {
     {
         println!("Desde la red:         http://{ip}:{}", config.port);
     }
+    println!(
+        "Admin:                http://localhost:{}/admin/",
+        config.port
+    );
     println!("Datos en {}", config.data_dir.display());
+    if !web::is_built() {
+        println!(
+            "Aviso: no está compilada la web ({}). Ejecutá `npm run build` en web/ o usá `npm run dev`.",
+            web::dist_dir().display()
+        );
+    }
 
     axum::serve(listener, app)
         .await

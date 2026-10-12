@@ -1,0 +1,253 @@
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 210px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 18px;
+  padding: 0 10px 18px;
+}
+
+.brand span {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.sidebar a {
+  color: var(--text);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+}
+
+.sidebar a:hover {
+  background: var(--surface-2);
+}
+
+.sidebar a.active {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.nav-section {
+  margin: 18px 10px 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 28px 32px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 24px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+button.danger {
+  color: var(--danger);
+}
+
+input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+}
+
+.inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0;
+}
+
+td .inline-form {
+  margin: 0;
+}
+
+.grow {
+  flex: 1;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.table th {
+  font-weight: 600;
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+
+.table.compact th,
+.table.compact td {
+  padding: 5px 10px;
+}
+
+.actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actions button + button {
+  margin-left: 6px;
+}
+
+/* Base de datos */
+
+.db-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.db-tables {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 220px;
+  flex-shrink: 0;
+}
+
+.db-tables a {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.db-tables a:hover {
+  background: var(--surface-2);
+}
+
+.db-tables a.active {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.count {
+  opacity: 0.7;
+  font-size: 13px;
+}
+
+.db-rows {
+  flex: 1;
+  min-width: 0;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pager .muted {
+  margin-right: auto;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.sql-type {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+td.null {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+td.long {
+  cursor: pointer;
+  max-width: 480px;
+}
+
+td.long pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

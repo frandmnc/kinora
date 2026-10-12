@@ -1,0 +1,26 @@
+/* El Player siempre es oscuro: se diseña para la TV. */
+body {
+  background: #0b0b0d;
+  color: #f1f1f1;
+}
+
+.player {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 22px;
+}
+
+.player h1 {
+  font-size: 72px;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.player .status {
+  font-size: 16px;
+  color: #8a8a90;
+}

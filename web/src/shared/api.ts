@@ -1,0 +1,43 @@
+// Cliente de la API de Kinora, compartido por el Admin y el Player.
+
+// Vacío = mismo origen que la página. La app de la TV va a configurar la dirección del servidor.
+let serverUrl = ''
+
+export function setServerUrl(url: string) {
+  serverUrl = url.replace(/\/$/, '')
+}
+
+export class ApiError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+type Options = { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown }
+
+export async function api<T>(path: string, options: Options = {}): Promise<T> {
+  const hasBody = options.body !== undefined
+  const response = await fetch(serverUrl + path, {
+    method: options.method ?? 'GET',
+    headers: hasBody ? { 'content-type': 'application/json' } : undefined,
+    body: hasBody ? JSON.stringify(options.body) : undefined,
+  })
+
+  if (!response.ok) {
+    // Kinora responde {"error": "..."}; otros errores pueden venir como texto.
+    const text = await response.text()
+    let message = text || response.statusText
+    try {
+      message = JSON.parse(text).error ?? message
+    } catch {
+      // No era JSON: queda el texto tal cual.
+    }
+    throw new ApiError(response.status, message)
+  }
+
+  if (response.status === 204) return undefined as T
+  return (await response.json()) as T
+}
