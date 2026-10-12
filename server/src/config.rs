@@ -36,11 +36,14 @@ impl Config {
     pub fn load(path: &Path) -> Result<Config> {
         let text = fs::read_to_string(path)
             .with_context(|| format!("no se pudo leer {}", path.display()))?;
-        let config = Config::parse(&text)
-            .with_context(|| format!("{} tiene un error", path.display()))?;
+        let config =
+            Config::parse(&text).with_context(|| format!("{} tiene un error", path.display()))?;
 
         fs::create_dir_all(&config.data_dir).with_context(|| {
-            format!("no se pudo crear la carpeta de datos {}", config.data_dir.display())
+            format!(
+                "no se pudo crear la carpeta de datos {}",
+                config.data_dir.display()
+            )
         })?;
 
         for source in &config.import_sources {
@@ -68,7 +71,7 @@ impl Config {
 }
 
 /// Reemplaza un `~` inicial por la carpeta del usuario.
-fn expand_home(path: &Path) -> Result<PathBuf> {
+pub fn expand_home(path: &Path) -> Result<PathBuf> {
     match path.strip_prefix("~") {
         Ok(rest) => {
             let home = std::env::var("HOME").context("la variable HOME no está definida")?;
@@ -93,9 +96,13 @@ mod tests {
     #[test]
     fn expands_home_in_paths() {
         let home = std::env::var("HOME").unwrap();
-        let config = Config::parse(r#"import_sources = ["~/Downloads", "/Volumes/Disco"]"#).unwrap();
+        let config =
+            Config::parse(r#"import_sources = ["~/Downloads", "/Volumes/Disco"]"#).unwrap();
         assert_eq!(config.data_dir, PathBuf::from(&home).join(".kinora"));
-        assert_eq!(config.import_sources[0], PathBuf::from(&home).join("Downloads"));
+        assert_eq!(
+            config.import_sources[0],
+            PathBuf::from(&home).join("Downloads")
+        );
         assert_eq!(config.import_sources[1], PathBuf::from("/Volumes/Disco"));
     }
 
