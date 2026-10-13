@@ -2,11 +2,12 @@
 // agregar, renombrar y quitar subtítulos.
 
 import { useState, type FormEvent } from 'react'
-import { Captions, Check, FilePlay, Plus, Trash, X } from 'lucide-react'
+import { AudioLines, Captions, Check, FilePlay, Film, Plus, Trash, X } from 'lucide-react'
 import { api } from '../shared/api'
 import { formatDuration, formatSize } from '../shared/format'
 import { isSubtitle } from '../shared/upload'
 import { resolution } from '../shared/versions'
+import { languageName } from '../shared/languages'
 import type { ContentDetail } from '../shared/types/ContentDetail'
 import type { MediaFile } from '../shared/types/MediaFile'
 import type { SubtitleTrack } from '../shared/types/SubtitleTrack'
@@ -71,7 +72,7 @@ function FileRow({
           {name}
         </span>
         <span className="small muted">
-          {resolution(file)} · {formatDuration(file.duration)} · {formatSize(file.size)}
+          {formatDuration(file.duration)} · {formatSize(file.size)}
         </span>
         <button
           className="btn btn-ghost btn-sm btn-icon btn-danger"
@@ -82,6 +83,7 @@ function FileRow({
           <Trash />
         </button>
       </div>
+      {file.tech && <TechLine file={file} />}
       <div className="file-subtitles">
         {subtitles.map((track) => (
           <SubtitleChip
@@ -120,6 +122,48 @@ function FileRow({
       )}
     </div>
   )
+}
+
+/**
+ * Lo técnico de un archivo en una línea: imagen ("1080p · HEVC Main 10 · 10 bits · SDR ·
+ * 23,976 fps · 2,1 Mbps") y cada pista de audio ("AAC 2.0 japonés").
+ */
+function TechLine({ file }: { file: MediaFile }) {
+  const tech = file.tech!
+  const video = [
+    resolution(file),
+    [tech.video_codec, tech.video_profile].filter(Boolean).join(' '),
+    tech.bit_depth && `${tech.bit_depth} bits`,
+    tech.dynamic_range,
+    tech.frame_rate && `${formatNumber(tech.frame_rate, 3)} fps`,
+    tech.bitrate && `${formatNumber(tech.bitrate / 1_000_000, 1)} Mbps`,
+  ].filter(Boolean)
+  return (
+    <div className="tech-line small">
+      <span className="tech-group" title="Video">
+        <Film className="icon" />
+        {video.map((part, i) => (
+          <span key={i} className={part === tech.dynamic_range && part !== 'SDR' ? 'tech-hdr' : undefined}>
+            {part}
+          </span>
+        ))}
+      </span>
+      {tech.audio.map((audio, i) => (
+        <span key={i} className="tech-group" title={`Audio ${i + 1}`}>
+          <AudioLines className="icon" />
+          <span>
+            {audio.codec} {audio.channels}
+          </span>
+          {languageName(audio.language) && <span>{languageName(audio.language)}</span>}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** Con coma decimal y sin ceros de más: 23,976 · 25 · 2,1. */
+function formatNumber(value: number, decimals: number) {
+  return value.toLocaleString('es-AR', { maximumFractionDigits: decimals })
 }
 
 /** Un subtítulo del archivo. Tocar el nombre lo deja editar; al pasar el mouse dice de dónde salió. */

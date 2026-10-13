@@ -1901,3 +1901,46 @@ a:has(> .badge) {
   color: var(--text-3);
   flex-shrink: 0;
 }
+
+/* Información técnica de los videos */
+
+.content-card-tech,
+.tech-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Separadores "·" entre datos, sin repetirlos a mano en cada lugar. */
+.content-card-tech > span + span::before,
+.tech-group > span + span::before {
+  content: '·';
+  margin: 0 6px;
+  color: var(--deemph);
+}
+
+.tech-line {
+  gap: 4px 16px;
+}
+
+.tech-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tech-group .icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  color: var(--deemph);
+}
+
+/* HDR resaltado: es lo que más cambia cómo se ve. */
+.tech-hdr {
+  color: var(--text);
+  font-weight: 600;
+}

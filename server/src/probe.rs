@@ -20,6 +20,8 @@ pub struct Probe {
 pub struct ProbeFormat {
     pub format_name: String,
     pub duration: Option<String>,
+    /// Bits por segundo de todo el archivo.
+    pub bit_rate: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,6 +38,8 @@ pub struct ProbeStream {
     pub color_space: Option<String>,
     pub width: Option<i64>,
     pub height: Option<i64>,
+    /// Cuadros por segundo como fracción: "24000/1001" (23,976).
+    pub avg_frame_rate: Option<String>,
     pub channels: Option<i64>,
     /// En segundos. En MKV no viene: está en la etiqueta `DURATION`.
     pub duration: Option<String>,
@@ -176,6 +180,120 @@ impl Probe {
             blockers,
         }
     }
+}
+
+/// Lo técnico de un archivo, para mostrar en el Admin.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct TechInfo {
+    /// "2160p", "1080p", "720p"…
+    pub resolution: Option<String>,
+    /// "HEVC", "H.264"…
+    pub video_codec: Option<String>,
+    /// "Main 10", "High"…
+    pub video_profile: Option<String>,
+    pub bit_depth: Option<i64>,
+    /// "SDR", "HDR10", "HLG", "Dolby Vision 8".
+    pub dynamic_range: Option<String>,
+    /// Cuadros por segundo (23,976, 25, 60…).
+    pub frame_rate: Option<f64>,
+    /// Bits por segundo de todo el archivo (video y audio).
+    pub bitrate: Option<i64>,
+    pub audio: Vec<AudioInfo>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct AudioInfo {
+    /// "AAC", "AC3", "Opus"…
+    pub codec: String,
+    /// "2.0", "5.1", "7.1"…
+    pub channels: String,
+    /// Código ISO 639 tal como viene en el archivo ("jpn", "spa").
+    pub language: Option<String>,
+}
+
+impl Probe {
+    /// Lo técnico, en palabras para mostrar.
+    pub fn tech_info(&self) -> TechInfo {
+        let video = self.video();
+        TechInfo {
+            resolution: video.and_then(|v| v.height).map(resolution_label),
+            video_codec: video.and_then(|v| v.codec_name.as_deref()).map(codec_label),
+            video_profile: video.and_then(|v| v.profile.clone()),
+            bit_depth: video.map(ProbeStream::bit_depth),
+            dynamic_range: video.map(|v| {
+                match (v.dolby_vision_profile(), v.color_transfer.as_deref()) {
+                    (Some(profile), _) => format!("Dolby Vision {profile}"),
+                    (None, Some("smpte2084")) => "HDR10".to_string(),
+                    (None, Some("arib-std-b67")) => "HLG".to_string(),
+                    _ => "SDR".to_string(),
+                }
+            }),
+            frame_rate: video
+                .and_then(|v| v.avg_frame_rate.as_deref())
+                .and_then(parse_rate),
+            bitrate: self.format.bit_rate.as_deref().and_then(|b| b.parse().ok()),
+            audio: self
+                .audios()
+                .map(|a| AudioInfo {
+                    codec: codec_label(a.codec_name.as_deref().unwrap_or("?")),
+                    channels: channels_label(a.channels.unwrap_or(0)),
+                    language: a.language().map(str::to_string),
+                })
+                .collect(),
+        }
+    }
+}
+
+/// "2160p", "1080p"… por el alto (con margen: 1920×800 es "1080p" recortado, no "800p").
+pub fn resolution_label(height: i64) -> String {
+    match height {
+        h if h >= 1800 => "2160p".to_string(),
+        h if h >= 800 => "1080p".to_string(),
+        h if h >= 600 => "720p".to_string(),
+        h if h >= 400 => "480p".to_string(),
+        h => format!("{h}p"),
+    }
+}
+
+fn codec_label(codec: &str) -> String {
+    match codec {
+        "hevc" => "HEVC",
+        "h264" => "H.264",
+        "av1" => "AV1",
+        "vp9" => "VP9",
+        "mpeg4" => "MPEG-4",
+        "mpeg2video" => "MPEG-2",
+        "aac" => "AAC",
+        "ac3" => "AC3",
+        "eac3" => "E-AC3",
+        "dts" => "DTS",
+        "truehd" => "TrueHD",
+        "opus" => "Opus",
+        "flac" => "FLAC",
+        "mp3" => "MP3",
+        "vorbis" => "Vorbis",
+        other => return other.to_uppercase(),
+    }
+    .to_string()
+}
+
+fn channels_label(channels: i64) -> String {
+    match channels {
+        1 => "1.0".to_string(),
+        2 => "2.0".to_string(),
+        6 => "5.1".to_string(),
+        8 => "7.1".to_string(),
+        n => format!("{n} canales"),
+    }
+}
+
+/// "24000/1001" → 23,976. "0/0" (desconocido) → nada.
+fn parse_rate(rate: &str) -> Option<f64> {
+    let (num, den) = rate.split_once('/')?;
+    let (num, den): (f64, f64) = (num.parse().ok()?, den.parse().ok()?);
+    (den > 0.0 && num > 0.0).then(|| num / den)
 }
 
 /// La operación mínima para llevar un archivo al formato de Kinora.
@@ -346,6 +464,40 @@ mod tests {
         }"#;
         let probe = Probe::parse(mkv).unwrap();
         assert!((probe.media_duration().unwrap() - 151.932).abs() < 0.001);
+    }
+
+    #[test]
+    fn describes_the_technical_details() {
+        let json = KINORA_MP4
+            .replace(
+                r#""duration": "1559.98""#,
+                r#""duration": "1559.98", "bit_rate": "2150000""#,
+            )
+            .replace(
+                r#""height": 1080"#,
+                r#""height": 1080, "avg_frame_rate": "24000/1001""#,
+            );
+        let tech = Probe::parse(&json).unwrap().tech_info();
+        assert_eq!(tech.resolution.as_deref(), Some("1080p"));
+        assert_eq!(tech.video_codec.as_deref(), Some("HEVC"));
+        assert_eq!(tech.video_profile.as_deref(), Some("Main 10"));
+        assert_eq!(tech.bit_depth, Some(10));
+        assert_eq!(tech.dynamic_range.as_deref(), Some("SDR"));
+        assert!((tech.frame_rate.unwrap() - 23.976).abs() < 0.001);
+        assert_eq!(tech.bitrate, Some(2_150_000));
+        assert_eq!(
+            tech.audio,
+            [AudioInfo {
+                codec: "AAC".into(),
+                channels: "2.0".into(),
+                language: Some("jpn".into())
+            }]
+        );
+        assert_eq!(
+            resolution_label(800),
+            "1080p",
+            "1920×800 es 1080p con bandas"
+        );
     }
 
     #[test]

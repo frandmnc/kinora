@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { ArrowLeft, Captions, Clapperboard, ListOrdered, Trash, TriangleAlert, Tv } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
 import { formatSize } from '../../shared/format'
+import { languageName } from '../../shared/languages'
 import type { ContentSummary } from '../../shared/types/ContentSummary'
 import type { Library } from '../../shared/types/Library'
 import { Alert, EmptyState, PageHeader } from '../ui'
@@ -92,7 +93,11 @@ function ContentCard({ summary, onDelete }: { summary: ContentSummary; onDelete:
           <Trash />
         </button>
       </div>
-      <div className="content-card-stats small">{describe(summary)}</div>
+      <div className="content-card-stats small">
+        {describe(summary)}
+        {summary.runtime > 0 && ` · ${formatRuntime(summary.runtime)}`}
+      </div>
+      <TechSummary summary={summary} />
       <div className="content-card-notes">
         {summary.subtitles > 0 && (
           <span className="badge">
@@ -112,6 +117,41 @@ function ContentCard({ summary, onDelete }: { summary: ContentSummary; onDelete:
       </div>
     </Link>
   )
+}
+
+/**
+ * Lo técnico de todos sus videos, sin repetir: "1080p · HEVC 10 bits · SDR · AAC 2.0 · japonés".
+ * Si los episodios no son todos iguales, aparecen las variantes ("720p, 1080p").
+ */
+function TechSummary({ summary }: { summary: ContentSummary }) {
+  const languages = summary.audio_languages.map(languageName).filter(Boolean)
+  const ranges = summary.dynamic_range.join(', ')
+  const parts = [
+    summary.resolutions.join(', '),
+    summary.video.join(', '),
+    ranges,
+    summary.audio.join(', '),
+    languages.join(', '),
+  ].filter(Boolean)
+  if (parts.length === 0) return null
+  const hdr = summary.dynamic_range.some((range) => range !== 'SDR')
+  return (
+    <div className="content-card-tech small">
+      {parts.map((part, i) => (
+        <span key={i} className={hdr && part === ranges ? 'tech-hdr' : undefined}>
+          {part}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** "1 h 52 min", "45 min": lo que dura todo. */
+function formatRuntime(seconds: number) {
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  return minutes % 60 === 0 ? `${hours} h` : `${hours} h ${minutes % 60} min`
 }
 
 /** "2 temporadas · 24 episodios · 18,4 GB", o "1 archivo · 4,1 GB" en una película. */

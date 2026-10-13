@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::app::AppState;
+use crate::probe::TechInfo;
 use crate::subtitles::SubtitleTrack;
 
 /// Se guarda como texto en la columna `kind`: "movie", "show", "season", "episode".
@@ -52,6 +53,10 @@ pub struct MediaFile {
     pub height: Option<i64>,
     pub source_path: Option<String>,
     pub imported_at: i64,
+    /// Lo técnico (resolución, códecs, HDR, audio), sacado del análisis de ffprobe.
+    /// Solo viene en el detalle de un contenido.
+    #[sqlx(skip)]
+    pub tech: Option<TechInfo>,
 }
 
 /// Un contenido con sus archivos y sus hijos (una serie con temporadas, y estas con episodios).
@@ -133,6 +138,18 @@ pub struct ContentSummary {
     pub subtitles: i64,
     /// Trabajos de la cola pendientes o en curso: mientras haya, no se puede eliminar.
     pub active_jobs: i64,
+    /// Lo que dura todo (en una serie, la suma de los episodios; con varias versiones, una).
+    pub runtime: f64,
+    /// Lo técnico de sus videos, sin repetir: si todos son 1080p, un solo "1080p".
+    pub resolutions: Vec<String>,
+    /// "HEVC 10 bits", "H.264 8 bits".
+    pub video: Vec<String>,
+    /// "SDR", "HDR10"…
+    pub dynamic_range: Vec<String>,
+    /// "AAC 2.0", "AC3 5.1".
+    pub audio: Vec<String>,
+    /// Idiomas del audio, códigos ISO 639 ("jpn", "spa").
+    pub audio_languages: Vec<String>,
 }
 
 /// Rutas del Admin. Se montan bajo /api/admin.

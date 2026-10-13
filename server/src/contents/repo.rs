@@ -48,6 +48,23 @@ pub async fn with_descendants(db: &SqlitePool, id: i64) -> sqlx::Result<Vec<Cont
         .await
 }
 
+/// El análisis de ffprobe de varios archivos: (id, JSON).
+pub async fn probes_of(db: &SqlitePool, file_ids: &[i64]) -> sqlx::Result<Vec<(i64, String)>> {
+    if file_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = vec!["?"; file_ids.len()].join(", ");
+    let sql = format!(
+        "SELECT id, probe_json FROM media_files \
+         WHERE id IN ({placeholders}) AND probe_json IS NOT NULL"
+    );
+    let mut query = sqlx::query_as(AssertSqlSafe(sql));
+    for id in file_ids {
+        query = query.bind(id);
+    }
+    query.fetch_all(db).await
+}
+
 /// Los archivos de varios contenidos.
 pub async fn files_of(db: &SqlitePool, content_ids: &[i64]) -> sqlx::Result<Vec<MediaFile>> {
     if content_ids.is_empty() {
@@ -279,14 +296,24 @@ pub async fn all_of_library(db: &SqlitePool, library_id: i64) -> sqlx::Result<Ve
         .await
 }
 
-/// Por cada archivo de la biblioteca: su contenido, su tamaño y cuántos subtítulos tiene.
+/// Un archivo de la biblioteca con lo que hace falta para resumir su contenido.
+#[derive(sqlx::FromRow)]
+pub struct FileStats {
+    pub content_id: i64,
+    pub size: i64,
+    pub duration: Option<f64>,
+    pub subtitles: i64,
+    pub probe_json: Option<String>,
+}
+
+/// Por cada archivo de la biblioteca: su contenido, tamaño, duración, subtítulos y análisis.
 pub async fn file_stats_of_library(
     db: &SqlitePool,
     library_id: i64,
-) -> sqlx::Result<Vec<(i64, i64, i64)>> {
+) -> sqlx::Result<Vec<FileStats>> {
     sqlx::query_as(
-        "SELECT f.content_id, f.size, \
-                (SELECT COUNT(*) FROM subtitles s WHERE s.media_file_id = f.id) \
+        "SELECT f.content_id, f.size, f.duration, f.probe_json, \
+                (SELECT COUNT(*) FROM subtitles s WHERE s.media_file_id = f.id) AS subtitles \
          FROM media_files f JOIN contents c ON c.id = f.content_id WHERE c.library_id = ?",
     )
     .bind(library_id)

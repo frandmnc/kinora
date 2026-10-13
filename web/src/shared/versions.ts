@@ -12,12 +12,13 @@ export function pickFile(files: MediaFile[], requested?: number | null): MediaFi
   return chosen ?? [...files].sort((a, b) => (b.height ?? 0) - (a.height ?? 0) || b.id - a.id)[0]
 }
 
-/** "2160p", "1080p", "720p"… a partir del alto de la imagen. */
+/** "2160p", "1080p", "720p"…: lo calcula el servidor; si no vino, se estima por el alto. */
 export function resolution(file: MediaFile) {
+  if (file.tech?.resolution) return file.tech.resolution
   const height = file.height ?? 0
-  if (height >= 2000) return '2160p'
-  if (height >= 1000) return '1080p'
-  if (height >= 700) return '720p'
+  if (height >= 1800) return '2160p'
+  if (height >= 800) return '1080p'
+  if (height >= 600) return '720p'
   return height > 0 ? `${height}p` : 'Video'
 }
 

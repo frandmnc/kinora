@@ -16,4 +16,28 @@ size: number, subtitles: number,
 /**
  * Trabajos de la cola pendientes o en curso: mientras haya, no se puede eliminar.
  */
-active_jobs: number, };
+active_jobs: number, 
+/**
+ * Lo que dura todo (en una serie, la suma de los episodios; con varias versiones, una).
+ */
+runtime: number, 
+/**
+ * Lo técnico de sus videos, sin repetir: si todos son 1080p, un solo "1080p".
+ */
+resolutions: Array<string>, 
+/**
+ * "HEVC 10 bits", "H.264 8 bits".
+ */
+video: Array<string>, 
+/**
+ * "SDR", "HDR10"…
+ */
+dynamic_range: Array<string>, 
+/**
+ * "AAC 2.0", "AC3 5.1".
+ */
+audio: Array<string>, 
+/**
+ * Idiomas del audio, códigos ISO 639 ("jpn", "spa").
+ */
+audio_languages: Array<string>, };

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::net::SocketAddr;
 
 use axum::Json;
@@ -19,6 +19,7 @@ use super::{
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
 use crate::monitor::SessionStep;
+use crate::probe::{Probe, TechInfo};
 use crate::subtitles::{self, SubtitleTrack};
 use crate::{manifest, playback, trash};
 
@@ -113,7 +114,14 @@ pub async fn detail(
             parts.subtitles.entry(*content_id).or_default().push(track);
         }
     }
-    for file in files {
+    // Lo técnico de cada archivo sale de su análisis de ffprobe, guardado al importarlo.
+    let tech: HashMap<i64, TechInfo> = repo::probes_of(&state.db, &file_ids)
+        .await?
+        .into_iter()
+        .filter_map(|(id, json)| Some((id, Probe::parse(&json).ok()?.tech_info())))
+        .collect();
+    for mut file in files {
+        file.tech = tech.get(&file.id).cloned();
         parts.files.entry(file.content_id).or_default().push(file);
     }
     for progress in repo::progress_of(&state.db, &ids).await? {
@@ -331,12 +339,27 @@ pub async fn library_contents(
 
     let mut counts: HashMap<i64, Counts> = HashMap::new();
     let mut with_files: HashSet<i64> = HashSet::new();
-    for (content_id, size, subtitles) in repo::file_stats_of_library(&state.db, library_id).await? {
-        with_files.insert(content_id);
-        let entry = counts.entry(top_of(content_id)).or_default();
+    // Duración por episodio (o película): con varias versiones, cuenta la más larga una sola vez.
+    let mut runtimes: HashMap<i64, f64> = HashMap::new();
+    for file in repo::file_stats_of_library(&state.db, library_id).await? {
+        with_files.insert(file.content_id);
+        let runtime = runtimes.entry(file.content_id).or_default();
+        *runtime = runtime.max(file.duration.unwrap_or(0.0));
+        let entry = counts.entry(top_of(file.content_id)).or_default();
         entry.files += 1;
-        entry.size += size;
-        entry.subtitles += subtitles;
+        entry.size += file.size;
+        entry.subtitles += file.subtitles;
+        if let Some(tech) = file
+            .probe_json
+            .as_deref()
+            .and_then(|j| Probe::parse(j).ok())
+            .map(|p| p.tech_info())
+        {
+            entry.add_tech(&tech);
+        }
+    }
+    for (content_id, runtime) in runtimes {
+        counts.entry(top_of(content_id)).or_default().runtime += runtime;
     }
     for (content_id, jobs) in repo::active_jobs_of_library(&state.db, library_id).await? {
         counts.entry(top_of(content_id)).or_default().active_jobs += jobs;
@@ -369,6 +392,12 @@ pub async fn library_contents(
                 size: c.size,
                 subtitles: c.subtitles,
                 active_jobs: c.active_jobs,
+                runtime: c.runtime,
+                resolutions: c.resolutions.into_iter().collect(),
+                video: c.video.into_iter().collect(),
+                dynamic_range: c.dynamic_range.into_iter().collect(),
+                audio: c.audio.into_iter().collect(),
+                audio_languages: c.audio_languages.into_iter().collect(),
             }
         })
         .collect();
@@ -377,6 +406,7 @@ pub async fn library_contents(
 }
 
 /// Los números de una película o serie, mientras se suman. `Default` los arranca en cero.
+/// Lo técnico va en `BTreeSet`: sin repetidos y ordenado.
 #[derive(Default)]
 struct Counts {
     seasons: i64,
@@ -386,6 +416,30 @@ struct Counts {
     size: i64,
     subtitles: i64,
     active_jobs: i64,
+    runtime: f64,
+    resolutions: BTreeSet<String>,
+    video: BTreeSet<String>,
+    dynamic_range: BTreeSet<String>,
+    audio: BTreeSet<String>,
+    audio_languages: BTreeSet<String>,
+}
+
+impl Counts {
+    fn add_tech(&mut self, tech: &TechInfo) {
+        self.resolutions.extend(tech.resolution.clone());
+        if let Some(codec) = &tech.video_codec {
+            self.video.insert(match tech.bit_depth {
+                Some(bits) => format!("{codec} {bits} bits"),
+                None => codec.clone(),
+            });
+        }
+        self.dynamic_range.extend(tech.dynamic_range.clone());
+        for audio in &tech.audio {
+            self.audio
+                .insert(format!("{} {}", audio.codec, audio.channels));
+            self.audio_languages.extend(audio.language.clone());
+        }
+    }
 }
 
 /// DELETE /api/admin/contents/{id}
