@@ -363,9 +363,12 @@ CREATE TABLE server_samples (
 2. **Analizar.** El servidor ejecuta ffprobe sobre cada archivo y devuelve la operación necesaria, el tamaño estimado y los subtítulos encontrados.
 3. **Elegir destino.**
    - Contenido nuevo: película o serie, con título, año y biblioteca.
-   - Contenido existente: buscar la serie y elegir una temporada existente o nueva.
+   - Contenido existente: elegir la serie (o la película) y una temporada existente o nueva. Si el título que se deduce del nombre del archivo coincide con algo de la biblioteca, Kinora lo propone solo.
 4. **Asignar episodios.** Una tabla editable asigna cada archivo a un número de episodio. Kinora la propone a partir del nombre (`S02E03`, `- 15`). El usuario la corrige si hace falta.
-5. **Resolver conflictos.** Si un episodio ya tiene archivo, el usuario elige: omitir, reemplazar o agregar como otra versión. Al reemplazar, el archivo anterior va a `.kinora-trash/`.
+5. **Resolver conflictos.** Si un episodio ya tiene archivo, el usuario elige: omitir, reemplazar o agregar como otra versión (uno por uno o para todos). Sin elegir, el servidor rechaza el pedido sin crear nada.
+   - Omitir: el archivo sigue en la bandeja.
+   - Reemplazar: los archivos anteriores del episodio (todas sus versiones) y sus subtítulos van a `<biblioteca>/.kinora-trash/<fecha y hora>/`, con la misma ruta que tenían. Si mover el nuevo falla, vuelven a su lugar.
+   - Otra versión: `… - S01E05 - v2.mp4`, al lado del anterior.
 6. **Confirmar.** El servidor crea en una transacción los contenidos que faltan (serie, temporada, episodios) y un trabajo por archivo. Los episodios existen desde este momento, sin archivo.
 7. **Procesar.** La cola ejecuta cada trabajo y asocia el archivo al contenido al terminar.
 
@@ -534,5 +537,6 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Subtítulos ASS en la TV: dibujarlos con [JASSUB](https://github.com/ThaUnknown/jassub) o quemarlos en la imagen al convertir | Etapa 6, según el rendimiento de la TV |
 | Confirmar HEVC 10 bits en la UN43RU7100 | Etapa 6. Soporta HDR10 y HDR10+, por lo que es muy probable |
 | App de Tizen: empaquetar los archivos del Player o abrir la URL del servidor | Etapa 6 |
+| Varias versiones de un episodio: hoy el Player reproduce la primera. Elegir cuál (o la mejor para el dispositivo) | Cuando haya un caso real |
 | Archivos con dos episodios (`S01E01-E02`) | Cuando aparezca el primer caso. Por ahora se tratan como un solo episodio |
 | Proteger el Admin con PIN o por dirección IP | Cuando haga falta |

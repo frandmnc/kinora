@@ -157,6 +157,70 @@ pub async fn file_location(
     .await
 }
 
+/// Un contenido por id.
+pub async fn find(conn: &mut SqliteConnection, id: i64) -> sqlx::Result<Option<Content>> {
+    let sql = format!("SELECT {CONTENT_COLUMNS} FROM contents WHERE id = ?");
+    sqlx::query_as(AssertSqlSafe(sql))
+        .bind(id)
+        .fetch_optional(conn)
+        .await
+}
+
+/// El hijo con ese número (la temporada 2 de una serie, el episodio 5 de una temporada).
+pub async fn child_with_number(
+    conn: &mut SqliteConnection,
+    parent_id: i64,
+    number: i64,
+) -> sqlx::Result<Option<i64>> {
+    sqlx::query_scalar("SELECT id FROM contents WHERE parent_id = ? AND number = ?")
+        .bind(parent_id)
+        .bind(number)
+        .fetch_optional(conn)
+        .await
+}
+
+/// Los archivos de un contenido: id y ruta.
+pub async fn file_ids_of(conn: &mut SqliteConnection, content_id: i64) -> sqlx::Result<Vec<i64>> {
+    sqlx::query_scalar("SELECT id FROM media_files WHERE content_id = ? ORDER BY id")
+        .bind(content_id)
+        .fetch_all(conn)
+        .await
+}
+
+/// Si algún archivo ya usa esa ruta.
+pub async fn rel_path_taken(conn: &mut SqliteConnection, rel_path: &str) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM media_files WHERE rel_path = ?)")
+        .bind(rel_path)
+        .fetch_one(conn)
+        .await
+}
+
+/// Todo lo que un archivo ocupa en el disco: el video, sus .vtt y los .ass originales.
+pub async fn paths_of_file(conn: &mut SqliteConnection, file_id: i64) -> sqlx::Result<Vec<String>> {
+    sqlx::query_scalar(
+        "SELECT rel_path FROM media_files WHERE id = ?1 \
+         UNION ALL SELECT rel_path FROM subtitles WHERE media_file_id = ?1 \
+         UNION ALL SELECT original_rel_path FROM subtitles \
+           WHERE media_file_id = ?1 AND original_rel_path IS NOT NULL",
+    )
+    .bind(file_id)
+    .fetch_all(conn)
+    .await
+}
+
+/// Borra un archivo de la base, con sus subtítulos. Los archivos del disco no se tocan.
+pub async fn delete_media_file(conn: &mut SqliteConnection, file_id: i64) -> sqlx::Result<()> {
+    sqlx::query("DELETE FROM subtitles WHERE media_file_id = ?")
+        .bind(file_id)
+        .execute(&mut *conn)
+        .await?;
+    sqlx::query("DELETE FROM media_files WHERE id = ?")
+        .bind(file_id)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 pub struct NewContent {
     pub library_id: i64,
     pub kind: ContentKind,

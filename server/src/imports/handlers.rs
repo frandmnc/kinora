@@ -7,16 +7,19 @@ use axum::extract::State;
 use axum::http::StatusCode;
 
 use super::guess::guess;
+use sqlx::SqliteConnection;
+use tracing::info;
+
 use super::{
-    AnalyzeRequest, EpisodeFile, FileAnalysis, ImportRequest, ImportResult, ImportTarget,
-    ImportedFile, paths,
+    AnalyzeRequest, ConflictChoice, EpisodeFile, FileAnalysis, ImportAction, ImportRequest,
+    ImportResult, ImportTarget, ImportedFile, paths,
 };
 use crate::app::AppState;
 use crate::contents::ContentKind;
-use crate::contents::repo::{NewContent, NewMediaFile, insert_content, insert_media_file};
+use crate::contents::repo::{self, NewContent, NewMediaFile, insert_content, insert_media_file};
 use crate::error::{AppError, AppResult};
 use crate::probe::{self, Analysis};
-use crate::{libraries, subtitles, uploads};
+use crate::{libraries, subtitles, trash, uploads};
 
 /// POST /api/admin/imports/analyze
 pub async fn analyze(
@@ -82,12 +85,26 @@ async fn analyze_file(path: &Path) -> FileAnalysis {
     analysis
 }
 
-/// Un archivo validado, listo para copiar.
+/// Un archivo validado, listo para mover.
 struct PlannedFile {
     episode: Option<i64>,
+    on_conflict: Option<ConflictChoice>,
     source: PathBuf,
-    rel_path: String,
     analysis: Analysis,
+}
+
+/// Un archivo pedido: número de episodio (nada si es película), nombre en la bandeja y qué
+/// hacer si el destino ya tiene archivo.
+type Requested<'a> = (Option<i64>, &'a str, Option<ConflictChoice>);
+
+/// Qué se hace con cada archivo. Se decide dentro de la transacción, mirando lo que ya hay.
+struct Placement {
+    content_id: i64,
+    action: ImportAction,
+    /// Ruta final; vacía si se omite.
+    rel_path: String,
+    /// Archivos que reemplaza (van a la papelera).
+    replaces: Vec<i64>,
 }
 
 /// POST /api/admin/imports
@@ -99,40 +116,48 @@ pub async fn create(
     let media_dir = state.settings.require_media_dir()?;
     let root = media_dir.join(&library.dir);
 
-    // 1. Validar todo antes de crear o copiar nada.
-    let (title, year) = match &request.target {
+    // 1. Validar todo antes de crear o mover nada.
+    let new_content = match &request.target {
         ImportTarget::Movie { title, year, .. } | ImportTarget::Show { title, year, .. } => {
-            (clean_title(title)?, *year)
+            let title = clean_title(title)?;
+            let dir = paths::content_dir(&title, *year);
+            if root.join(&dir).exists() {
+                return Err(AppError::Conflict(format!(
+                    "ya existe la carpeta \"{dir}\" en la biblioteca {}: elegí \"Agregar a uno existente\"",
+                    library.name
+                )));
+            }
+            Some((title, *year, dir))
         }
+        _ => None,
     };
-    let dir = paths::content_dir(&title, year);
-    if root.join(&dir).exists() {
-        return Err(AppError::Conflict(format!(
-            "ya existe la carpeta \"{dir}\" en la biblioteca {}. Agregar a un contenido existente llega en la Etapa 3",
-            library.name
-        )));
-    }
 
-    let files: Vec<(Option<i64>, &str)> = match &request.target {
-        ImportTarget::Movie { file, .. } => vec![(None, file.as_str())],
+    let (season, files): (Option<i64>, Vec<Requested>) = match &request.target {
+        ImportTarget::Movie { file, .. } => (None, vec![(None, file.as_str(), None)]),
+        ImportTarget::ExistingMovie {
+            file, on_conflict, ..
+        } => (None, vec![(None, file.as_str(), *on_conflict)]),
         ImportTarget::Show {
+            season, episodes, ..
+        }
+        | ImportTarget::ExistingShow {
             season, episodes, ..
         } => {
             validate_episodes(*season, episodes)?;
-            episodes
+            let files = episodes
                 .iter()
-                .map(|e| (Some(e.number), e.file.as_str()))
-                .collect()
+                .map(|e| (Some(e.number), e.file.as_str(), e.on_conflict))
+                .collect();
+            (Some(*season), files)
         }
     };
 
     let mut planned = Vec::new();
-    for (episode, name) in files {
+    for (episode, name, on_conflict) in files {
         let source = uploads::resolve(&media_dir, name)?;
         let analysis = probe::run(&source)
             .await
             .map_err(|err| AppError::BadRequest(format!("{name}: {err:#}")))?;
-
         let problems = analysis.probe.problems(&source);
         if !problems.is_empty() {
             return Err(AppError::BadRequest(format!(
@@ -140,23 +165,18 @@ pub async fn create(
                 problems.join("; ")
             )));
         }
-
-        let rel_path = match (&request.target, episode) {
-            (ImportTarget::Show { season, .. }, Some(number)) => {
-                paths::episode_file(&dir, *season, number)
-            }
-            _ => paths::movie_file(&dir),
-        };
         planned.push(PlannedFile {
             episode,
+            on_conflict,
             source,
-            rel_path,
             analysis,
         });
     }
 
-    // 2. Crear el contenido en una transacción: se crea todo o nada.
-    let new_content = |kind, parent_id, number, title: String, year, dir| NewContent {
+    // 2. En una transacción: crear lo que falta (serie, temporada, episodios) y decidir qué
+    //    hacer con cada archivo. Si hay un conflicto sin resolver, no queda nada creado.
+    let mut tx = state.db.begin().await?;
+    let content = |kind, parent_id, number, title: String, year, dir| NewContent {
         library_id: library.id,
         kind,
         parent_id,
@@ -166,90 +186,249 @@ pub async fn create(
         dir,
     };
 
-    let mut tx = state.db.begin().await?;
-    let (top_id, file_content_ids) = match &request.target {
-        ImportTarget::Movie { .. } => {
-            let movie = new_content(ContentKind::Movie, None, None, title, year, Some(dir));
-            let id = insert_content(&mut tx, &movie).await?;
-            (id, vec![id])
-        }
-        ImportTarget::Show { season, .. } => {
-            let show = new_content(ContentKind::Show, None, None, title, year, Some(dir));
-            let show_id = insert_content(&mut tx, &show).await?;
-
-            let season_content = new_content(
-                ContentKind::Season,
-                Some(show_id),
-                Some(*season),
-                format!("Temporada {season}"),
+    let (top_id, top_dir) = match (&request.target, new_content) {
+        (ImportTarget::Movie { .. }, Some((title, year, dir))) => {
+            let movie = content(
+                ContentKind::Movie,
                 None,
                 None,
+                title,
+                year,
+                Some(dir.clone()),
             );
-            let season_id = insert_content(&mut tx, &season_content).await?;
+            (insert_content(&mut tx, &movie).await?, dir)
+        }
+        (ImportTarget::Show { .. }, Some((title, year, dir))) => {
+            let show = content(
+                ContentKind::Show,
+                None,
+                None,
+                title,
+                year,
+                Some(dir.clone()),
+            );
+            (insert_content(&mut tx, &show).await?, dir)
+        }
+        (ImportTarget::ExistingMovie { movie_id: id, .. }, _) => {
+            existing(&mut tx, *id, ContentKind::Movie, library.id).await?
+        }
+        (ImportTarget::ExistingShow { show_id: id, .. }, _) => {
+            existing(&mut tx, *id, ContentKind::Show, library.id).await?
+        }
+        _ => unreachable!("los contenidos nuevos siempre traen título"),
+    };
 
-            let mut episode_ids = Vec::new();
+    // A qué contenido va cada archivo: la película misma, o el episodio (creándolo si falta).
+    let mut content_ids = Vec::new();
+    match season {
+        None => content_ids.push(top_id),
+        Some(season) => {
+            let season_id = match repo::child_with_number(&mut tx, top_id, season).await? {
+                Some(id) => id,
+                None => {
+                    let new = content(
+                        ContentKind::Season,
+                        Some(top_id),
+                        Some(season),
+                        format!("Temporada {season}"),
+                        None,
+                        None,
+                    );
+                    insert_content(&mut tx, &new).await?
+                }
+            };
             for file in &planned {
                 let number = file.episode.unwrap_or_default();
-                let episode = new_content(
-                    ContentKind::Episode,
-                    Some(season_id),
-                    Some(number),
-                    format!("Episodio {number}"),
-                    None,
-                    None,
-                );
-                episode_ids.push(insert_content(&mut tx, &episode).await?);
+                let id = match repo::child_with_number(&mut tx, season_id, number).await? {
+                    Some(id) => id,
+                    None => {
+                        let new = content(
+                            ContentKind::Episode,
+                            Some(season_id),
+                            Some(number),
+                            format!("Episodio {number}"),
+                            None,
+                            None,
+                        );
+                        insert_content(&mut tx, &new).await?
+                    }
+                };
+                content_ids.push(id);
             }
-            (show_id, episode_ids)
         }
-    };
+    }
+
+    let mut placements = Vec::new();
+    let mut unresolved = Vec::new();
+    for (file, &content_id) in planned.iter().zip(&content_ids) {
+        let path = match (season, file.episode) {
+            (Some(season), Some(number)) => paths::episode_file(&top_dir, season, number),
+            _ => paths::movie_file(&top_dir),
+        };
+        let current = repo::file_ids_of(&mut tx, content_id).await?;
+        let placement = |action, rel_path, replaces| Placement {
+            content_id,
+            action,
+            rel_path,
+            replaces,
+        };
+        placements.push(match (current.is_empty(), file.on_conflict) {
+            (true, _) => placement(ImportAction::Added, path, Vec::new()),
+            (false, None) => {
+                unresolved.push(match file.episode {
+                    Some(number) => format!("el episodio {number}"),
+                    None => "la película".to_string(),
+                });
+                continue;
+            }
+            (false, Some(ConflictChoice::Skip)) => {
+                placement(ImportAction::Skipped, String::new(), Vec::new())
+            }
+            (false, Some(ConflictChoice::Replace)) => {
+                placement(ImportAction::Replaced, path, current)
+            }
+            (false, Some(ConflictChoice::AddVersion)) => {
+                let path = free_version(&mut tx, &root, &path).await?;
+                placement(ImportAction::AddedVersion, path, Vec::new())
+            }
+        });
+    }
+    if !unresolved.is_empty() {
+        return Err(AppError::Conflict(format!(
+            "{} ya tiene archivo: elegí omitir, reemplazar o agregar como otra versión",
+            unresolved.join(", ")
+        )));
+    }
     tx.commit().await?;
 
     // 3. Mover y registrar cada archivo. Si uno falla, los demás siguen.
-    let mut files = Vec::new();
-    for (file, content_id) in planned.iter().zip(file_content_ids) {
-        let tracks = subtitles::find_tracks(&file.analysis.probe);
-        let result = move_and_register(&state, &root, content_id, file).await;
-        let attached = match &result {
-            Ok(media_file_id) => {
-                subtitles::attach_subtitles(
-                    &state.db,
-                    &root,
-                    *media_file_id,
-                    &file.rel_path,
-                    tracks,
-                )
-                .await
-            }
-            Err(_) => 0,
-        };
-        files.push(ImportedFile {
+    let trash_batch = trash::batch_dir(&root);
+    let mut results = Vec::new();
+    for (file, placement) in planned.iter().zip(placements) {
+        let mut imported = ImportedFile {
             file: file_name(&file.source),
-            destination: result.is_ok().then(|| file.rel_path.clone()),
-            subtitles: attached as i64,
-            error: result.err().map(|err| format!("{err:#}")),
-        });
+            action: placement.action,
+            destination: None,
+            trashed: Vec::new(),
+            subtitles: 0,
+            error: None,
+        };
+        if placement.action != ImportAction::Skipped {
+            match place(&state, &root, &trash_batch, file, &placement).await {
+                Ok((media_file_id, trashed)) => {
+                    imported.trashed = trashed;
+                    let tracks = subtitles::find_tracks(&file.analysis.probe);
+                    imported.subtitles = subtitles::attach_subtitles(
+                        &state.db,
+                        &root,
+                        media_file_id,
+                        &placement.rel_path,
+                        tracks,
+                    )
+                    .await as i64;
+                    imported.destination = Some(placement.rel_path);
+                }
+                Err(err) => imported.error = Some(format!("{err:#}")),
+            }
+        }
+        results.push(imported);
     }
 
     Ok((
         StatusCode::CREATED,
         Json(ImportResult {
             content_id: top_id,
-            files,
+            files: results,
         }),
     ))
+}
+
+/// Un contenido existente del tipo esperado y de esta biblioteca, con su carpeta.
+async fn existing(
+    conn: &mut SqliteConnection,
+    id: i64,
+    kind: ContentKind,
+    library_id: i64,
+) -> AppResult<(i64, String)> {
+    let content = repo::find(conn, id)
+        .await?
+        .filter(|c| c.kind == kind && c.library_id == library_id)
+        .ok_or_else(|| {
+            AppError::NotFound(format!("no existe el contenido {id} en esta biblioteca"))
+        })?;
+    let dir = content
+        .dir
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("content {id} has no folder")))?;
+    Ok((id, dir))
+}
+
+/// La primera versión libre: `… - v2.mp4`, `… - v3.mp4`…
+async fn free_version(conn: &mut SqliteConnection, root: &Path, path: &str) -> AppResult<String> {
+    for version in 2.. {
+        let candidate = paths::version_file(path, version);
+        if !root.join(&candidate).exists() && !repo::rel_path_taken(conn, &candidate).await? {
+            return Ok(candidate);
+        }
+    }
+    unreachable!("siempre hay una versión libre")
+}
+
+/// Pone el archivo en su lugar y lo registra. Si reemplaza a otros, primero los manda a la
+/// papelera (con sus subtítulos); si después algo falla, vuelven a su lugar.
+/// Devuelve el id del archivo nuevo y lo que fue a la papelera.
+async fn place(
+    state: &AppState,
+    root: &Path,
+    trash_batch: &Path,
+    file: &PlannedFile,
+    placement: &Placement,
+) -> anyhow::Result<(i64, Vec<String>)> {
+    let mut old_paths = Vec::new();
+    for &id in &placement.replaces {
+        old_paths.extend(repo::paths_of_file(&mut *state.db.acquire().await?, id).await?);
+    }
+    let trashed = trash::move_files(root, trash_batch, &old_paths)
+        .await
+        .context("no se pudo mover el archivo anterior a la papelera")?;
+
+    if let Err(err) = move_into_library(root, &file.source, &placement.rel_path).await {
+        trash::restore(root, trash_batch, &trashed).await;
+        return Err(err);
+    }
+
+    // En la base, el cambio es de una vez: se van los anteriores y entra el nuevo.
+    let size = tokio::fs::metadata(root.join(&placement.rel_path))
+        .await?
+        .len() as i64;
+    let video = file.analysis.probe.video();
+    let media_file = NewMediaFile {
+        content_id: placement.content_id,
+        rel_path: placement.rel_path.clone(),
+        size,
+        duration: file.analysis.probe.duration(),
+        video_codec: video.and_then(|v| v.codec_string()),
+        width: video.and_then(|v| v.width),
+        height: video.and_then(|v| v.height),
+        probe_json: file.analysis.json.clone(),
+        source_path: file_name(&file.source),
+    };
+    let mut tx = state.db.begin().await?;
+    for &id in &placement.replaces {
+        repo::delete_media_file(&mut tx, id).await?;
+    }
+    let id = insert_media_file(&mut tx, &media_file).await?;
+    tx.commit().await?;
+    if !trashed.is_empty() {
+        info!("moved to the trash: {}", trashed.join(", "));
+    }
+    Ok((id, trashed))
 }
 
 /// Mueve el archivo de la bandeja a su lugar en la biblioteca. Como están en el mismo disco,
 /// es un renombrado: instantáneo y atómico. Si la biblioteca estuviera en otro disco, se copia
 /// a `.kinora-tmp/` y recién al terminar se mueve, para que nunca quede un archivo a medias.
-async fn move_and_register(
-    state: &AppState,
-    root: &Path,
-    content_id: i64,
-    file: &PlannedFile,
-) -> anyhow::Result<i64> {
-    let destination = root.join(&file.rel_path);
+async fn move_into_library(root: &Path, source: &Path, rel_path: &str) -> anyhow::Result<()> {
+    let destination = root.join(rel_path);
     if destination.exists() {
         bail!("ya existe {}", destination.display());
     }
@@ -257,12 +436,12 @@ async fn move_and_register(
         tokio::fs::create_dir_all(parent).await?;
     }
 
-    if tokio::fs::rename(&file.source, &destination).await.is_err() {
+    if tokio::fs::rename(source, &destination).await.is_err() {
         let tmp_dir = root.join(".kinora-tmp");
         tokio::fs::create_dir_all(&tmp_dir).await?;
-        let tmp = tmp_dir.join(format!("{content_id}.mp4.part"));
+        let tmp = tmp_dir.join(format!("{}.part", file_name(source)));
         let copied = async {
-            tokio::fs::copy(&file.source, &tmp)
+            tokio::fs::copy(source, &tmp)
                 .await
                 .context("no se pudo copiar")?;
             tokio::fs::rename(&tmp, &destination)
@@ -274,24 +453,9 @@ async fn move_and_register(
             let _ = tokio::fs::remove_file(&tmp).await;
         }
         copied?;
-        tokio::fs::remove_file(&file.source).await?;
+        tokio::fs::remove_file(source).await?;
     }
-
-    let size = tokio::fs::metadata(&destination).await?.len() as i64;
-    let video = file.analysis.probe.video();
-    let media_file = NewMediaFile {
-        content_id,
-        rel_path: file.rel_path.clone(),
-        size,
-        duration: file.analysis.probe.duration(),
-        video_codec: video.and_then(|v| v.codec_string()),
-        width: video.and_then(|v| v.width),
-        height: video.and_then(|v| v.height),
-        probe_json: file.analysis.json.clone(),
-        source_path: file_name(&file.source),
-    };
-    let id = insert_media_file(&mut *state.db.acquire().await?, &media_file).await?;
-    Ok(id)
+    Ok(())
 }
 
 fn clean_title(title: &str) -> AppResult<String> {

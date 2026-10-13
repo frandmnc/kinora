@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
 
-/** Pide `path` a la API al montar el componente y cada vez que cambia. `reload()` vuelve a pedirlo. */
+/**
+ * Pide `path` a la API al montar el componente y cada vez que cambia. `reload()` vuelve a pedirlo.
+ * Con `path` vacío no pide nada (para pedidos que dependen de una elección todavía no hecha).
+ */
 export function useApi<T>(path: string) {
   const [data, setData] = useState<T>()
   const [error, setError] = useState<string>()
@@ -9,6 +12,11 @@ export function useApi<T>(path: string) {
   const [version, setVersion] = useState(0)
 
   useEffect(() => {
+    if (!path) {
+      setData(undefined)
+      setLoading(false)
+      return
+    }
     let cancelled = false
     setLoading(true)
     api<T>(path)

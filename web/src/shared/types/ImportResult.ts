@@ -3,6 +3,6 @@ import type { ImportedFile } from "./ImportedFile";
 
 export type ImportResult = { 
 /**
- * La película o la serie creada.
+ * La película o la serie (creada o existente).
  */
 content_id: number, files: Array<ImportedFile>, };

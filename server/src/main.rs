@@ -14,6 +14,7 @@ mod playback;
 mod probe;
 mod settings;
 mod subtitles;
+mod trash;
 mod uploads;
 mod web;
 

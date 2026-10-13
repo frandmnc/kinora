@@ -10,7 +10,9 @@ import {
   FilePlay,
   Inbox as InboxIcon,
   LoaderCircle,
+  SkipForward,
   Trash,
+  TriangleAlert,
 } from 'lucide-react'
 import { api } from '../../shared/api'
 import { useApi } from '../../shared/useApi'
@@ -22,11 +24,17 @@ import type { Library } from '../../shared/types/Library'
 import type { FileAnalysis } from '../../shared/types/FileAnalysis'
 import type { ImportRequest } from '../../shared/types/ImportRequest'
 import type { ImportResult } from '../../shared/types/ImportResult'
+import type { ImportTarget } from '../../shared/types/ImportTarget'
+import type { ImportAction } from '../../shared/types/ImportAction'
+import type { ConflictChoice } from '../../shared/types/ConflictChoice'
+import type { Content } from '../../shared/types/Content'
+import type { ContentDetail } from '../../shared/types/ContentDetail'
 import { Alert, Badge, Card, EmptyState, Meter, OkBadge, PageHeader } from '../ui'
 
 /**
  * Importar en tres pasos: subir archivos a la bandeja → revisar el análisis y elegir el destino → ver el resultado.
- * Etapa 1: solo archivos que ya están en el formato de Kinora, y siempre como contenido nuevo.
+ * El destino es un contenido nuevo o uno existente; si un episodio ya tiene archivo, se elige qué hacer.
+ * Por ahora solo archivos que ya están en el formato de Kinora.
  */
 export function ImportPage() {
   const [analysis, setAnalysis] = useState<FileAnalysis[]>()
@@ -72,7 +80,7 @@ export function ImportPage() {
     <>
       <PageHeader
         title="Importar"
-        description="Por ahora solo se importan archivos que ya están en el formato de Kinora (MP4, HEVC, AAC), como contenido nuevo. La conversión llega en la Etapa 4."
+        description="Por ahora solo se importan archivos que ya están en el formato de Kinora (MP4, HEVC, AAC). La conversión llega en la Etapa 4."
         actions={<Stepper current={step} />}
       />
 
@@ -345,6 +353,20 @@ function AnalysisTable({ files }: { files: FileAnalysis[] }) {
   )
 }
 
+type Mode = 'new' | 'existing'
+type Choices = Record<string, ConflictChoice | ''>
+
+const CHOICE_LABELS: Record<ConflictChoice, string> = {
+  replace: 'Reemplazar',
+  add_version: 'Agregar como otra versión',
+  skip: 'Omitir',
+}
+
+/** Para comparar títulos: "Sousou no Frieren" y "sousou-no frieren" son lo mismo. */
+function normalize(title: string) {
+  return title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+}
+
 function DestinationForm({
   files,
   disabled,
@@ -361,6 +383,13 @@ function DestinationForm({
   const canBeMovie = files.length === 1
 
   const [libraryId, setLibraryId] = useState<number>()
+  const selectedLibrary = libraryId ?? libraries?.[0]?.id
+  const { data: contents } = useApi<Content[]>(selectedLibrary ? `/api/contents?library_id=${selectedLibrary}` : '')
+  // Si hay varios archivos, solo pueden ir a una serie.
+  const candidates = contents?.filter((c) => c.kind === 'show' || canBeMovie) ?? []
+
+  const [mode, setMode] = useState<Mode>('new')
+  const [existingId, setExistingId] = useState<number>()
   const [kind, setKind] = useState<'movie' | 'show'>(canBeMovie && first.episode === null ? 'movie' : 'show')
   const [title, setTitle] = useState(first.title ?? '')
   const [year, setYear] = useState(first.year?.toString() ?? '')
@@ -368,25 +397,51 @@ function DestinationForm({
   const [episodes, setEpisodes] = useState<Record<string, string>>(() =>
     Object.fromEntries(files.map((file, i) => [file.name, String(file.guess.episode ?? i + 1)])),
   )
+  const [choices, setChoices] = useState<Choices>({})
 
-  const selectedLibrary = libraryId ?? libraries?.[0]?.id
+  // Si el nombre del archivo coincide con algo que ya está en la biblioteca, se propone agregarlo ahí.
+  useEffect(() => {
+    if (!contents) return
+    const match = first.title
+      ? contents.find((c) => (c.kind === 'show' || canBeMovie) && normalize(c.title) === normalize(first.title!))
+      : undefined
+    setMode(match ? 'existing' : 'new')
+    setExistingId(match?.id)
+  }, [contents, first.title, canBeMovie])
+
+  const existing = candidates.find((c) => c.id === existingId)
+  const { data: detail } = useApi<ContentDetail>(existing ? `/api/contents/${existing.id}` : '')
+  const tree = existing && detail?.content.id === existing.id ? detail : undefined
+
+  // Conflictos: archivos cuyo destino ya tiene archivo. Cada uno necesita una elección.
+  const conflicts = conflictsOf(mode === 'existing' ? tree : undefined, files, Number(season), episodes)
+  const unresolved = files.filter((f) => conflicts[f.name] && !choices[f.name]).length
+  const isShow = mode === 'existing' ? existing?.kind === 'show' : kind === 'show'
 
   function submit(event: FormEvent) {
     event.preventDefault()
     if (selectedLibrary === undefined) return
     const common = { title, year: year ? Number(year) : null }
-    onImport({
-      library_id: selectedLibrary,
-      target:
+    const choice = (name: string) => (conflicts[name] && choices[name]) || undefined
+    const episodeFiles = files.map((file) => ({
+      file: file.name,
+      number: Number(episodes[file.name]),
+      on_conflict: choice(file.name),
+    }))
+    let target: ImportTarget
+    if (mode === 'new') {
+      target =
         kind === 'movie'
           ? { kind: 'movie', ...common, file: files[0].name }
-          : {
-              kind: 'show',
-              ...common,
-              season: Number(season),
-              episodes: files.map((file) => ({ file: file.name, number: Number(episodes[file.name]) })),
-            },
-    })
+          : { kind: 'show', ...common, season: Number(season), episodes: episodeFiles }
+    } else {
+      if (!existing) return
+      target =
+        existing.kind === 'movie'
+          ? { kind: 'existing_movie', movie_id: existing.id, file: files[0].name, on_conflict: choice(files[0].name) ?? null }
+          : { kind: 'existing_show', show_id: existing.id, season: Number(season), episodes: episodeFiles }
+    }
+    onImport({ library_id: selectedLibrary, target })
   }
 
   if (libraries && libraries.length === 0) {
@@ -397,25 +452,54 @@ function DestinationForm({
     )
   }
 
+  const seasons = tree?.children.map((s) => s.content.number).filter((n) => n !== null) ?? []
+
   return (
     <form onSubmit={submit}>
       <Card
         title="Destino"
         description="dónde y cómo queda en el catálogo"
+        actions={
+          <div className="segmented" role="group" aria-label="Destino">
+            <button type="button" aria-pressed={mode === 'new'} onClick={() => setMode('new')}>
+              Contenido nuevo
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === 'existing'}
+              disabled={candidates.length === 0}
+              title={candidates.length === 0 ? 'No hay nada en esta biblioteca todavía' : undefined}
+              onClick={() => setMode('existing')}
+            >
+              Agregar a uno existente
+            </button>
+          </div>
+        }
         footer={
           <>
             <button type="button" className="btn btn-ghost" onClick={onBack}>
               <ArrowLeft /> Elegir otros archivos
             </button>
             <span className="grow" />
-            <button className="btn btn-primary" type="submit" disabled={disabled || selectedLibrary === undefined}>
+            {unresolved > 0 && (
+              <span className="small muted">
+                Falta elegir qué hacer con {unresolved} archivo{unresolved === 1 ? '' : 's'}
+              </span>
+            )}
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={
+                disabled || selectedLibrary === undefined || unresolved > 0 || (mode === 'existing' && !tree)
+              }
+            >
               Importar {files.length > 1 ? `${files.length} archivos` : ''}
             </button>
           </>
         }
       >
         <div className="card-body">
-          <div className="fields">
+          <div className={`fields ${mode === 'existing' ? 'fields-existing' : ''}`}>
             <label className="field">
               Biblioteca
               <select
@@ -430,30 +514,63 @@ function DestinationForm({
                 ))}
               </select>
             </label>
-            <label className="field">
-              Tipo
-              <select className="select" value={kind} onChange={(e) => setKind(e.target.value as 'movie' | 'show')}>
-                <option value="show">Serie</option>
-                <option value="movie" disabled={!canBeMovie}>
-                  Película {canBeMovie ? '' : '(un solo archivo)'}
-                </option>
-              </select>
-            </label>
-            <label className="field">
-              Título
-              <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            </label>
-            <label className="field">
-              Año
-              <input
-                className="input"
-                value={year}
-                placeholder="opcional"
-                onChange={(e) => setYear(e.target.value)}
-                inputMode="numeric"
-              />
-            </label>
-            {kind === 'show' && (
+
+            {mode === 'new' ? (
+              <>
+                <label className="field">
+                  Tipo
+                  <select
+                    className="select"
+                    value={kind}
+                    onChange={(e) => setKind(e.target.value as 'movie' | 'show')}
+                  >
+                    <option value="show">Serie</option>
+                    <option value="movie" disabled={!canBeMovie}>
+                      Película {canBeMovie ? '' : '(un solo archivo)'}
+                    </option>
+                  </select>
+                </label>
+                <label className="field">
+                  Título
+                  <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                </label>
+                <label className="field">
+                  Año
+                  <input
+                    className="input"
+                    value={year}
+                    placeholder="opcional"
+                    onChange={(e) => setYear(e.target.value)}
+                    inputMode="numeric"
+                  />
+                </label>
+              </>
+            ) : (
+              <label className="field">
+                {canBeMovie ? 'Película o serie' : 'Serie'}
+                <select
+                  className="select"
+                  value={existingId ?? ''}
+                  onChange={(e) => {
+                    setExistingId(Number(e.target.value))
+                    setChoices({})
+                  }}
+                  required
+                >
+                  <option value="" disabled>
+                    Elegí…
+                  </option>
+                  {candidates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                      {c.year ? ` (${c.year})` : ''} · {c.kind === 'show' ? 'serie' : 'película'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {isShow && (
               <label className="field">
                 Temporada
                 <input
@@ -464,47 +581,184 @@ function DestinationForm({
                   onChange={(e) => setSeason(e.target.value)}
                   required
                 />
+                {mode === 'existing' && tree && (
+                  <span className="field-hint">
+                    {seasons.includes(Number(season))
+                      ? `Temporada existente (tiene ${seasons.length === 1 ? 'solo esta' : `${seasons.join(', ')}`})`
+                      : `Temporada nueva${seasons.length > 0 ? ` (hay ${seasons.join(', ')})` : ''}`}
+                  </span>
+                )}
               </label>
             )}
           </div>
         </div>
 
-        {kind === 'show' && (
-          <table className="table compact">
-            <thead>
-              <tr>
-                <th>Archivo</th>
-                <th style={{ width: 130 }}>Episodio</th>
-              </tr>
-            </thead>
-            <tbody>
-              {files.map((file) => (
-                <tr key={file.name}>
-                  <td className="mono">{file.name}</td>
+        <FileTable
+          files={files}
+          showEpisodes={isShow}
+          episodes={episodes}
+          onEpisode={(name, value) => setEpisodes({ ...episodes, [name]: value })}
+          conflicts={conflicts}
+          choices={choices}
+          onChoose={(name, value) => setChoices({ ...choices, [name]: value })}
+          onChooseAll={(value) =>
+            setChoices(Object.fromEntries(files.filter((f) => conflicts[f.name]).map((f) => [f.name, value])))
+          }
+        />
+      </Card>
+    </form>
+  )
+}
+
+/**
+ * Para cada archivo cuyo destino ya tiene archivo, los nombres de esos archivos.
+ * El destino es la película, o el episodio con ese número en esa temporada.
+ */
+function conflictsOf(
+  tree: ContentDetail | undefined,
+  files: FileAnalysis[],
+  season: number,
+  episodes: Record<string, string>,
+): Record<string, string[]> {
+  if (!tree) return {}
+  const fileNames = (node: ContentDetail | undefined) => node?.files.map((f) => f.rel_path.split('/').pop()!) ?? []
+  if (tree.content.kind === 'movie') {
+    const current = fileNames(tree)
+    return current.length > 0 ? { [files[0].name]: current } : {}
+  }
+  const seasonNode = tree.children.find((s) => s.content.number === season)
+  const result: Record<string, string[]> = {}
+  for (const file of files) {
+    const episode = seasonNode?.children.find((e) => e.content.number === Number(episodes[file.name]))
+    const current = fileNames(episode)
+    if (current.length > 0) result[file.name] = current
+  }
+  return result
+}
+
+function FileTable({
+  files,
+  showEpisodes,
+  episodes,
+  onEpisode,
+  conflicts,
+  choices,
+  onChoose,
+  onChooseAll,
+}: {
+  files: FileAnalysis[]
+  showEpisodes: boolean
+  episodes: Record<string, string>
+  onEpisode: (name: string, value: string) => void
+  conflicts: Record<string, string[]>
+  choices: Choices
+  onChoose: (name: string, value: ConflictChoice) => void
+  onChooseAll: (value: ConflictChoice) => void
+}) {
+  const conflictCount = Object.keys(conflicts).length
+  if (!showEpisodes && conflictCount === 0) return null
+
+  return (
+    <>
+      {conflictCount > 1 && (
+        <div className="card-body conflict-bar">
+          <TriangleAlert size={16} />
+          <span className="grow">
+            {conflictCount} episodios ya tienen archivo. Elegí qué hacer con cada uno, o con todos:
+          </span>
+          <select
+            className="select"
+            value=""
+            onChange={(e) => onChooseAll(e.target.value as ConflictChoice)}
+            aria-label="Elegir para todos"
+          >
+            <option value="" disabled>
+              Para todos…
+            </option>
+            {Object.entries(CHOICE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <table className="table compact">
+        <thead>
+          <tr>
+            <th>Archivo</th>
+            {showEpisodes && <th style={{ width: 110 }}>Episodio</th>}
+            <th style={{ width: 300 }}>Destino</th>
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((file) => {
+            const current = conflicts[file.name]
+            return (
+              <tr key={file.name}>
+                <td className="mono">{file.name}</td>
+                {showEpisodes && (
                   <td>
                     <input
                       className="input input-narrow"
                       type="number"
                       min={0}
                       value={episodes[file.name]}
-                      onChange={(e) => setEpisodes({ ...episodes, [file.name]: e.target.value })}
+                      onChange={(e) => onEpisode(file.name, e.target.value)}
                       required
                     />
                   </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
-    </form>
+                )}
+                <td>
+                  {current ? (
+                    <div className="conflict-cell">
+                      <span className="small" title={current.join('\n')}>
+                        <Badge tone="warning" icon={TriangleAlert}>
+                          Ya tiene archivo
+                        </Badge>
+                      </span>
+                      <select
+                        className="select"
+                        value={choices[file.name] ?? ''}
+                        onChange={(e) => onChoose(file.name, e.target.value as ConflictChoice)}
+                        required
+                        aria-label={`Qué hacer con ${file.name}`}
+                      >
+                        <option value="" disabled>
+                          Elegí qué hacer…
+                        </option>
+                        {Object.entries(CHOICE_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <span className="small muted">Nuevo</span>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </>
   )
 }
 
 // --- Resultado ---
 
+const ACTION_LABELS: Record<ImportAction, string> = {
+  added: 'Importado',
+  replaced: 'Reemplazado',
+  added_version: 'Otra versión',
+  skipped: 'Omitido',
+}
+
 function ResultView({ result, onRestart }: { result: ImportResult; onRestart: () => void }) {
   const failed = result.files.filter((file) => file.error).length
+  const trashed = result.files.some((file) => file.trashed.length > 0)
   return (
     <Card
       title={failed === 0 ? 'Importación completa' : `Importación con ${failed} error(es)`}
@@ -515,6 +769,12 @@ function ResultView({ result, onRestart }: { result: ImportResult; onRestart: ()
       }
       footer={
         <span className="small muted">
+          {trashed && (
+            <>
+              Los archivos reemplazados quedaron en <span className="mono">.kinora-trash/</span> dentro de la
+              biblioteca.{' '}
+            </>
+          )}
           Para depurar: <Link to="/database/contents">contents</Link> ·{' '}
           <Link to="/database/media_files">media_files</Link>
         </span>
@@ -532,6 +792,15 @@ function ResultView({ result, onRestart }: { result: ImportResult; onRestart: ()
                 </div>
               </span>
             </>
+          ) : file.action === 'skipped' ? (
+            <>
+              <SkipForward className="icon" />
+              <span className="grow">
+                <span className="mono">{file.file}</span>
+                <div className="small muted">Sigue en la bandeja de entrada</div>
+              </span>
+              <Badge>{ACTION_LABELS.skipped}</Badge>
+            </>
           ) : (
             <>
               <CircleCheck className="icon" color="var(--good)" />
@@ -541,6 +810,7 @@ function ResultView({ result, onRestart }: { result: ImportResult; onRestart: ()
                   {file.subtitles} subtítulo{file.subtitles === 1 ? '' : 's'}
                 </Badge>
               )}
+              <Badge tone={file.action === 'added' ? 'good' : undefined}>{ACTION_LABELS[file.action]}</Badge>
             </>
           )}
         </div>

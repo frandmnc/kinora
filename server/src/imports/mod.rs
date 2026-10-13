@@ -1,8 +1,10 @@
 //! Importación: analizar archivos de las carpetas de origen y agregarlos al catálogo.
 //!
 //! Los archivos vienen de la bandeja de entrada (ver `uploads`) y se identifican por su nombre.
-//! Etapa 1: solo se importan archivos que ya cumplen el formato de Kinora (se mueven tal cual),
-//! y siempre como contenido nuevo.
+//! Por ahora solo se importan archivos que ya cumplen el formato de Kinora (se mueven tal cual).
+//! El destino puede ser un contenido nuevo o uno existente (otra temporada, episodios que faltan,
+//! una versión mejor). Si un episodio ya tiene archivo, el pedido dice qué hacer: omitir,
+//! reemplazar (el anterior va a la papelera) o agregar como otra versión.
 
 mod guess;
 mod handlers;
@@ -60,19 +62,33 @@ pub struct ImportRequest {
     pub target: ImportTarget,
 }
 
-/// Qué crear. En JSON lleva un campo `kind`: `{"kind": "movie", ...}` o `{"kind": "show", ...}`.
+/// Dónde va lo importado. En JSON lleva un campo `kind`: `{"kind": "movie", ...}`.
 #[derive(Deserialize, TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[ts(export)]
 pub enum ImportTarget {
+    /// Una película nueva.
     Movie {
         title: String,
         year: Option<i64>,
         file: String,
     },
+    /// Una serie nueva, con una temporada.
     Show {
         title: String,
         year: Option<i64>,
+        season: i64,
+        episodes: Vec<EpisodeFile>,
+    },
+    /// Otro archivo para una película que ya está en el catálogo.
+    ExistingMovie {
+        movie_id: i64,
+        file: String,
+        on_conflict: Option<ConflictChoice>,
+    },
+    /// Episodios para una serie que ya está en el catálogo, en una temporada existente o nueva.
+    ExistingShow {
+        show_id: i64,
         season: i64,
         episodes: Vec<EpisodeFile>,
     },
@@ -84,12 +100,29 @@ pub enum ImportTarget {
 pub struct EpisodeFile {
     pub number: i64,
     pub file: String,
+    /// Qué hacer si el episodio ya tiene archivo. Sin elegir, el pedido se rechaza.
+    #[serde(default)]
+    #[ts(optional)]
+    pub on_conflict: Option<ConflictChoice>,
+}
+
+/// Qué hacer cuando el destino ya tiene archivo.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ConflictChoice {
+    /// No importar este archivo: queda en la bandeja.
+    Skip,
+    /// El nuevo ocupa su lugar; el anterior y sus subtítulos van a `.kinora-trash/`.
+    Replace,
+    /// Se suma como otra versión (`… - S01E05 - v2.mp4`); el anterior sigue.
+    AddVersion,
 }
 
 #[derive(Serialize, TS)]
 #[ts(export)]
 pub struct ImportResult {
-    /// La película o la serie creada.
+    /// La película o la serie (creada o existente).
     pub content_id: i64,
     pub files: Vec<ImportedFile>,
 }
@@ -98,11 +131,27 @@ pub struct ImportResult {
 #[ts(export)]
 pub struct ImportedFile {
     pub file: String,
-    /// Ruta final dentro de la biblioteca, si salió bien.
+    /// Qué se hizo con el archivo.
+    pub action: ImportAction,
+    /// Ruta final dentro de la biblioteca, si se importó.
     pub destination: Option<String>,
+    /// Archivos anteriores que fueron a la papelera (al reemplazar).
+    pub trashed: Vec<String>,
     /// Cuántas pistas de subtítulos quedaron.
     pub subtitles: i64,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ImportAction {
+    /// El destino no tenía archivo.
+    Added,
+    Replaced,
+    AddedVersion,
+    /// Se eligió omitirlo: sigue en la bandeja.
+    Skipped,
 }
 
 /// Rutas del Admin. Se montan bajo /api/admin.
