@@ -513,6 +513,16 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Contenido | Corregir títulos, años y números |
 | Mantenimiento | Verificar integridad, reconstruir desde disco, backup |
 
+## Autenticación
+
+**Una cuenta (la del dueño) con usuario y contraseña, y perfiles adentro para cada persona de la casa.** Se pide iniciar sesión en todos lados, también en la red de casa: es una vez por equipo y la sesión dura 180 días desde el último uso.
+
+- **La cuenta se crea una sola vez y solo desde la casa**: la compu donde corre Kinora o la red local, directo. Nunca por el link público (Funnel) ni por Tailscale: si no, cualquiera podría adueñarse de Kinora antes que el dueño. Los pedidos que pasan por el proxy de Tailscale llegan desde 127.0.0.1, así que no alcanza con la IP: se miran los encabezados que agrega (`X-Forwarded-For`, `Tailscale-Funnel-Request`).
+- **Contraseña**: Argon2id (al menos 8 caracteres). **Sesión**: un token al azar en una cookie `HttpOnly` (`Secure` si llegó por HTTPS); la base guarda solo su SHA-256. La app de la TV puede mandarlo como `Authorization: Bearer`.
+- **Toda la API pide sesión** salvo `/api/health` y `/api/auth/*`. Las páginas son públicas: sin sesión muestran la entrada. El video y los subtítulos (`<video>`, `<track>`) mandan la cookie solos.
+- **Freno a los intentos**: 5 contraseñas mal por origen en 15 minutos y se bloquea ese origen hasta que pase la ventana.
+- **Perfiles** (sin PIN por ahora): el Player pregunta "¿Quién está mirando?" cada vez que se abre. Cada perfil tiene su progreso, "Seguir viendo", historial y preferencias. Cualquier perfil puede usar el Admin: el Admin pide la cuenta, no un perfil.
+
 ## API
 
 **La API usa JSON e identificadores enteros.** Los tipos se generan desde Rust con ts-rs.
@@ -529,6 +539,14 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Reproducir un archivo | `GET /api/files/{id}/stream` |
 | Obtener un subtítulo | `GET /api/subtitles/{id}` |
 | Informar progreso | `PUT /api/contents/{id}/progress` |
+
+**Cuenta (`/api/auth`, sin sesión):**
+
+| Operación | Ruta |
+|---|---|
+| Qué mostrar (crear la cuenta, entrar o seguir) | `GET /api/auth/state` |
+| Crear la cuenta (una vez, desde la casa) | `POST /api/auth/setup` |
+| Iniciar y cerrar sesión | `POST /api/auth/login`, `POST /api/auth/logout` |
 
 **Admin (`/api/admin`):**
 
@@ -551,6 +569,8 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Eliminar una película o serie: su carpeta va a la papelera; se borran catálogo y progreso, el historial queda | `DELETE /api/admin/contents/{id}` |
 | Quitar un archivo o versión (el video y sus subtítulos a la papelera) | `DELETE /api/admin/files/{id}` |
 | Métricas | `GET /api/admin/metrics/{playback,sessions,conversion}`, `GET /api/admin/metrics/server?range=day\|week\|month` |
+| Cambiar la contraseña (cierra las demás sesiones) | `PUT /api/admin/account/password` |
+| Sesiones abiertas: ver y cerrar | `GET /api/admin/account/sessions`, `DELETE /api/admin/account/sessions/{id}` |
 | Papelera: ver, vaciar, borrar una tanda | `GET`, `DELETE /api/admin/trash`, `DELETE /api/admin/trash/{library_id}/{tanda}` |
 | Verificar integridad | `POST /api/admin/maintenance/integrity-check` |
 

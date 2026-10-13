@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 import { Route, Routes, useLocation, useNavigate } from 'react-router'
+import { pause, resume } from '@noriginmedia/norigin-spatial-navigation'
+import { AuthGate } from '../shared/auth'
 import { HomePage } from './pages/HomePage'
 import { DetailPage } from './pages/DetailPage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -31,6 +33,26 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [location.pathname, navigate])
 
+  return (
+    <AuthGate brand={<PlayerBrand />}>
+      {() => <PlayerRoutes />}
+    </AuthGate>
+  )
+}
+
+/**
+ * El logo de las pantallas de entrada. Mientras se ven, la navegación con flechas se apaga:
+ * se escribe en campos comunes, y Enter tiene que enviar el formulario.
+ */
+function PlayerBrand() {
+  useEffect(() => {
+    pause()
+    return () => resume()
+  }, [])
+  return <span className="brand-bar">Kinora</span>
+}
+
+function PlayerRoutes() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />

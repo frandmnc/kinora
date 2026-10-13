@@ -7,6 +7,9 @@ export function setServerUrl(url: string) {
   serverUrl = url.replace(/\/$/, '')
 }
 
+/** Evento que se dispara cuando el servidor contesta que no hay sesión. */
+export const SIGNED_OUT = 'kinora:signed-out'
+
 export class ApiError extends Error {
   status: number
 
@@ -37,6 +40,11 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
     body: options.file ?? (hasBody ? JSON.stringify(options.body) : undefined),
     keepalive: options.keepalive,
   })
+
+  // Sin sesión (o venció): la app vuelve a la pantalla de entrada.
+  if (response.status === 401 && !path.startsWith('/api/auth/')) {
+    window.dispatchEvent(new Event(SIGNED_OUT))
+  }
 
   if (!response.ok) {
     // Kinora responde {"error": "..."}; otros errores pueden venir como texto.

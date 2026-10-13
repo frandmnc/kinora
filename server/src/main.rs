@@ -1,4 +1,5 @@
 mod app;
+mod auth;
 mod config;
 mod contents;
 mod db;
@@ -67,6 +68,7 @@ async fn main() -> Result<()> {
         monitor: monitor.clone(),
         settings: settings.clone(),
         jobs,
+        login_limiter: Default::default(),
     };
     jobs::spawn_worker(state.clone());
     let app = app::router(state);

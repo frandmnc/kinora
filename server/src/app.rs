@@ -6,6 +6,7 @@ use axum::Router;
 use axum::routing::get;
 use sqlx::SqlitePool;
 
+use crate::auth::{self, LoginLimiter};
 use crate::error::AppError;
 use crate::jobs::Jobs;
 use crate::monitor::Monitor;
@@ -23,6 +24,8 @@ pub struct AppState {
     pub monitor: Arc<Monitor>,
     pub settings: Arc<Settings>,
     pub jobs: Arc<Jobs>,
+    /// Freno a los intentos de contraseña.
+    pub login_limiter: Arc<LoginLimiter>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -38,18 +41,29 @@ pub fn router(state: AppState) -> Router {
         .merge(subtitles::admin_routes())
         .merge(trash::admin_routes())
         .merge(debug::admin_routes())
+        .merge(auth::admin_routes())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             settings::block_while_moving,
         ));
 
-    let api = Router::new()
-        .route("/health", get(health::health))
+    // Todo lo que está acá pide sesión. Una capa (`layer`) se aplica a las rutas agregadas
+    // antes que ella: por eso lo público se suma después, afuera.
+    let protected = Router::new()
         .merge(libraries::routes())
         .merge(contents::routes())
         .merge(playback::routes())
         .merge(subtitles::routes())
         .nest("/admin", admin)
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_session,
+        ));
+
+    let api = Router::new()
+        .route("/health", get(health::health))
+        .merge(auth::public_routes())
+        .merge(protected)
         .fallback(api_not_found);
 
     Router::new()

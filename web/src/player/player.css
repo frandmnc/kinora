@@ -733,3 +733,100 @@ a.episode.is-focused {
     min-width: 0;
   }
 }
+
+/* Entrada: iniciar sesión (y crear la cuenta, la primera vez). Grande: se usa desde la TV. */
+
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 40px 20px;
+}
+
+.auth-card {
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-brand .brand-bar {
+  margin: 0;
+}
+
+.auth-card h1 {
+  margin: 0;
+  font-size: 40px;
+  letter-spacing: -0.02em;
+}
+
+.auth-text {
+  margin: 0;
+  color: var(--player-muted);
+  line-height: 1.5;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 8px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--player-muted);
+  font-size: 18px;
+}
+
+.auth-field input {
+  height: 60px;
+  padding: 0 18px;
+  border: 2px solid var(--player-surface-2);
+  border-radius: 8px;
+  background: var(--player-surface);
+  color: var(--player-text);
+  font: inherit;
+  font-size: 22px;
+}
+
+.auth-field input:focus {
+  outline: 4px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.auth-hint {
+  font-size: 16px;
+}
+
+.auth-error {
+  margin: 0;
+  color: #ff8fa3;
+}
+
+.auth-error::first-letter {
+  text-transform: uppercase;
+}
+
+.auth-button {
+  height: 64px;
+  border: none;
+  border-radius: 8px;
+  background: var(--player-text);
+  color: var(--player-bg);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-button:focus-visible {
+  outline: 4px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.auth-button:disabled {
+  opacity: 0.6;
+}

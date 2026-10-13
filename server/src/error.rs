@@ -7,8 +7,14 @@ use serde::Serialize;
 #[derive(Debug)]
 pub enum AppError {
     BadRequest(String),
+    /// Falta iniciar sesión, o el usuario o la contraseña no coinciden (401).
+    Unauthorized(String),
+    /// Hay sesión (o no hace falta), pero esto no se puede hacer desde acá (403).
+    Forbidden(String),
     NotFound(String),
     Conflict(String),
+    /// Demasiados intentos seguidos (429).
+    TooManyRequests(String),
     Internal(anyhow::Error),
 }
 
@@ -23,6 +29,9 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             AppError::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
+            AppError::Unauthorized(message) => (StatusCode::UNAUTHORIZED, message),
+            AppError::Forbidden(message) => (StatusCode::FORBIDDEN, message),
+            AppError::TooManyRequests(message) => (StatusCode::TOO_MANY_REQUESTS, message),
             AppError::NotFound(message) => (StatusCode::NOT_FOUND, message),
             AppError::Conflict(message) => (StatusCode::CONFLICT, message),
             AppError::Internal(err) => {

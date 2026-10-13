@@ -2026,3 +2026,130 @@ a:has(> .badge) {
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
 }
+
+/* Entrada: crear la cuenta o iniciar sesión */
+
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--surface-2);
+}
+
+.auth-card {
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 32px 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-hover);
+}
+
+.auth-brand .brand {
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.auth-card h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.auth-text {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auth-field input {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+  font-size: 15px;
+}
+
+.auth-field input:focus {
+  outline: none;
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
+}
+
+.auth-hint {
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.auth-error {
+  margin: 0;
+  color: var(--critical-text);
+  font-size: 14px;
+}
+
+.auth-error::first-letter {
+  text-transform: uppercase;
+}
+
+.auth-button {
+  height: 44px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--brand-gradient);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.auth-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.sidebar-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sidebar-signout:hover {
+  color: var(--text);
+}
+
+.sidebar-signout svg {
+  width: 14px;
+  height: 14px;
+}
