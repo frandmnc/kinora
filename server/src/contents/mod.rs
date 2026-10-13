@@ -118,7 +118,27 @@ pub fn routes() -> Router<AppState> {
         .route("/files/{id}/stream", get(handlers::stream))
 }
 
+/// Una película o serie con sus números, para la pantalla de una biblioteca en el Admin.
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct ContentSummary {
+    pub content: Content,
+    pub seasons: i64,
+    pub episodes: i64,
+    /// Episodios que existen pero todavía no tienen archivo.
+    pub missing: i64,
+    pub files: i64,
+    /// Bytes de todos sus archivos.
+    pub size: i64,
+    pub subtitles: i64,
+    /// Trabajos de la cola pendientes o en curso: mientras haya, no se puede eliminar.
+    pub active_jobs: i64,
+}
+
 /// Rutas del Admin. Se montan bajo /api/admin.
 pub fn admin_routes() -> Router<AppState> {
-    Router::new().route("/files/{id}", delete(handlers::delete_file))
+    Router::new()
+        .route("/files/{id}", delete(handlers::delete_file))
+        .route("/libraries/{id}/contents", get(handlers::library_contents))
+        .route("/contents/{id}", delete(handlers::delete_content))
 }

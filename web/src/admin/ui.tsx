@@ -1,6 +1,6 @@
 // Piezas de interfaz del Admin. Los estilos están en admin.css.
 
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { CircleAlert, CircleCheck, Info, TriangleAlert, type LucideIcon } from 'lucide-react'
 
 export function PageHeader({
@@ -258,5 +258,67 @@ export function MiniBars({ values, labels, label }: { values: number[]; labels: 
         )
       })}
     </svg>
+  )
+}
+
+/**
+ * Ventana de confirmación (un `<dialog>` modal: Escape la cierra y el foco queda adentro).
+ * Para acciones que no se deshacen fácil, como eliminar.
+ */
+export function ConfirmDialog({
+  title,
+  children,
+  confirmLabel,
+  danger,
+  busy,
+  disabled,
+  onConfirm,
+  onCancel,
+}: {
+  title: string
+  children: ReactNode
+  confirmLabel: string
+  danger?: boolean
+  busy?: boolean
+  disabled?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const ref = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    ref.current?.showModal()
+  }, [])
+
+  return (
+    <dialog
+      ref={ref}
+      className="dialog"
+      onCancel={(e) => {
+        e.preventDefault()
+        if (!busy) onCancel()
+      }}
+      onClick={(e) => {
+        // Un clic afuera de la ventana (en el fondo) también cancela.
+        if (e.target === e.currentTarget && !busy) onCancel()
+      }}
+    >
+      <div className="dialog-body">
+        <h2>{title}</h2>
+        {children}
+      </div>
+      <div className="dialog-actions">
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>
+          Cancelar
+        </button>
+        <button
+          className={`btn ${danger ? 'btn-danger-solid' : 'btn-primary'}`}
+          onClick={onConfirm}
+          disabled={busy || disabled}
+          autoFocus={!danger}
+        >
+          {busy ? 'Un momento…' : confirmLabel}
+        </button>
+      </div>
+    </dialog>
   )
 }

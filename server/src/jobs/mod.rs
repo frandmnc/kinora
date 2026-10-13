@@ -114,7 +114,8 @@ pub enum JobState {
 pub struct Job {
     pub id: i64,
     pub library_id: i64,
-    pub content_id: i64,
+    /// `null` si el contenido se eliminó después (el trabajo queda en el historial).
+    pub content_id: Option<i64>,
     pub source_name: String,
     pub operation: Operation,
     pub action: ImportAction,

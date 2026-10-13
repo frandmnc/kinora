@@ -10,7 +10,11 @@ export type JobView = {
 /**
  * "Sousou no Frieren · T1 E5".
  */
-title: string, id: number, library_id: number, content_id: number, source_name: string, operation: Operation, action: ImportAction, rel_path: string, state: JobState, 
+title: string, id: number, library_id: number, 
+/**
+ * `null` si el contenido se eliminó después (el trabajo queda en el historial).
+ */
+content_id: number | null, source_name: string, operation: Operation, action: ImportAction, rel_path: string, state: JobState, 
 /**
  * 0..1.
  */

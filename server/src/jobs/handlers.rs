@@ -13,9 +13,11 @@ use crate::error::{AppError, AppResult};
 pub async fn list(State(state): State<AppState>) -> AppResult<Json<QueueView>> {
     let mut jobs = Vec::new();
     for job in repo::recent(&state.db, 20).await? {
-        let title = contents::repo::display_title(&state.db, job.content_id)
-            .await?
-            .unwrap_or_else(|| job.source_name.clone());
+        let title = match job.content_id {
+            Some(id) => contents::repo::display_title(&state.db, id).await?,
+            None => None,
+        }
+        .unwrap_or_else(|| job.source_name.clone());
         jobs.push(JobView { job, title });
     }
     Ok(Json(QueueView {

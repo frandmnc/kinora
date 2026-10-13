@@ -508,7 +508,8 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Importar | Subir archivos a la bandeja, analizar, asignar destino y confirmar |
 | Configuración | Carpeta media, con un explorador de carpetas del servidor |
 | Cola | Trabajos en curso, pendientes y fallidos; cancelar y reintentar |
-| Contenido | Explorar el catálogo, corregir títulos, años y números |
+| Bibliotecas | Cada biblioteca muestra una tarjeta por película o serie (números, avisos, eliminar con confirmación); cada una abre su página con temporadas, episodios, archivos, versiones y subtítulos |
+| Contenido | Corregir títulos, años y números |
 | Mantenimiento | Verificar integridad, reconstruir desde disco, backup |
 
 ## API
@@ -545,7 +546,8 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Iniciar o pausar la cola | `POST /api/admin/jobs/start`, `POST /api/admin/jobs/pause` |
 | Cancelar un trabajo (el original vuelve a la bandeja; reintentar es volver a importarlo) | `POST /api/admin/jobs/{id}/cancel` |
 | Editar un contenido | `PATCH /api/admin/contents/{id}` |
-| Eliminar un contenido (a la papelera) | `DELETE /api/admin/contents/{id}` |
+| Películas y series de una biblioteca, con sus números (temporadas, episodios, archivos, tamaño, subtítulos, trabajos en cola) | `GET /api/admin/libraries/{id}/contents` |
+| Eliminar una película o serie: su carpeta va a la papelera; se borran catálogo y progreso, el historial queda | `DELETE /api/admin/contents/{id}` |
 | Quitar un archivo o versión (el video y sus subtítulos a la papelera) | `DELETE /api/admin/files/{id}` |
 | Métricas | `GET /api/admin/metrics/{playback,sessions,conversion}`, `GET /api/admin/metrics/server?range=day\|week\|month` |
 | Verificar integridad | `POST /api/admin/maintenance/integrity-check` |

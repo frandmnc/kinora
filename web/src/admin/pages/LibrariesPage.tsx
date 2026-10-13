@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import { Check, Folder, FolderOpen, LibraryBig, Pencil, Plus, Trash, X } from 'lucide-react'
+import { Check, ChevronRight, Folder, LibraryBig, Pencil, Plus, Trash, X } from 'lucide-react'
 import { api } from '../../shared/api'
 import { useApi } from '../../shared/useApi'
+import type { Content } from '../../shared/types/Content'
 import type { Library } from '../../shared/types/Library'
 import type { NewLibrary } from '../../shared/types/NewLibrary'
 import type { LibraryChanges } from '../../shared/types/LibraryChanges'
@@ -12,6 +13,8 @@ import { Alert, Card, EmptyState, PageHeader } from '../ui'
 export function LibrariesPage() {
   const { data: libraries, error, loading, reload } = useApi<Library[]>('/api/admin/libraries')
   const { data: mediaDir } = useApi<MediaDirSetting>('/api/admin/settings/media-dir')
+  // Las películas y series de todas las bibliotecas, para contar cuántas tiene cada una.
+  const { data: contents } = useApi<Content[]>('/api/contents')
   const [actionError, setActionError] = useState<string>()
   const noMediaDir = mediaDir && !mediaDir.path
 
@@ -75,6 +78,7 @@ export function LibrariesPage() {
             <thead>
               <tr>
                 <th>Nombre</th>
+                <th>Contenido</th>
                 <th>Carpeta</th>
                 <th />
               </tr>
@@ -84,6 +88,7 @@ export function LibrariesPage() {
                 <LibraryRow
                   key={library.id}
                   library={library}
+                  titles={contents && contents.filter((c) => c.library_id === library.id).length}
                   onRename={(changes) =>
                     run(() => api(`/api/admin/libraries/${library.id}`, { method: 'PATCH', body: changes }))
                   }
@@ -125,10 +130,13 @@ function CreateForm({ onCreate }: { onCreate: (library: NewLibrary) => Promise<b
 
 function LibraryRow({
   library,
+  titles,
   onRename,
   onDelete,
 }: {
   library: Library
+  /** Cuántas películas y series tiene (`undefined` mientras se cuentan). */
+  titles?: number
   onRename: (changes: LibraryChanges) => Promise<boolean>
   onDelete: () => void
 }) {
@@ -167,6 +175,7 @@ function LibraryRow({
           </Link>
         )}
       </td>
+      <td className="secondary">{titles === undefined ? '…' : titles === 1 ? '1 título' : `${titles} títulos`}</td>
       <td>
         <span className="row secondary">
           <Folder size={15} />
@@ -176,22 +185,34 @@ function LibraryRow({
       <td className="actions-cell">
         {!editing && (
           <>
-            <Link to={`/libraries/${library.id}`} className="btn btn-ghost btn-sm">
-              <FolderOpen /> Ver contenido
-            </Link>
-            <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
-              <Pencil /> Renombrar
+            <button
+              className="btn btn-ghost btn-sm btn-icon"
+              title="Renombrar"
+              aria-label={`Renombrar ${library.name}`}
+              onClick={() => setEditing(true)}
+            >
+              <Pencil />
             </button>
             <button
-              className="btn btn-ghost btn-sm btn-danger"
+              className="btn btn-ghost btn-sm btn-icon btn-danger"
+              title="Eliminar"
+              aria-label={`Eliminar ${library.name}`}
               onClick={() => {
                 if (confirm(`¿Eliminar la biblioteca "${library.name}"? La carpeta y sus archivos quedan en el disco.`)) {
                   onDelete()
                 }
               }}
             >
-              <Trash /> Eliminar
+              <Trash />
             </button>
+            <Link
+              to={`/libraries/${library.id}`}
+              className="btn btn-ghost btn-sm btn-icon"
+              title="Abrir"
+              aria-label={`Abrir ${library.name}`}
+            >
+              <ChevronRight />
+            </Link>
           </>
         )}
       </td>

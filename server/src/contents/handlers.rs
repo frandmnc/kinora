@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 
 use axum::Json;
@@ -13,7 +13,8 @@ use tower_http::services::ServeFile;
 use tracing::info;
 
 use super::{
-    Content, ContentDetail, ContentKind, MediaFile, PlaybackReport, Progress, RecentItem, repo,
+    Content, ContentDetail, ContentKind, ContentSummary, MediaFile, PlaybackReport, Progress,
+    RecentItem, repo,
 };
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
@@ -308,6 +309,140 @@ pub async fn delete_file(
     if let Some(top_id) = top_id {
         manifest::refresh(&state.db, &media_dir, top_id).await;
     }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /api/admin/libraries/{id}/contents
+/// Las películas y series de la biblioteca, cada una con sus números (temporadas, episodios,
+/// archivos, tamaño, subtítulos).
+pub async fn library_contents(
+    State(state): State<AppState>,
+    Path(library_id): Path<i64>,
+) -> AppResult<Json<Vec<ContentSummary>>> {
+    let contents = repo::all_of_library(&state.db, library_id).await?;
+    let parents: HashMap<i64, Option<i64>> = contents.iter().map(|c| (c.id, c.parent_id)).collect();
+    // La película o serie de cada contenido: se sube por los padres (episodio → temporada → serie).
+    let top_of = |mut id: i64| {
+        while let Some(Some(parent)) = parents.get(&id) {
+            id = *parent;
+        }
+        id
+    };
+
+    let mut counts: HashMap<i64, Counts> = HashMap::new();
+    let mut with_files: HashSet<i64> = HashSet::new();
+    for (content_id, size, subtitles) in repo::file_stats_of_library(&state.db, library_id).await? {
+        with_files.insert(content_id);
+        let entry = counts.entry(top_of(content_id)).or_default();
+        entry.files += 1;
+        entry.size += size;
+        entry.subtitles += subtitles;
+    }
+    for (content_id, jobs) in repo::active_jobs_of_library(&state.db, library_id).await? {
+        counts.entry(top_of(content_id)).or_default().active_jobs += jobs;
+    }
+    for content in &contents {
+        let entry = counts.entry(top_of(content.id)).or_default();
+        match content.kind {
+            ContentKind::Season => entry.seasons += 1,
+            ContentKind::Episode => {
+                entry.episodes += 1;
+                if !with_files.contains(&content.id) {
+                    entry.missing += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut result: Vec<ContentSummary> = contents
+        .into_iter()
+        .filter(|c| c.parent_id.is_none())
+        .map(|content| {
+            let c = counts.remove(&content.id).unwrap_or_default();
+            ContentSummary {
+                content,
+                seasons: c.seasons,
+                episodes: c.episodes,
+                missing: c.missing,
+                files: c.files,
+                size: c.size,
+                subtitles: c.subtitles,
+                active_jobs: c.active_jobs,
+            }
+        })
+        .collect();
+    result.sort_by_key(|s| s.content.title.to_lowercase());
+    Ok(Json(result))
+}
+
+/// Los números de una película o serie, mientras se suman. `Default` los arranca en cero.
+#[derive(Default)]
+struct Counts {
+    seasons: i64,
+    episodes: i64,
+    missing: i64,
+    files: i64,
+    size: i64,
+    subtitles: i64,
+    active_jobs: i64,
+}
+
+/// DELETE /api/admin/contents/{id}
+/// Elimina una película o serie entera: su carpeta (videos, subtítulos, kinora.json) va a la
+/// papelera de la biblioteca y se borra del catálogo con temporadas, episodios y progreso.
+/// El historial de reproducción queda.
+pub async fn delete_content(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> AppResult<StatusCode> {
+    let content = repo::find(&mut *state.db.acquire().await?, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("no existe el contenido {id}")))?;
+    if content.parent_id.is_some() {
+        return Err(AppError::BadRequest(
+            "solo se eliminan películas o series enteras".to_string(),
+        ));
+    }
+    let ids: Vec<i64> = repo::with_descendants(&state.db, id)
+        .await?
+        .iter()
+        .map(|c| c.id)
+        .collect();
+    let busy = repo::active_jobs_of_library(&state.db, content.library_id)
+        .await?
+        .into_iter()
+        .any(|(content_id, _)| ids.contains(&content_id));
+    if busy {
+        return Err(AppError::Conflict(format!(
+            "\"{}\" tiene archivos en la cola: cancelalos (o esperá a que terminen) antes de eliminarlo",
+            content.title
+        )));
+    }
+
+    let library_dir = repo::library_dir(&state.db, content.library_id).await?;
+    let root = state.settings.require_media_dir()?.join(library_dir);
+    // La carpeta entera a la papelera: así va todo junto, incluso lo que Kinora no registró.
+    let batch = trash::batch_dir(&root);
+    let folder: Vec<String> = content.dir.iter().cloned().collect();
+    let trashed = trash::move_files(&root, &batch, &folder).await?;
+
+    // Si la base falla, la carpeta vuelve de la papelera: o todo o nada.
+    let deleted = async {
+        let mut tx = state.db.begin().await?;
+        repo::delete_tree(&mut tx, &ids).await?;
+        tx.commit().await
+    }
+    .await;
+    if let Err(err) = deleted {
+        trash::restore(&root, &batch, &trashed).await;
+        return Err(err.into());
+    }
+    info!(
+        "deleted \"{}\" ({} items); its folder went to the trash",
+        content.title,
+        ids.len()
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 

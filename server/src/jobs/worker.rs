@@ -193,6 +193,10 @@ async fn process(
     cancelled: oneshot::Receiver<()>,
 ) -> Result<Option<(String, i64)>> {
     let paths = JobPaths::of(state, job).await?;
+    // Eliminar un contenido con trabajos pendientes no se permite, así que esto no debería pasar.
+    let content_id = job
+        .content_id
+        .context("el contenido de este trabajo ya no existe")?;
     let source = probe::run(&paths.source)
         .await
         .context("no se pudo leer el original")?;
@@ -240,7 +244,7 @@ async fn process(
 
     // 3. Ponerlo en su lugar. Qué reemplaza se decide ahora: es lo que tiene el episodio hoy.
     let mut conn = state.db.acquire().await?;
-    let current = contents::repo::file_ids_of(&mut conn, job.content_id).await?;
+    let current = contents::repo::file_ids_of(&mut conn, content_id).await?;
     let (rel_path, replaces) = match job.action {
         ImportAction::Replaced => (job.rel_path.clone(), current),
         // La ruta `… - v2.mp4` se eligió al confirmar. Si mientras tanto se ocupó (otra importación
@@ -263,7 +267,7 @@ async fn process(
         &paths.root,
         &trash::batch_dir(&paths.root),
         PlaceFile {
-            content_id: job.content_id,
+            content_id,
             rel_path: &rel_path,
             file: &paths.output,
             analysis: &result,

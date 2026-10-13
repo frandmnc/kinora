@@ -5,6 +5,7 @@ import { useApi } from '../shared/useApi'
 import type { Health } from '../shared/types/Health'
 import { LibrariesPage } from './pages/LibrariesPage'
 import { LibraryPage } from './pages/LibraryPage'
+import { ContentPage } from './pages/ContentPage'
 import { ImportPage } from './pages/ImportPage'
 import { JobsPage } from './pages/JobsPage'
 import { DatabasePage } from './pages/DatabasePage'
@@ -22,6 +23,7 @@ export function App() {
             <Route path="/status" element={<StatusPage />} />
             <Route path="/libraries" element={<LibrariesPage />} />
             <Route path="/libraries/:id" element={<LibraryPage />} />
+            <Route path="/libraries/:libraryId/contents/:id" element={<ContentPage />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/jobs" element={<JobsPage />} />
             <Route path="/settings" element={<SettingsPage />} />

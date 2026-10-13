@@ -270,6 +270,72 @@ pub async fn latest_files(db: &SqlitePool, limit: i64) -> sqlx::Result<Vec<Impor
     .await
 }
 
+/// Todos los contenidos de una biblioteca, de todos los niveles.
+pub async fn all_of_library(db: &SqlitePool, library_id: i64) -> sqlx::Result<Vec<Content>> {
+    let sql = format!("SELECT {CONTENT_COLUMNS} FROM contents WHERE library_id = ?");
+    sqlx::query_as(AssertSqlSafe(sql))
+        .bind(library_id)
+        .fetch_all(db)
+        .await
+}
+
+/// Por cada archivo de la biblioteca: su contenido, su tamaño y cuántos subtítulos tiene.
+pub async fn file_stats_of_library(
+    db: &SqlitePool,
+    library_id: i64,
+) -> sqlx::Result<Vec<(i64, i64, i64)>> {
+    sqlx::query_as(
+        "SELECT f.content_id, f.size, \
+                (SELECT COUNT(*) FROM subtitles s WHERE s.media_file_id = f.id) \
+         FROM media_files f JOIN contents c ON c.id = f.content_id WHERE c.library_id = ?",
+    )
+    .bind(library_id)
+    .fetch_all(db)
+    .await
+}
+
+/// Cuántos trabajos pendientes o en curso tiene cada contenido de la biblioteca.
+pub async fn active_jobs_of_library(
+    db: &SqlitePool,
+    library_id: i64,
+) -> sqlx::Result<Vec<(i64, i64)>> {
+    sqlx::query_as(
+        "SELECT content_id, COUNT(*) FROM import_jobs \
+         WHERE library_id = ? AND content_id IS NOT NULL AND state IN ('pending', 'running') \
+         GROUP BY content_id",
+    )
+    .bind(library_id)
+    .fetch_all(db)
+    .await
+}
+
+/// Borra de la base una película o serie con todo lo que cuelga de ella: temporadas, episodios,
+/// archivos, subtítulos y progreso. El historial de reproducción queda (sin referencia).
+pub async fn delete_tree(conn: &mut SqliteConnection, ids: &[i64]) -> sqlx::Result<()> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let list = vec!["?"; ids.len()].join(", ");
+    let statements = [
+        format!(
+            "DELETE FROM subtitles WHERE media_file_id IN \
+             (SELECT id FROM media_files WHERE content_id IN ({list}))"
+        ),
+        format!("DELETE FROM media_files WHERE content_id IN ({list})"),
+        format!("DELETE FROM progress WHERE content_id IN ({list})"),
+        // En una sola sentencia: así no importa el orden entre padres e hijos.
+        format!("DELETE FROM contents WHERE id IN ({list})"),
+    ];
+    for sql in statements {
+        let mut query = sqlx::query(AssertSqlSafe(sql));
+        for id in ids {
+            query = query.bind(id);
+        }
+        query.execute(&mut *conn).await?;
+    }
+    Ok(())
+}
+
 pub struct NewContent {
     pub library_id: i64,
     pub kind: ContentKind,
@@ -377,5 +443,88 @@ mod tests {
         )
         .await;
         assert!(repeated.is_err());
+    }
+
+    #[tokio::test]
+    async fn deleting_a_show_keeps_the_watch_history() {
+        let db = connect_in_memory().await;
+        let mut conn = db.acquire().await.unwrap();
+        sqlx::query("INSERT INTO libraries (name, dir) VALUES ('Anime', 'Anime')")
+            .execute(&mut *conn)
+            .await
+            .unwrap();
+        let content = |kind, parent_id, number| NewContent {
+            library_id: 1,
+            kind,
+            parent_id,
+            number,
+            title: "Frieren".into(),
+            year: None,
+            dir: None,
+        };
+        let show = insert_content(&mut conn, &content(ContentKind::Show, None, None))
+            .await
+            .unwrap();
+        let season = insert_content(
+            &mut conn,
+            &content(ContentKind::Season, Some(show), Some(1)),
+        )
+        .await
+        .unwrap();
+        let episode = insert_content(
+            &mut conn,
+            &content(ContentKind::Episode, Some(season), Some(1)),
+        )
+        .await
+        .unwrap();
+        let file = insert_media_file(
+            &mut conn,
+            &NewMediaFile {
+                content_id: episode,
+                rel_path: "F/S01E01.mp4".into(),
+                size: 1,
+                duration: None,
+                video_codec: None,
+                width: None,
+                height: None,
+                probe_json: "{}".into(),
+                source_path: "a.mkv".into(),
+            },
+        )
+        .await
+        .unwrap();
+        for sql in [
+            format!(
+                "INSERT INTO subtitles (media_file_id, rel_path, label) VALUES ({file}, 'F/a.vtt', 'Español')"
+            ),
+            format!(
+                "INSERT INTO progress (content_id, position, watched, updated_at) VALUES ({episode}, 10, 0, 0)"
+            ),
+            format!(
+                "INSERT INTO playback_daily (day, content_id, seconds) VALUES ('2026-10-13', {episode}, 60)"
+            ),
+        ] {
+            sqlx::query(AssertSqlSafe(sql))
+                .execute(&mut *conn)
+                .await
+                .unwrap();
+        }
+
+        delete_tree(&mut conn, &[show, season, episode])
+            .await
+            .unwrap();
+
+        let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM contents")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(left, 0);
+        // Los minutos vistos siguen contando, sin el contenido.
+        let history: (Option<i64>, f64) =
+            sqlx::query_as("SELECT content_id, seconds FROM playback_daily")
+                .fetch_one(&mut *conn)
+                .await
+                .unwrap();
+        assert_eq!(history, (None, 60.0));
     }
 }
