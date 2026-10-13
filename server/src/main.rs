@@ -61,11 +61,12 @@ async fn main() -> Result<()> {
     }
     let monitor = Monitor::new();
     monitor::spawn_sampler(monitor.clone());
+    let jobs = Jobs::load(&db).await?;
     let state = AppState {
         db,
-        monitor,
+        monitor: monitor.clone(),
         settings: settings.clone(),
-        jobs: Jobs::new(),
+        jobs,
     };
     jobs::spawn_worker(state.clone());
     let app = app::router(state);
@@ -106,11 +107,28 @@ async fn main() -> Result<()> {
     }
 
     // `with_connect_info` permite a los handlers saber la IP de quien pide (para el monitor).
-    axum::serve(
+    let server = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await
-    .context("the server stopped with an error")?;
+    );
+    // Al apagar (Ctrl+C, o `kill` de un servicio del sistema) se corta el ffmpeg de la cola:
+    // si no, sigue solo y al volver a arrancar habría dos escribiendo el mismo archivo.
+    tokio::select! {
+        result = server => result.context("the server stopped with an error")?,
+        signal = shutdown_signal() => {
+            tracing::info!("{signal}: shutting down");
+            jobs::stop_running(&monitor);
+        }
+    }
     Ok(())
+}
+
+/// Espera Ctrl+C (SIGINT) o SIGTERM. Devuelve cuál llegó.
+async fn shutdown_signal() -> &'static str {
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("could not listen for SIGTERM");
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => "Ctrl+C",
+        _ = terminate.recv() => "SIGTERM",
+    }
 }

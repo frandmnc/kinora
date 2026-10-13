@@ -6,7 +6,7 @@
 mod folders;
 mod handlers;
 mod relocate;
-mod repo;
+pub mod repo;
 mod usage;
 
 use std::path::PathBuf;

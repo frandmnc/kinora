@@ -11,7 +11,11 @@ cpu_kinora: number,
 /**
  * Porcentaje de toda la CPU (0–100).
  */
-cpu_system: number, cpu_cores: number, memory_kinora: number, memory_used: number, memory_total: number, 
+cpu_system: number, cpu_cores: number, memory_kinora: number, 
+/**
+ * El ffmpeg de la cola (convirtiendo o remuxando); `null` si no hay nada en curso.
+ */
+cpu_ffmpeg: number | null, memory_ffmpeg: number | null, memory_used: number, memory_total: number, 
 /**
  * Bytes por segundo enviados en los últimos segundos.
  */

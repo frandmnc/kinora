@@ -414,7 +414,7 @@ Al importar, el archivo se mueve de la bandeja a la biblioteca. Los archivos que
 
 ## Cola de conversión
 
-**La cola es el único proceso en segundo plano de Kinora.** Ejecuta un trabajo por vez. Desde la Etapa 3 hace remux (y la conversión del audio a AAC); en la Etapa 4 suma la conversión del video.
+**La cola es el único proceso en segundo plano de Kinora.** Ejecuta un trabajo por vez, y solo cuando se la inicia: importar agrega los trabajos sin empezarlos, el botón "Iniciar cola" la pone en marcha y se detiene sola al vaciarse. "Pausar" deja terminar el trabajo en curso y no toma el siguiente. El estado (en marcha o detenida) se guarda en `settings` y sobrevive a un reinicio. Desde la Etapa 3 hace remux (y la conversión del audio a AAC); en la Etapa 4 suma la conversión del video.
 
 Los archivos que ya cumplen el formato no pasan por la cola: se mueven en el momento. Los que necesitan remux salen de la bandeja al confirmar y esperan en `<biblioteca>/.kinora-tmp/job-<id>-source.<ext>`, así no se pueden importar dos veces. Qué reemplaza un trabajo (si se eligió "reemplazar") se decide al terminar, con los archivos que tenga el episodio en ese momento. Los subtítulos internos se extraen del original, porque el MP4 no lleva los del MKV.
 
@@ -434,7 +434,11 @@ Cada trabajo sigue estos pasos:
 | El usuario cancela | Detener ffmpeg (o sacarlo de la fila si no empezó), borrar el temporal, devolver el original a la bandeja y marcar el trabajo como cancelado |
 | Falta espacio | Antes de confirmar: el remux necesita el tamaño de los originales libre, más 1 GB de margen |
 
-El avance se obtiene de `ffmpeg -progress`. El Admin lo muestra con el tiempo estimado.
+El avance se obtiene de `ffmpeg -progress`. El Admin lo muestra con la velocidad (× tiempo real) y el tiempo estimado.
+
+**Conversión del video (Etapa 4):** x265 con CRF 22, preset `medium`, 10 bits (`yuv420p10le`, perfil Main 10) y etiqueta `hvc1`. El espacio de color SDR se conserva tal como venía etiquetado; si no decía nada, BT.709 en HD y BT.601 en definición estándar. ffmpeg corre con prioridad baja (`nice -n 10`), para que reproducir algo siempre vaya primero. En un M3 Pro, 1080p convierte a unas 2,3 veces el tiempo real (un episodio de 24 minutos, unos 10) y el archivo queda en alrededor de un cuarto del original H.264.
+
+**Al apagar el servidor** (Ctrl+C o SIGTERM) se corta el ffmpeg en curso; si no, seguiría solo y al volver a arrancar habría dos escribiendo el mismo archivo. Si Kinora muere sin poder avisar (`kill -9`), al arrancar busca un ffmpeg que siga escribiendo la salida de un trabajo interrumpido y lo corta antes de reintentarlo.
 
 El original nunca se borra automáticamente. El Admin ofrecerá borrar los originales de una importación completa como acción explícita.
 
@@ -462,7 +466,7 @@ No hay sesiones de reproducción. Se agregarán si en el futuro el servidor tran
 | Servidor en vivo | Los mismos valores, actualizados cada 2 segundos | Memoria del proceso |
 | Almacenamiento | Espacio libre por disco, tamaño por biblioteca | `sysinfo` y `media_files` |
 | Reproducción | Minutos por día, semana y mes; lo más visto; viendo ahora | `playback_daily` y los avisos de progreso |
-| Conversión | Espacio ahorrado, velocidad media respecto del tiempo real, trabajos fallidos | `import_jobs` |
+| Conversión | En la cola, espacio ahorrado, velocidad media respecto del tiempo real, listos y fallidos en 30 días; CPU y memoria de ffmpeg mientras corre | `import_jobs` (tarjeta "Conversión" en Estado) y `sysinfo` |
 
 **Los minutos de reproducción se calculan así:** el servidor suma el tiempo real transcurrido entre dos avisos consecutivos en estado "reproduciendo", con un tope de 30 segundos por intervalo. Adelantar no suma minutos. Una pausa no suma minutos. Si la TV se apaga sin avisar, se pierden como máximo 30 segundos.
 
@@ -530,7 +534,8 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Confirmar una importación | `POST /api/admin/imports` |
 | Agregar un subtítulo a un archivo (el cuerpo es el archivo) | `POST /api/admin/files/{id}/subtitles?name=&language=&forced=` |
 | Quitar un subtítulo (y sus archivos) | `DELETE /api/admin/subtitles/{id}` |
-| Consultar la cola (pendientes, en curso y los últimos 20 terminados) | `GET /api/admin/jobs` |
+| Consultar la cola (si está en marcha; pendientes, en curso y los últimos 20 terminados) | `GET /api/admin/jobs` |
+| Iniciar o pausar la cola | `POST /api/admin/jobs/start`, `POST /api/admin/jobs/pause` |
 | Cancelar un trabajo (el original vuelve a la bandeja; reintentar es volver a importarlo) | `POST /api/admin/jobs/{id}/cancel` |
 | Editar un contenido | `PATCH /api/admin/contents/{id}` |
 | Eliminar un contenido (a la papelera) | `DELETE /api/admin/contents/{id}` |

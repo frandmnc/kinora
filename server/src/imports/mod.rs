@@ -142,6 +142,8 @@ pub struct ImportedFile {
     pub file: String,
     /// Qué se hizo con el archivo.
     pub action: ImportAction,
+    /// Qué necesitó: moverse tal cual, remux o conversión.
+    pub operation: Operation,
     /// Ruta final dentro de la biblioteca, si se importó (o donde va a quedar, si está en cola).
     pub destination: Option<String>,
     /// Si necesitó remux: el trabajo en la cola. Entra a la biblioteca cuando termine.

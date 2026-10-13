@@ -30,6 +30,10 @@ pub struct ProbeStream {
     pub profile: Option<String>,
     pub level: Option<i64>,
     pub pix_fmt: Option<String>,
+    /// Función de transferencia: `bt709` (SDR), `smpte2084` (HDR10/PQ), `arib-std-b67` (HLG)…
+    pub color_transfer: Option<String>,
+    pub color_primaries: Option<String>,
+    pub color_space: Option<String>,
     pub width: Option<i64>,
     pub height: Option<i64>,
     pub channels: Option<i64>,
@@ -125,9 +129,14 @@ impl Probe {
                 let codec = video.codec_name.as_deref().unwrap_or("desconocido");
                 if codec != "hevc" {
                     convert_video = true;
-                    blockers.push(format!(
-                        "el video es {codec}: convertirlo a HEVC llega en la Etapa 4"
-                    ));
+                    if video.is_hdr() {
+                        // Kinora nunca recrea HDR: convertirlo bien es otro proyecto.
+                        blockers.push(format!(
+                            "es HDR en {codec}: Kinora solo conserva HDR que ya viene en HEVC"
+                        ));
+                    } else {
+                        changes.push(format!("video {codec} → HEVC 10 bits"));
+                    }
                 } else if changes.is_empty() && video.codec_tag_string.as_deref() != Some("hvc1") {
                     // Solo importa en un MP4: al cambiar de caja, la etiqueta se pone igual.
                     let tag = video.codec_tag_string.as_deref().unwrap_or("desconocida");
@@ -182,7 +191,7 @@ pub enum Operation {
     Remux,
     /// Como el remux, pero además el audio se convierte a AAC. Unos segundos más.
     Audio,
-    /// El video no es HEVC: hay que convertirlo (Etapa 4).
+    /// El video no es HEVC: se convierte con x265. Minutos u horas.
     Video,
 }
 
@@ -197,6 +206,14 @@ pub struct FormatPlan {
 impl ProbeStream {
     fn is(&self, codec_type: &str) -> bool {
         self.codec_type.as_deref() == Some(codec_type)
+    }
+
+    /// PQ (HDR10, HDR10+) o HLG.
+    pub fn is_hdr(&self) -> bool {
+        matches!(
+            self.color_transfer.as_deref(),
+            Some("smpte2084" | "arib-std-b67")
+        )
     }
 
     pub fn dolby_vision_profile(&self) -> Option<i64> {
@@ -277,13 +294,24 @@ mod tests {
     }
 
     #[test]
-    fn h264_needs_the_video_conversion() {
+    fn h264_is_converted_but_hdr_is_not() {
         let plan = Probe::parse(ANIME_MKV).unwrap().plan(Path::new("a.mkv"));
         assert_eq!(plan.operation, Operation::Video);
-        assert_eq!(plan.changes, ["contenedor matroska → MP4"]);
+        assert_eq!(
+            plan.changes,
+            ["contenedor matroska → MP4", "video h264 → HEVC 10 bits"]
+        );
+        assert!(plan.blockers.is_empty());
+
+        // HDR en otro códec no se convierte: Kinora nunca recrea HDR.
+        let hdr = ANIME_MKV.replace(
+            r#""pix_fmt": "yuv420p""#,
+            r#""pix_fmt": "yuv420p10le", "color_transfer": "smpte2084""#,
+        );
+        let plan = Probe::parse(&hdr).unwrap().plan(Path::new("a.mkv"));
         assert_eq!(
             plan.blockers,
-            ["el video es h264: convertirlo a HEVC llega en la Etapa 4"]
+            ["es HDR en h264: Kinora solo conserva HDR que ya viene en HEVC"]
         );
     }
 

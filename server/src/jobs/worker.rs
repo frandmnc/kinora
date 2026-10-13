@@ -5,6 +5,7 @@ use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::oneshot;
 use tracing::{info, warn};
@@ -13,6 +14,7 @@ use super::{Job, Running, repo};
 use crate::app::AppState;
 use crate::contents;
 use crate::imports::{ImportAction, PlaceFile, free_version, place};
+use crate::monitor::Monitor;
 use crate::probe::{self, Operation, Probe};
 use crate::{manifest, subtitles, trash, uploads};
 
@@ -22,13 +24,18 @@ pub fn spawn_worker(state: AppState) {
     tokio::spawn(async move {
         recover(&state).await;
         loop {
+            // Detenida: espera a que la inicien (o cada tanto mira igual, por las dudas).
+            if !state.jobs.is_started() {
+                wait(&state).await;
+                continue;
+            }
             match repo::next_pending(&state.db).await {
                 Ok(Some(job)) => run(&state, job).await,
                 Ok(None) => {
-                    // Sin trabajo: espera un aviso (o cada tanto mira igual, por las dudas).
-                    tokio::select! {
-                        _ = state.jobs.wake.notified() => {}
-                        _ = tokio::time::sleep(Duration::from_secs(60)) => {}
+                    // Se vació: se detiene sola. Lo próximo que se importe espera a que la inicien.
+                    match state.jobs.set_started(&state.db, false).await {
+                        Ok(()) => info!("queue finished: nothing left to do"),
+                        Err(err) => warn!("could not stop the queue: {err}"),
                     }
                 }
                 Err(err) => {
@@ -40,6 +47,13 @@ pub fn spawn_worker(state: AppState) {
     });
 }
 
+async fn wait(state: &AppState) {
+    tokio::select! {
+        _ = state.jobs.wake.notified() => {}
+        _ = tokio::time::sleep(Duration::from_secs(60)) => {}
+    }
+}
+
 async fn recover(state: &AppState) {
     let jobs = match repo::interrupted(&state.db).await {
         Ok(jobs) => jobs,
@@ -47,12 +61,48 @@ async fn recover(state: &AppState) {
     };
     for job in jobs {
         if let Ok(paths) = JobPaths::of(state, &job).await {
+            kill_strays(&paths.output);
             let _ = tokio::fs::remove_file(&paths.output).await;
         }
         match repo::requeue(&state.db, job.id).await {
             Ok(()) => info!("job {} was interrupted by a restart: queued again", job.id),
             Err(err) => warn!("could not requeue job {}: {err}", job.id),
         }
+    }
+}
+
+/// Si Kinora murió sin poder avisar (`kill -9`, un corte de luz no: ahí muere todo), su ffmpeg
+/// puede seguir vivo escribiendo el resultado. Se lo busca por la ruta de salida y se lo corta.
+fn kill_strays(output: &Path) {
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always),
+    );
+    for process in system.processes().values() {
+        if process.cmd().iter().any(|arg| Path::new(arg) == output) {
+            warn!(
+                "killing a leftover ffmpeg (pid {}) from a previous run",
+                process.pid()
+            );
+            process.kill();
+        }
+    }
+}
+
+/// Al apagar el servidor: corta el ffmpeg en curso, si hay. El trabajo queda "corriendo" en la
+/// base y al volver a arrancar se reintenta desde cero.
+pub fn stop_running(monitor: &Monitor) {
+    let Some(pid) = monitor.worker_pid() else {
+        return;
+    };
+    let mut system = System::new();
+    let pid = Pid::from_u32(pid);
+    system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+    if let Some(process) = system.process(pid) {
+        process.kill();
+        info!("stopped the running ffmpeg (pid {pid})");
     }
 }
 
@@ -146,13 +196,12 @@ async fn process(
         .context("no se pudo leer el original")?;
     let duration = source.probe.media_duration();
 
-    // 1. Remux a `.kinora-tmp/job-<id>.mp4`.
-    let args = match job.operation {
-        Operation::Remux | Operation::Audio => {
-            remux_args(&paths.source, &paths.output, &source.probe)
-        }
-        other => bail!("la operación {other:?} todavía no está disponible"),
-    };
+    if let Some(duration) = duration {
+        repo::set_duration(&state.db, job.id, duration).await?;
+    }
+
+    // 1. Remux o conversión a `.kinora-tmp/job-<id>.mp4`.
+    let args = ffmpeg_args(job.operation, &paths.source, &paths.output, &source.probe);
     if !ffmpeg(state, job.id, &args, duration, cancelled).await? {
         let _ = tokio::fs::remove_file(&paths.output).await;
         return Ok(None);
@@ -257,20 +306,79 @@ pub(super) async fn give_back(state: &AppState, job: &Job) {
     }
 }
 
-/// Los argumentos de ffmpeg para remuxar a MP4: el video y el audio AAC se copian tal cual;
-/// el audio en otro formato se convierte a AAC con los mismos canales (hasta 5.1).
-fn remux_args(source: &Path, output: &Path, probe: &Probe) -> Vec<String> {
+/// Calidad de la conversión (ver "Formato de Kinora" en el plan). CRF: menos es mejor calidad
+/// y archivos más grandes; 22 se ve igual que el original en una TV de 43". El preset es el
+/// equilibrio entre velocidad y tamaño: "medium" es el de referencia de x265.
+const VIDEO_CRF: &str = "22";
+const VIDEO_PRESET: &str = "medium";
+
+/// Los argumentos de ffmpeg para llevar el archivo a MP4 + HEVC + AAC.
+/// - Remux y audio: el video se copia tal cual.
+/// - Video: se convierte con x265 a 10 bits (Etapa 0), conservando el espacio de color SDR.
+///
+/// En todos los casos el audio AAC se copia y el resto se convierte a AAC con los mismos
+/// canales (hasta 5.1).
+fn ffmpeg_args(operation: Operation, source: &Path, output: &Path, probe: &Probe) -> Vec<String> {
     let mut args: Vec<String> = ["-v", "error", "-nostdin", "-y", "-i"]
         .map(String::from)
         .into();
     args.push(source.to_string_lossy().into_owned());
     // `V` mayúscula: el primer video real, sin carátulas incrustadas. Todo el audio.
-    args.extend(
-        [
-            "-map", "0:V:0", "-map", "0:a", "-c:v", "copy", "-tag:v", "hvc1",
-        ]
-        .map(String::from),
-    );
+    args.extend(["-map", "0:V:0", "-map", "0:a"].map(String::from));
+
+    if operation == Operation::Video {
+        args.extend(
+            [
+                "-c:v",
+                "libx265",
+                "-preset",
+                VIDEO_PRESET,
+                "-crf",
+                VIDEO_CRF,
+                "-pix_fmt",
+                "yuv420p10le",
+                "-profile:v",
+                "main10",
+                "-x265-params",
+                "log-level=error",
+            ]
+            .map(String::from),
+        );
+        // SDR: se conserva cómo estaba etiquetado. Si no decía nada, se asume lo habitual:
+        // BT.709 en HD, BT.601 en definición estándar (DVD).
+        let video = probe.video();
+        let hd = video.and_then(|v| v.height).unwrap_or(1080) >= 720;
+        let tag = |value: Option<&String>, hd_default: &str, sd_default: &str| {
+            value
+                .filter(|v| !v.is_empty() && *v != "unknown" && *v != "reserved")
+                .cloned()
+                .unwrap_or_else(|| if hd { hd_default } else { sd_default }.to_string())
+        };
+        args.extend([
+            "-color_primaries".into(),
+            tag(
+                video.and_then(|v| v.color_primaries.as_ref()),
+                "bt709",
+                "smpte170m",
+            ),
+            "-color_trc".into(),
+            tag(
+                video.and_then(|v| v.color_transfer.as_ref()),
+                "bt709",
+                "smpte170m",
+            ),
+            "-colorspace".into(),
+            tag(
+                video.and_then(|v| v.color_space.as_ref()),
+                "bt709",
+                "smpte170m",
+            ),
+        ]);
+    } else {
+        args.extend(["-c:v", "copy"].map(String::from));
+    }
+    args.extend(["-tag:v", "hvc1"].map(String::from));
+
     for (i, audio) in probe.audios().enumerate() {
         if audio.codec_name.as_deref() == Some("aac") {
             args.extend([format!("-c:a:{i}"), "copy".into()]);
@@ -299,7 +407,9 @@ async fn ffmpeg(
     duration: Option<f64>,
     mut cancelled: oneshot::Receiver<()>,
 ) -> Result<bool> {
-    let mut child = tokio::process::Command::new("ffmpeg")
+    // Con prioridad baja: la conversión usa todos los núcleos, y ver algo tiene que ir primero.
+    let mut child = tokio::process::Command::new("nice")
+        .args(["-n", "10", "ffmpeg"])
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -307,6 +417,8 @@ async fn ffmpeg(
         .kill_on_drop(true)
         .spawn()
         .context("no se pudo ejecutar ffmpeg (¿está instalado?)")?;
+    // `nice` se reemplaza por ffmpeg (no queda como proceso padre): el pid es el de ffmpeg.
+    let _pid = WorkerPid::set(&state.monitor, child.id());
     let mut progress = BufReader::new(child.stdout.take().expect("stdout")).lines();
     let mut stderr = child.stderr.take().expect("stderr");
     let errors = tokio::spawn(async move {
@@ -346,6 +458,22 @@ async fn ffmpeg(
     Ok(true)
 }
 
+/// Mientras exista, el monitor mide CPU y memoria de ffmpeg; al soltarse, deja de medirlo.
+struct WorkerPid<'a>(&'a Monitor);
+
+impl<'a> WorkerPid<'a> {
+    fn set(monitor: &'a Monitor, pid: Option<u32>) -> WorkerPid<'a> {
+        monitor.set_worker_pid(pid);
+        WorkerPid(monitor)
+    }
+}
+
+impl Drop for WorkerPid<'_> {
+    fn drop(&mut self) {
+        self.0.set_worker_pid(None);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,11 +491,42 @@ mod tests {
             }"#,
         )
         .unwrap();
-        let args = remux_args(Path::new("in.mkv"), Path::new("out.mp4"), &probe).join(" ");
+        let args = ffmpeg_args(
+            Operation::Audio,
+            Path::new("in.mkv"),
+            Path::new("out.mp4"),
+            &probe,
+        )
+        .join(" ");
         assert!(args.contains("-map 0:V:0 -map 0:a -c:v copy -tag:v hvc1"));
         assert!(args.contains("-c:a:0 copy"));
         assert!(args.contains("-c:a:1 aac -b:a:1 384k -ac:a:1 6"));
         assert!(args.ends_with("-movflags +faststart -progress pipe:1 -nostats out.mp4"));
         assert_eq!(source_file_name(7, "Frieren - 01.mkv"), "job-7-source.mkv");
+    }
+
+    #[test]
+    fn converts_video_to_10_bit_hevc_keeping_sdr_tags() {
+        let probe = Probe::parse(
+            r#"{
+                "format": { "format_name": "matroska,webm" },
+                "streams": [
+                    { "codec_type": "video", "codec_name": "h264", "height": 1080,
+                      "color_primaries": "bt709" },
+                    { "codec_type": "audio", "codec_name": "aac", "channels": 2 }
+                ]
+            }"#,
+        )
+        .unwrap();
+        let args = ffmpeg_args(
+            Operation::Video,
+            Path::new("in.mkv"),
+            Path::new("out.mp4"),
+            &probe,
+        )
+        .join(" ");
+        assert!(args.contains("-c:v libx265 -preset medium -crf 22 -pix_fmt yuv420p10le"));
+        assert!(args.contains("-color_primaries bt709 -color_trc bt709 -colorspace bt709"));
+        assert!(args.contains("-tag:v hvc1 -c:a:0 copy"));
     }
 }

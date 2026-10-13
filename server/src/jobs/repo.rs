@@ -2,13 +2,13 @@
 
 use sqlx::SqlitePool;
 
-use super::Job;
+use super::{ConversionSummary, Job};
 use crate::db::now;
 use crate::imports::ImportAction;
 use crate::probe::Operation;
 
 const COLUMNS: &str = "id, library_id, content_id, source_name, operation, action, rel_path, \
-    state, progress, error, source_size, result_size, created_at, started_at, finished_at";
+    state, progress, error, source_size, result_size, duration, created_at, started_at, finished_at";
 
 pub struct NewJob<'a> {
     pub library_id: i64,
@@ -131,6 +131,15 @@ pub async fn cancel_pending(db: &SqlitePool, id: i64) -> sqlx::Result<bool> {
     Ok(result.rows_affected() == 1)
 }
 
+pub async fn set_duration(db: &SqlitePool, id: i64, duration: f64) -> sqlx::Result<()> {
+    sqlx::query("UPDATE import_jobs SET duration = ? WHERE id = ?")
+        .bind(duration)
+        .bind(id)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
 pub async fn set_progress(db: &SqlitePool, id: i64, progress: f64) -> sqlx::Result<()> {
     sqlx::query("UPDATE import_jobs SET progress = ? WHERE id = ?")
         .bind(progress)
@@ -167,4 +176,25 @@ pub async fn finish(
     .execute(db)
     .await?;
     Ok(())
+}
+
+pub async fn summary(db: &SqlitePool) -> sqlx::Result<ConversionSummary> {
+    let month_ago = now() - 30 * 24 * 3600;
+    sqlx::query_as(
+        "SELECT \
+           COALESCE(SUM(state = 'pending'), 0) AS pending, \
+           COALESCE(SUM(state = 'running'), 0) AS running, \
+           COALESCE(SUM(state = 'done' AND finished_at >= ?1), 0) AS done, \
+           COALESCE(SUM(state = 'failed' AND finished_at >= ?1), 0) AS failed, \
+           COALESCE(SUM(CASE WHEN state = 'done' AND operation = 'video' \
+                        THEN source_size - result_size END), 0) AS saved_bytes, \
+           SUM(CASE WHEN state = 'done' AND operation = 'video' AND finished_at >= ?1 \
+               THEN duration END) \
+             / SUM(CASE WHEN state = 'done' AND operation = 'video' AND finished_at >= ?1 \
+                   AND duration IS NOT NULL THEN MAX(finished_at - started_at, 1) END) AS speed \
+         FROM import_jobs",
+    )
+    .bind(month_ago)
+    .fetch_one(db)
+    .await
 }

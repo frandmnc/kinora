@@ -7,7 +7,7 @@ mod handlers;
 mod sampler;
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -34,6 +34,8 @@ pub struct Monitor {
     transfers: Mutex<HashMap<u64, Transfer>>,
     viewers: Mutex<HashMap<(String, i64), Viewer>>,
     latest: RwLock<Sample>,
+    /// El ffmpeg de la cola, mientras corre (0 = ninguno).
+    worker_pid: AtomicU32,
 }
 
 /// Alguien mirando, según lo que informa su Player.
@@ -112,6 +114,9 @@ pub struct Sample {
     pub cpu_system: f32,
     pub cpu_cores: i64,
     pub memory_kinora: i64,
+    /// El ffmpeg de la cola (convirtiendo o remuxando); `null` si no hay nada en curso.
+    pub cpu_ffmpeg: Option<f32>,
+    pub memory_ffmpeg: Option<i64>,
     pub memory_used: i64,
     pub memory_total: i64,
     /// Bytes por segundo enviados en los últimos segundos.
@@ -159,7 +164,17 @@ impl Monitor {
             transfers: Mutex::new(HashMap::new()),
             viewers: Mutex::new(HashMap::new()),
             latest: RwLock::new(Sample::default()),
+            worker_pid: AtomicU32::new(0),
         })
+    }
+
+    /// Qué proceso de ffmpeg medir (o ninguno). Lo avisa la cola al arrancar y terminar.
+    pub fn set_worker_pid(&self, pid: Option<u32>) {
+        self.worker_pid.store(pid.unwrap_or(0), Ordering::Relaxed);
+    }
+
+    pub fn worker_pid(&self) -> Option<u32> {
+        Some(self.worker_pid.load(Ordering::Relaxed)).filter(|&pid| pid != 0)
     }
 
     /// Registra una transferencia nueva. Se da de baja cuando se suelta el `TransferGuard`.

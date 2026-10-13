@@ -7,4 +7,8 @@ export type Job = { id: number, library_id: number, content_id: number, source_n
 /**
  * 0..1.
  */
-progress: number, error: string | null, source_size: number, result_size: number | null, created_at: number, started_at: number | null, finished_at: number | null, };
+progress: number, error: string | null, source_size: number, result_size: number | null, 
+/**
+ * Lo que dura el video original, en segundos (se conoce al empezar).
+ */
+duration: number | null, created_at: number, started_at: number | null, finished_at: number | null, };

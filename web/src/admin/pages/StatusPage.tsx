@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Link } from 'react-router'
 import {
   ArrowUpRight,
   CircleCheck,
@@ -6,6 +7,7 @@ import {
   Cpu,
   Gauge,
   History,
+  ListOrdered,
   MemoryStick,
   MonitorPlay,
   Pause,
@@ -20,6 +22,7 @@ import type { ServerStatus } from '../../shared/types/ServerStatus'
 import type { Viewer } from '../../shared/types/Viewer'
 import type { PlaybackSummary } from '../../shared/types/PlaybackSummary'
 import type { Session } from '../../shared/types/Session'
+import type { ConversionSummary } from '../../shared/types/ConversionSummary'
 import { Alert, Badge, Card, EmptyState, Meter, MiniBars, PageHeader, Sparkline, StatTile } from '../ui'
 
 const REFRESH_MS = 2000
@@ -33,6 +36,7 @@ export function StatusPage() {
   const { data: status, error, reload } = useApi<ServerStatus>('/api/admin/status')
   const { data: playback, reload: reloadPlayback } = useApi<PlaybackSummary>('/api/admin/metrics/playback')
   const { data: sessions, reload: reloadSessions } = useApi<Session[]>('/api/admin/metrics/sessions')
+  const { data: conversion, reload: reloadConversion } = useApi<ConversionSummary>('/api/admin/metrics/conversion')
   const [history, setHistory] = useState<Point[]>([])
 
   // Los minutos vistos cambian despacio: alcanza con actualizarlos cada 30 segundos.
@@ -45,9 +49,12 @@ export function StatusPage() {
   }, [reloadPlayback, reloadSessions])
 
   useEffect(() => {
-    const timer = setInterval(reload, REFRESH_MS)
+    const timer = setInterval(() => {
+      reload()
+      reloadConversion()
+    }, REFRESH_MS)
     return () => clearInterval(timer)
-  }, [reload])
+  }, [reload, reloadConversion])
 
   // Cada respuesta nueva suma un punto a las tendencias (la historia vive solo en esta pantalla).
   useEffect(() => {
@@ -127,6 +134,8 @@ export function StatusPage() {
           </StatTile>
         )}
       </div>
+
+      {conversion && <ConversionCard summary={conversion} cpu={sample.cpu_ffmpeg} memory={sample.memory_ffmpeg} />}
 
       <Card
         title="Viendo ahora"
@@ -303,4 +312,61 @@ function weekday(day: string) {
 
 function time(seconds: number) {
   return new Date(seconds * 1000).toLocaleTimeString('es-AR', { hour12: false, hour: '2-digit', minute: '2-digit' })
+}
+
+/** La cola y lo que rindió: cuánto espacio se ahorró y a qué velocidad convierte este equipo. */
+function ConversionCard({
+  summary,
+  cpu,
+  memory,
+}: {
+  summary: ConversionSummary
+  cpu: number | null
+  memory: number | null
+}) {
+  const queued = summary.pending + summary.running
+  return (
+    <Card
+      title="Conversión"
+      description="la cola de importación"
+      actions={
+        <Link to="/jobs" className="btn btn-ghost btn-sm">
+          <ListOrdered /> Ver la cola
+        </Link>
+      }
+    >
+      <div className="card-body stat-row">
+        <Stat label="En la cola" value={queued === 0 ? 'Nada' : String(queued)}>
+          {summary.running > 0 && cpu !== null
+            ? `ffmpeg: ${cpu.toFixed(0)} % CPU · ${formatSize(memory ?? 0)}`
+            : summary.running > 0
+              ? 'procesando'
+              : summary.pending > 0
+                ? 'detenida: iniciala desde Cola'
+                : 'nada pendiente'}
+        </Stat>
+        <Stat label="Espacio ahorrado" value={formatSize(summary.saved_bytes)}>
+          convirtiendo a HEVC, desde siempre
+        </Stat>
+        <Stat label="Velocidad" value={summary.speed === null ? '—' : `${summary.speed.toFixed(1)}× tiempo real`}>
+          {summary.speed === null
+            ? 'todavía no hubo conversiones'
+            : `un episodio de 24 min tarda ${Math.round(24 / summary.speed)} min`}
+        </Stat>
+        <Stat label="Últimos 30 días" value={`${summary.done} listos`}>
+          {summary.failed === 0 ? 'ninguno falló' : `${summary.failed} fallaron`}
+        </Stat>
+      </div>
+    </Card>
+  )
+}
+
+function Stat({ label, value, children }: { label: string; value: string; children: ReactNode }) {
+  return (
+    <div className="stat">
+      <div className="tile-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      <div className="tile-sub">{children}</div>
+    </div>
+  )
 }

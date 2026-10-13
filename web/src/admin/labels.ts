@@ -7,5 +7,5 @@ export const OPERATION_LABELS: Record<Operation, string> = {
   copy: 'Se mueve tal cual',
   remux: 'Remux',
   audio: 'Remux + audio a AAC',
-  video: 'Conversión',
+  video: 'Conversión a HEVC',
 }

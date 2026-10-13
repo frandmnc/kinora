@@ -339,6 +339,7 @@ pub async fn create(
         let mut imported = ImportedFile {
             file: file_name(&file.source),
             action: placement.action,
+            operation: file.operation,
             destination: None,
             job_id: None,
             trashed: Vec::new(),

@@ -10,6 +10,7 @@ import {
   CloudUpload,
   FilePlay,
   Inbox as InboxIcon,
+  ListOrdered,
   LoaderCircle,
   Repeat,
   SkipForward,
@@ -37,7 +38,7 @@ import { OPERATION_LABELS } from '../labels'
 /**
  * Importar en tres pasos: subir archivos a la bandeja → revisar el análisis y elegir el destino → ver el resultado.
  * El destino es un contenido nuevo o uno existente; si un episodio ya tiene archivo, se elige qué hacer.
- * Los que necesitan remux pasan por la cola; convertir el video llega en la Etapa 4.
+ * Los que necesitan remux o conversión se agregan a la cola, que se inicia a mano.
  */
 export function ImportPage() {
   const [analysis, setAnalysis] = useState<FileAnalysis[]>()
@@ -85,7 +86,7 @@ export function ImportPage() {
     <>
       <PageHeader
         title="Importar"
-        description="Los archivos en MP4 con HEVC y AAC se mueven tal cual. Los MKV con video HEVC pasan por la cola para cambiarles la caja (remux), que tarda segundos. Convertir otros videos llega en la Etapa 4."
+        description="Los archivos en MP4 con HEVC y AAC se mueven tal cual. El resto pasa por la cola: si el video ya es HEVC solo se le cambia la caja (remux, segundos); si no, se convierte a HEVC (minutos por episodio). La cola se inicia a mano desde Cola."
         actions={<Stepper current={step} />}
       />
 
@@ -793,7 +794,7 @@ function ResultView({ result, onRestart }: { result: ImportResult; onRestart: ()
         <>
           {queued && (
             <Link to="/jobs" className="btn">
-              Ver la cola
+              <ListOrdered /> Ir a la cola
             </Link>
           )}
           <button className="btn btn-primary" onClick={onRestart}>
@@ -803,6 +804,11 @@ function ResultView({ result, onRestart }: { result: ImportResult; onRestart: ()
       }
       footer={
         <span className="small muted">
+          {queued && (
+            <>
+              Los trabajos nuevos no empiezan solos: iniciá la cola desde <Link to="/jobs">Cola</Link> cuando quieras.{' '}
+            </>
+          )}
           {trashed && (
             <>
               Los archivos reemplazados quedaron en <span className="mono">.kinora-trash/</span> dentro de la
@@ -841,7 +847,9 @@ function ResultView({ result, onRestart }: { result: ImportResult; onRestart: ()
               <span className="grow">
                 <span className="mono">{file.destination}</span>
                 <div className="small muted">
-                  Necesita remux: entra a la biblioteca cuando termine.
+                  {file.operation === 'video' ? 'Necesita conversión a HEVC' : 'Necesita remux'}: quedó en la cola y
+                  entra a la biblioteca cuando termine.
+
                 </div>
               </span>
               <Link to="/jobs" className="badge">

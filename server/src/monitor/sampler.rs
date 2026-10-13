@@ -5,13 +5,13 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tracing::info;
 
 use super::{Monitor, Sample, clock};
 
 const SAMPLE_EVERY: Duration = Duration::from_secs(2);
-/// Con streams activos se informa seguido; sin actividad, cada tanto.
+/// Con actividad (streams o la cola) se informa seguido; sin actividad, cada tanto.
 const LOG_EVERY_ACTIVE: Duration = Duration::from_secs(10);
 const LOG_EVERY_IDLE: Duration = Duration::from_secs(60);
 
@@ -31,14 +31,15 @@ pub fn spawn_sampler(monitor: Arc<Monitor>) {
             // (préstamos compartidos). Rust no permite mezclarlos al mismo tiempo.
             system.refresh_cpu_usage();
             system.refresh_memory();
-            if let Some(pid) = pid {
-                system.refresh_processes_specifics(
-                    ProcessesToUpdate::Some(&[pid]),
-                    true,
-                    ProcessRefreshKind::nothing().with_cpu().with_memory(),
-                );
-            }
+            let worker = monitor.worker_pid().map(Pid::from_u32);
+            let pids: Vec<Pid> = pid.into_iter().chain(worker).collect();
+            system.refresh_processes_specifics(
+                ProcessesToUpdate::Some(&pids),
+                true,
+                ProcessRefreshKind::nothing().with_cpu().with_memory(),
+            );
             let process = pid.and_then(|pid| system.process(pid));
+            let ffmpeg = worker.and_then(|pid| system.process(pid));
 
             let bytes = monitor.bytes_sent.load(Ordering::Relaxed);
             let sample = Sample {
@@ -46,6 +47,8 @@ pub fn spawn_sampler(monitor: Arc<Monitor>) {
                 cpu_system: system.global_cpu_usage(),
                 cpu_cores: system.cpus().len() as i64,
                 memory_kinora: process.map_or(0, |p| p.memory() as i64),
+                cpu_ffmpeg: ffmpeg.map(|p| p.cpu_usage()),
+                memory_ffmpeg: ffmpeg.map(|p| p.memory() as i64),
                 memory_used: system.used_memory() as i64,
                 memory_total: system.total_memory() as i64,
                 send_rate: ((bytes - last_bytes) as f64 / SAMPLE_EVERY.as_secs_f64()) as i64,
@@ -55,7 +58,8 @@ pub fn spawn_sampler(monitor: Arc<Monitor>) {
 
             monitor.expire_viewers();
             let viewers = monitor.viewer_list();
-            let log_every = if viewers.is_empty() {
+            // Con alguien mirando o la cola trabajando se informa seguido.
+            let log_every = if viewers.is_empty() && sample.cpu_ffmpeg.is_none() {
                 LOG_EVERY_IDLE
             } else {
                 LOG_EVERY_ACTIVE
@@ -75,8 +79,12 @@ pub fn spawn_sampler(monitor: Arc<Monitor>) {
                         )
                     })
                     .collect();
+                let ffmpeg = sample
+                    .cpu_ffmpeg
+                    .map(|cpu| format!(" · CPU ffmpeg {cpu:.0}%"))
+                    .unwrap_or_default();
                 info!(
-                    "CPU kinora {:.1}% · CPU total {:.0}% · memory kinora {} · sending {}/s · watching: {}",
+                    "CPU kinora {:.1}%{ffmpeg} · CPU total {:.0}% · memory kinora {} · sending {}/s · watching: {}",
                     sample.cpu_kinora,
                     sample.cpu_system,
                     megabytes(sample.memory_kinora),
