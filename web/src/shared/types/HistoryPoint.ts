@@ -14,6 +14,10 @@ cpu_kinora: number, cpu_ffmpeg: number, cpu_system: number,
  */
 memory_share: number, 
 /**
+ * Memoria de Kinora más la de ffmpeg si estaba convirtiendo, en bytes (el máximo del período).
+ */
+memory_kinora: number, 
+/**
  * Velocidad media de envío en el período, en megabits por segundo.
  */
 send_mbps: number, 

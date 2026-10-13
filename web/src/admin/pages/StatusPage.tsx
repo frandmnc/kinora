@@ -490,6 +490,15 @@ function HistoryCard() {
             onHover={setHover}
           />
           <HistoryChart
+            title="Memoria de Kinora"
+            slots={slots}
+            series={[{ label: 'Con conversiones', tone: 'ink', value: (p: HistoryPoint) => p.memory_kinora }]}
+            format={formatSize}
+            axisLabel={axisLabel}
+            hover={hover}
+            onHover={setHover}
+          />
+          <HistoryChart
             title="Envío de video"
             slots={slots}
             series={[{ label: 'Promedio', tone: 'ink', value: (p: HistoryPoint) => p.send_mbps }]}

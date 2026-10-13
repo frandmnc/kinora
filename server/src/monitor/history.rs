@@ -19,6 +19,7 @@ pub struct MinuteTotals {
     cpu_ffmpeg: f64,
     cpu_system: f64,
     memory_kinora: i64,
+    memory_ffmpeg: i64,
     memory_used: i64,
     memory_total: i64,
     bytes_sent: i64,
@@ -32,6 +33,7 @@ pub struct MinuteRow {
     cpu_ffmpeg: f64,
     cpu_system: f64,
     memory_kinora: i64,
+    memory_ffmpeg: i64,
     memory_used: i64,
     memory_total: i64,
     bytes_sent: i64,
@@ -64,6 +66,7 @@ impl MinuteTotals {
         self.cpu_ffmpeg += sample.cpu_ffmpeg.unwrap_or(0.0) as f64 / cores;
         self.cpu_system += sample.cpu_system as f64;
         self.memory_kinora = self.memory_kinora.max(sample.memory_kinora);
+        self.memory_ffmpeg = self.memory_ffmpeg.max(sample.memory_ffmpeg.unwrap_or(0));
         self.memory_used = self.memory_used.max(sample.memory_used);
         self.memory_total = sample.memory_total;
         self.bytes_sent += bytes;
@@ -82,6 +85,7 @@ impl MinuteTotals {
             cpu_ffmpeg: self.cpu_ffmpeg / n,
             cpu_system: self.cpu_system / n,
             memory_kinora: self.memory_kinora,
+            memory_ffmpeg: self.memory_ffmpeg,
             memory_used: self.memory_used,
             memory_total: self.memory_total,
             bytes_sent: self.bytes_sent,
@@ -94,14 +98,15 @@ impl MinuteTotals {
 pub async fn save(db: &SqlitePool, row: &MinuteRow) -> sqlx::Result<()> {
     sqlx::query(
         "INSERT OR REPLACE INTO server_samples \
-         (minute, cpu_kinora, cpu_ffmpeg, cpu_system, memory_kinora, memory_used, memory_total, \
-          bytes_sent, viewers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         (minute, cpu_kinora, cpu_ffmpeg, cpu_system, memory_kinora, memory_ffmpeg, memory_used, \
+          memory_total, bytes_sent, viewers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(row.minute)
     .bind(row.cpu_kinora)
     .bind(row.cpu_ffmpeg)
     .bind(row.cpu_system)
     .bind(row.memory_kinora)
+    .bind(row.memory_ffmpeg)
     .bind(row.memory_used)
     .bind(row.memory_total)
     .bind(row.bytes_sent)
@@ -160,6 +165,8 @@ pub struct HistoryPoint {
     pub cpu_system: f64,
     /// Memoria del equipo en uso, 0..1 (el máximo del período).
     pub memory_share: f64,
+    /// Memoria de Kinora más la de ffmpeg si estaba convirtiendo, en bytes (el máximo del período).
+    pub memory_kinora: i64,
     /// Velocidad media de envío en el período, en megabits por segundo.
     pub send_mbps: f64,
     /// Máximo de personas mirando a la vez.
@@ -177,6 +184,7 @@ pub async fn load(db: &SqlitePool, range: HistoryRange, now: i64) -> sqlx::Resul
                 AVG(cpu_kinora) AS cpu_kinora, AVG(cpu_ffmpeg) AS cpu_ffmpeg, \
                 AVG(cpu_system) AS cpu_system, \
                 MAX(CAST(memory_used AS REAL) / MAX(memory_total, 1)) AS memory_share, \
+                MAX(memory_kinora + memory_ffmpeg) AS memory_kinora, \
                 SUM(bytes_sent) * 8.0 / (COUNT(*) * 60) / 1000000.0 AS send_mbps, \
                 MAX(viewers) AS viewers \
          FROM server_samples WHERE minute >= ?2 GROUP BY t ORDER BY t",
@@ -205,6 +213,7 @@ mod tests {
             cpu_system: cpu,
             cpu_cores: 10,
             cpu_ffmpeg: None,
+            memory_kinora: 20_000_000,
             memory_used: 50,
             memory_total: 100,
             ..Default::default()
@@ -231,6 +240,7 @@ mod tests {
         assert_eq!(history.points.len(), 1);
         let point = &history.points[0];
         assert!((point.memory_share - 0.5).abs() < 1e-9);
+        assert_eq!(point.memory_kinora, 20_000_000);
         assert!((point.send_mbps - 1500.0 * 8.0 / 60.0 / 1e6).abs() < 1e-12);
     }
 }
