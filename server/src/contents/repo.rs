@@ -221,6 +221,30 @@ pub async fn delete_media_file(conn: &mut SqliteConnection, file_id: i64) -> sql
     Ok(())
 }
 
+/// La película o serie a la que pertenece un archivo (subiendo desde el episodio).
+pub async fn top_of_file(db: &SqlitePool, file_id: i64) -> sqlx::Result<Option<i64>> {
+    sqlx::query_scalar(
+        "WITH RECURSIVE up(id, parent_id) AS ( \
+           SELECT c.id, c.parent_id FROM contents c \
+             JOIN media_files f ON f.content_id = c.id WHERE f.id = ? \
+           UNION ALL \
+           SELECT c.id, c.parent_id FROM contents c JOIN up ON c.id = up.parent_id \
+         ) \
+         SELECT id FROM up WHERE parent_id IS NULL",
+    )
+    .bind(file_id)
+    .fetch_optional(db)
+    .await
+}
+
+/// La carpeta de una biblioteca, relativa a la carpeta media.
+pub async fn library_dir(db: &SqlitePool, library_id: i64) -> sqlx::Result<String> {
+    sqlx::query_scalar("SELECT dir FROM libraries WHERE id = ?")
+        .bind(library_id)
+        .fetch_one(db)
+        .await
+}
+
 pub struct NewContent {
     pub library_id: i64,
     pub kind: ContentKind,

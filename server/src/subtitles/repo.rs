@@ -84,6 +84,7 @@ pub async fn get(db: &SqlitePool, id: i64) -> sqlx::Result<Option<SubtitleTrack>
 
 /// Lo que hay que borrar del disco al quitar un subtítulo.
 pub struct SubtitleFiles {
+    pub media_file_id: i64,
     pub library_dir: String,
     pub rel_path: String,
     pub original_rel_path: Option<String>,
@@ -91,8 +92,8 @@ pub struct SubtitleFiles {
 
 /// Borra el registro y devuelve sus archivos, o `None` si no existía.
 pub async fn delete(db: &SqlitePool, id: i64) -> sqlx::Result<Option<SubtitleFiles>> {
-    let found: Option<(String, String, Option<String>)> = sqlx::query_as(
-        "SELECT l.dir, s.rel_path, s.original_rel_path FROM subtitles s \
+    let found: Option<(i64, String, String, Option<String>)> = sqlx::query_as(
+        "SELECT s.media_file_id, l.dir, s.rel_path, s.original_rel_path FROM subtitles s \
          JOIN media_files f ON f.id = s.media_file_id \
          JOIN contents c ON c.id = f.content_id \
          JOIN libraries l ON l.id = c.library_id \
@@ -101,7 +102,7 @@ pub async fn delete(db: &SqlitePool, id: i64) -> sqlx::Result<Option<SubtitleFil
     .bind(id)
     .fetch_optional(db)
     .await?;
-    let Some((library_dir, rel_path, original_rel_path)) = found else {
+    let Some((media_file_id, library_dir, rel_path, original_rel_path)) = found else {
         return Ok(None);
     };
     sqlx::query("DELETE FROM subtitles WHERE id = ?")
@@ -109,6 +110,7 @@ pub async fn delete(db: &SqlitePool, id: i64) -> sqlx::Result<Option<SubtitleFil
         .execute(db)
         .await?;
     Ok(Some(SubtitleFiles {
+        media_file_id,
         library_dir,
         rel_path,
         original_rel_path,

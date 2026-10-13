@@ -351,7 +351,41 @@ CREATE TABLE server_samples (
 <media_dir>/.kinora-inbox/   bandeja de entrada: archivos subidos que esperan ser importados
 ```
 
-`kinora.json` describe el contenido de su carpeta: tipo, título, año, temporadas, episodios y archivos. Kinora lo reescribe en cada importación o edición. Permite reconstruir el catálogo desde el disco si se pierde la base de datos. La reconstrucción es una acción manual, no un escaneo periódico.
+`kinora.json` describe el contenido de su carpeta: tipo, título, año, temporadas, episodios, archivos y subtítulos. Es el respaldo en disco de la base de datos, que sigue siendo la fuente de verdad. Permite reconstruir el catálogo si se pierde la base. La reconstrucción es una acción manual, no un escaneo periódico.
+
+- **Cuándo se escribe:** al importar, al agregar o quitar un subtítulo y al arrancar el servidor (así se ponen al día los contenidos viejos o con un formato anterior). Se escribe a un temporal y se renombra, para que nunca quede a medias.
+- **Rutas relativas a la carpeta del contenido:** sobreviven a mover la carpeta media o renombrar la biblioteca.
+- **No guarda** lo que se puede recalcular (ffprobe, tamaños) ni lo que es de quien mira (progreso, historial).
+- **`kinora`** es la versión del formato, para que la reconstrucción sepa leer los viejos.
+
+```json
+{
+  "kinora": 1,
+  "kind": "show",
+  "title": "Frieren",
+  "year": 2023,
+  "seasons": [{
+    "number": 1,
+    "title": "Temporada 1",
+    "episodes": [{
+      "number": 1,
+      "title": "Episodio 1",
+      "files": [{
+        "path": "Season 01/Frieren (2023) - S01E01.mp4",
+        "source": "[Erai-raws] Sousou no Frieren - 01.mkv",
+        "imported_at": 1791835007,
+        "subtitles": [{
+          "path": "Season 01/Frieren (2023) - S01E01.spa.vtt",
+          "original": "Season 01/Frieren (2023) - S01E01.spa.ass",
+          "language": "spa", "label": "Español", "default": true, "forced": false
+        }]
+      }]
+    }]
+  }]
+}
+```
+
+Las películas llevan `files` en lugar de `seasons`.
 
 `.kinora-tmp/` está dentro de cada biblioteca, y la bandeja de entrada dentro de la carpeta media, para que mover un archivo a su lugar final sea un renombrado atómico e instantáneo en el mismo disco.
 

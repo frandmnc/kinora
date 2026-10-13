@@ -8,6 +8,7 @@ mod error;
 mod health;
 mod imports;
 mod libraries;
+mod manifest;
 mod monitor;
 mod naming;
 mod playback;
@@ -51,6 +52,11 @@ async fn main() -> Result<()> {
 
     let db = db::connect(&config.data_dir).await?;
     let settings = Settings::load(&db).await?;
+    // Los kinora.json se ponen al día en segundo plano: el servidor no espera a que terminen.
+    if let Some(media_dir) = settings.media_dir() {
+        let db = db.clone();
+        tokio::spawn(async move { manifest::refresh_all(&db, &media_dir).await });
+    }
     let monitor = Monitor::new();
     monitor::spawn_sampler(monitor.clone());
     let app = app::router(AppState {

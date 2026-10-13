@@ -11,8 +11,8 @@ use tracing::{info, warn};
 use super::extract::{self, SUBTITLE_EXTENSIONS};
 use super::{SubtitleTrack, repo};
 use crate::app::AppState;
-use crate::contents;
 use crate::error::{AppError, AppResult};
+use crate::{contents, manifest};
 
 /// GET /api/subtitles/{id}
 /// Entrega el .vtt. El navegador lo pide desde `<track src>`.
@@ -90,7 +90,8 @@ pub async fn add(
     let (library_dir, video_rel) = contents::repo::file_location(&state.db, file_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("no existe el archivo {file_id}")))?;
-    let root = state.settings.require_media_dir()?.join(library_dir);
+    let media_dir = state.settings.require_media_dir()?;
+    let root = media_dir.join(library_dir);
     if !root.join(&video_rel).is_file() {
         return Err(AppError::NotFound(format!(
             "{video_rel} no está en el disco"
@@ -125,6 +126,7 @@ pub async fn add(
         ))
     })?;
     info!("subtitle added to {video_rel}: {}", track.label);
+    manifest::refresh_for_file(&state.db, &media_dir, file_id).await;
     Ok((StatusCode::CREATED, Json(track)))
 }
 
@@ -134,7 +136,8 @@ pub async fn remove(State(state): State<AppState>, Path(id): Path<i64>) -> AppRe
     let files = repo::delete(&state.db, id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("no existe el subtítulo {id}")))?;
-    let root = state.settings.require_media_dir()?.join(&files.library_dir);
+    let media_dir = state.settings.require_media_dir()?;
+    let root = media_dir.join(&files.library_dir);
     for rel in std::iter::once(&files.rel_path).chain(files.original_rel_path.as_ref()) {
         match tokio::fs::remove_file(root.join(rel)).await {
             Ok(()) => {}
@@ -143,5 +146,6 @@ pub async fn remove(State(state): State<AppState>, Path(id): Path<i64>) -> AppRe
         }
     }
     info!("subtitle removed: {}", files.rel_path);
+    manifest::refresh_for_file(&state.db, &media_dir, files.media_file_id).await;
     Ok(StatusCode::NO_CONTENT)
 }

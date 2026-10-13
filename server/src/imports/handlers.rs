@@ -19,7 +19,7 @@ use crate::contents::ContentKind;
 use crate::contents::repo::{self, NewContent, NewMediaFile, insert_content, insert_media_file};
 use crate::error::{AppError, AppResult};
 use crate::probe::{self, Analysis};
-use crate::{libraries, subtitles, trash, uploads};
+use crate::{libraries, manifest, subtitles, trash, uploads};
 
 /// POST /api/admin/imports/analyze
 pub async fn analyze(
@@ -333,6 +333,8 @@ pub async fn create(
         }
         results.push(imported);
     }
+
+    manifest::refresh(&state.db, &media_dir, top_id).await;
 
     Ok((
         StatusCode::CREATED,
