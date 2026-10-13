@@ -24,6 +24,10 @@ const TEXT_CODECS: &[&str] = &["subrip", "ass", "ssa", "mov_text", "webvtt", "te
 pub struct FoundTrack {
     pub language: Option<String>,
     pub title: Option<String>,
+    /// Nombre elegido a mano. Si no hay, se arma con el idioma y el título de la pista.
+    pub label: Option<String>,
+    /// El archivo que se subió (nada si venía dentro del video).
+    pub source_name: Option<String>,
     pub is_default: bool,
     pub forced: bool,
     pub source: TrackSource,
@@ -49,6 +53,8 @@ pub fn find_tracks(probe: &Probe) -> Vec<FoundTrack> {
             TEXT_CODECS.contains(&codec.as_str()).then(|| FoundTrack {
                 language: stream.language().map(str::to_string),
                 title: stream.tags.get("title").cloned(),
+                label: None,
+                source_name: None,
                 is_default: stream.disposition.get("default") == Some(&1),
                 forced: stream.disposition.get("forced") == Some(&1),
                 source: TrackSource::Embedded { index, codec },
@@ -109,16 +115,26 @@ pub async fn attach_subtitles(
     attached
 }
 
+/// Lo que se sabe de un archivo de subtítulos subido desde el Admin.
+pub struct Upload {
+    /// Código ISO 639 elegido ("spa", "en"…).
+    pub language: Option<String>,
+    pub forced: bool,
+    /// Nombre para mostrar; si no viene, se arma con el idioma.
+    pub label: Option<String>,
+    /// Cómo se llamaba el archivo.
+    pub source_name: String,
+}
+
 /// Agrega un archivo de subtítulos subido desde el Admin a un video ya importado.
-/// `path` es el archivo subido (se consume); `language`, el código ISO 639 elegido.
+/// `path` es el archivo subido (se consume).
 pub async fn attach_file(
     db: &SqlitePool,
     root: &Path,
     media_file_id: i64,
     video_rel: &str,
     path: PathBuf,
-    language: Option<String>,
-    forced: bool,
+    upload: Upload,
 ) -> Result<SubtitleTrack> {
     let extension = path
         .extension()
@@ -130,10 +146,12 @@ pub async fn attach_file(
         tokio::fs::write(&path, utf8).await?;
     }
     let track = FoundTrack {
-        language,
+        language: upload.language,
         title: None,
+        label: upload.label,
+        source_name: Some(upload.source_name),
         is_default: false,
-        forced,
+        forced: upload.forced,
         source: TrackSource::File { path, extension },
     };
     let id = attach(
@@ -176,7 +194,8 @@ async fn attach(
     let (srclang, _) = language_info(track.language.as_deref());
     // Dos pistas "Español" no se distinguen en el menú: la segunda pasa a "Español 2".
     let taken = repo::labels_of(db, media_file_id).await?;
-    let label = unique_label(label(&track), &taken);
+    let wanted = track.label.clone().unwrap_or_else(|| label(&track));
+    let label = unique_label(wanted, &taken);
     let subtitle = NewSubtitle {
         media_file_id,
         rel_path: format!("{name}.vtt"),
@@ -186,6 +205,7 @@ async fn attach(
         label,
         is_default: track.is_default,
         forced: track.forced,
+        source_name: track.source_name.clone(),
     };
     Ok(repo::insert(db, &subtitle).await?)
 }
@@ -386,6 +406,8 @@ mod tests {
         let track = |language: &str, title: Option<&str>, forced| FoundTrack {
             language: Some(language.to_string()),
             title: title.map(str::to_string),
+            label: None,
+            source_name: None,
             is_default: false,
             forced,
             source: TrackSource::Embedded {

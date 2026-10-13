@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, Captions, ChevronDown, ChevronRight, Clapperboard, FilePlay, Plus, Tv, X } from 'lucide-react'
+import { ArrowLeft, Captions, Check, ChevronDown, ChevronRight, Clapperboard, FilePlay, Plus, Tv, X } from 'lucide-react'
 import { api } from '../../shared/api'
 import { useApi } from '../../shared/useApi'
 import { formatDuration, formatSize } from '../../shared/format'
@@ -162,13 +162,22 @@ function FileRow({
       </div>
       <div className="file-subtitles">
         {subtitles.map((track) => (
-          <span key={track.id} className="badge sub-chip">
-            <Captions />
-            {track.label}
-            <button className="sub-chip-remove" title="Quitar" onClick={() => remove(track)}>
-              <X />
-            </button>
-          </span>
+          <SubtitleChip
+            key={track.id}
+            track={track}
+            onRemove={() => remove(track)}
+            onRename={async (label) => {
+              setError(undefined)
+              try {
+                await api(`/api/admin/subtitles/${track.id}`, { method: 'PATCH', body: { label } })
+                onChange()
+                return true
+              } catch (err) {
+                setError((err as Error).message)
+                return false
+              }
+            }}
+          />
         ))}
         {!adding && (
           <button className="btn btn-ghost btn-sm" onClick={() => setAdding(true)}>
@@ -188,6 +197,61 @@ function FileRow({
         />
       )}
     </div>
+  )
+}
+
+/** Un subtítulo del archivo. Tocar el nombre lo deja editar; al pasar el mouse dice de dónde salió. */
+function SubtitleChip({
+  track,
+  onRemove,
+  onRename,
+}: {
+  track: SubtitleTrack
+  onRemove: () => void
+  onRename: (label: string) => Promise<boolean>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [label, setLabel] = useState(track.label)
+  const origin = track.source_name ? `Archivo: ${track.source_name}` : 'Venía dentro del video'
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    if (label.trim() === track.label || (await onRename(label))) setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <form className="sub-chip-edit" onSubmit={save}>
+        <input
+          className="input"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setLabel(track.label)
+              setEditing(false)
+            }
+          }}
+          aria-label="Nombre del subtítulo"
+          autoFocus
+        />
+        <button className="btn btn-primary btn-sm btn-icon" type="submit" title="Guardar">
+          <Check />
+        </button>
+      </form>
+    )
+  }
+
+  return (
+    <span className="badge sub-chip" title={origin}>
+      <Captions />
+      <button className="sub-chip-label" onClick={() => setEditing(true)} title={`${origin} · tocá para renombrar`}>
+        {track.label}
+      </button>
+      <button className="sub-chip-remove" title="Quitar" onClick={onRemove}>
+        <X />
+      </button>
+    </span>
   )
 }
 
@@ -213,6 +277,27 @@ const LANGUAGE_HINTS: Record<string, string> = {
   it: 'ita', ita: 'ita', italian: 'ita',
 }
 
+// Variantes regionales que suelen aparecer en el nombre del archivo.
+const REGIONS: [pattern: RegExp, language: string, region: string][] = [
+  [/latin|latam|latino|\bes[-_]?(419|mx|ar)\b/i, 'spa', 'Latinoamérica'],
+  [/castellano|spain|españa|\bes[-_]?es\b/i, 'spa', 'España'],
+  [/brazil|brasil|\bpt[-_]?br\b|\bpob\b/i, 'por', 'Brasil'],
+  [/portugal|\bpt[-_]?pt\b/i, 'por', 'Portugal'],
+]
+
+/**
+ * El nombre que se propone: el idioma, la región si el archivo la dice ("Spanish (Latin America)"
+ * → "Español (Latinoamérica)") y si son forzados.
+ */
+function suggestLabel(fileName: string, language: string, forced: boolean) {
+  let label = LANGUAGES.find(([code]) => code === language)?.[1] ?? 'Subtítulos'
+  if (language === 'und') label = 'Subtítulos'
+  const region = REGIONS.find(([pattern, lang]) => lang === language && pattern.test(fileName))
+  if (region) label += ` (${region[2]})`
+  if (forced) label += ' (forzados)'
+  return label
+}
+
 /** El idioma que sugiere el nombre del archivo, mirando desde el final. Si no dice nada, español. */
 function guessLanguage(fileName: string) {
   const words = fileName.toLowerCase().split(/[^\p{L}]+/u).reverse()
@@ -223,8 +308,12 @@ function AddSubtitleForm({ fileId, onDone, onCancel }: { fileId: number; onDone:
   const [file, setFile] = useState<File>()
   const [language, setLanguage] = useState('spa')
   const [forced, setForced] = useState(false)
+  // El nombre se propone solo hasta que se lo escribe a mano.
+  const [label, setLabel] = useState('')
+  const [labelEdited, setLabelEdited] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string>()
+  const shownLabel = labelEdited ? label : suggestLabel(file?.name ?? '', language, forced)
 
   function choose(chosen: File | undefined) {
     setError(undefined)
@@ -245,7 +334,7 @@ function AddSubtitleForm({ fileId, onDone, onCancel }: { fileId: number; onDone:
     if (!file) return
     setSending(true)
     setError(undefined)
-    const params = new URLSearchParams({ name: file.name, language, forced: String(forced) })
+    const params = new URLSearchParams({ name: file.name, language, forced: String(forced), label: shownLabel })
     try {
       await api(`/api/admin/files/${fileId}/subtitles?${params}`, { method: 'POST', file })
       onDone()
@@ -278,6 +367,18 @@ function AddSubtitleForm({ fileId, onDone, onCancel }: { fileId: number; onDone:
             </option>
           ))}
         </select>
+        <input
+          className="input"
+          value={shownLabel}
+          onChange={(e) => {
+            setLabel(e.target.value)
+            setLabelEdited(true)
+          }}
+          placeholder="Nombre"
+          aria-label="Nombre en el menú del Player"
+          title="Cómo aparece en el menú de subtítulos del Player"
+          required
+        />
         <label className="row small" title="Solo traducen las partes en otro idioma (carteles, diálogos sueltos)">
           <input type="checkbox" checked={forced} onChange={(e) => setForced(e.target.checked)} />
           Forzados

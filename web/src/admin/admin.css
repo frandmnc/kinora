@@ -1393,6 +1393,31 @@ a:has(> .badge) {
   padding-right: 3px;
 }
 
+.sub-chip-label {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: text;
+}
+
+.sub-chip-label:hover {
+  text-decoration: underline dotted;
+}
+
+.sub-chip-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sub-chip-edit .input {
+  height: 26px;
+  width: 220px;
+  font-size: 12px;
+}
+
 .sub-chip-remove {
   display: grid;
   place-items: center;

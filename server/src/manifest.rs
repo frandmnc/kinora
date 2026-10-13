@@ -83,6 +83,9 @@ pub struct ManifestSubtitle {
     pub default: bool,
     #[serde(default)]
     pub forced: bool,
+    /// El archivo que se subió; no está si venía dentro del video.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// Reescribe el `kinora.json` de una película o serie. Si falla, lo anota en la terminal y
@@ -234,7 +237,8 @@ async fn subtitle_rows(
     let placeholders = vec!["?"; content_ids.len()].join(", ");
     let sql = format!(
         "SELECT s.media_file_id, s.rel_path AS path, s.original_rel_path AS original, \
-                s.language, s.label, s.is_default AS \"default\", s.forced \
+                s.language, s.label, s.is_default AS \"default\", s.forced, \
+                s.source_name AS source \
          FROM subtitles s JOIN media_files f ON f.id = s.media_file_id \
          WHERE f.content_id IN ({placeholders}) ORDER BY s.id"
     );

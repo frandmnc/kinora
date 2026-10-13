@@ -7,4 +7,8 @@ export type SubtitleTrack = { id: number, media_file_id: number, language: strin
 /**
  * Código de 2 letras para `<track srclang>`.
  */
-srclang: string | null, label: string, is_default: boolean, forced: boolean, };
+srclang: string | null, label: string, is_default: boolean, forced: boolean, 
+/**
+ * El archivo que se subió; `null` si venía dentro del video.
+ */
+source_name: string | null, };

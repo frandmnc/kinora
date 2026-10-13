@@ -9,7 +9,7 @@ use tower_http::services::ServeFile;
 use tracing::{info, warn};
 
 use super::extract::{self, SUBTITLE_EXTENSIONS};
-use super::{SubtitleTrack, repo};
+use super::{SubtitleChanges, SubtitleTrack, repo};
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
 use crate::{contents, manifest};
@@ -52,6 +52,8 @@ pub struct AddParams {
     language: Option<String>,
     #[serde(default)]
     forced: bool,
+    /// Nombre para mostrar ("Español (Latinoamérica)"). Sin nombre, se arma con el idioma.
+    label: Option<String>,
 }
 
 /// POST /api/admin/files/{id}/subtitles?name=Episodio.srt&language=spa&forced=false
@@ -111,8 +113,15 @@ pub async fn add(
         file_id,
         &video_rel,
         temp.clone(),
-        language,
-        params.forced,
+        extract::Upload {
+            language,
+            forced: params.forced,
+            label: params
+                .label
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty()),
+            source_name: params.name.clone(),
+        },
     )
     .await;
     // Si falló a mitad de camino, que no quede el temporal.
@@ -148,4 +157,28 @@ pub async fn remove(State(state): State<AppState>, Path(id): Path<i64>) -> AppRe
     info!("subtitle removed: {}", files.rel_path);
     manifest::refresh_for_file(&state.db, &media_dir, files.media_file_id).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// PATCH /api/admin/subtitles/{id}
+/// Cambia el nombre que se ve en el menú del Player.
+pub async fn rename(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(changes): Json<SubtitleChanges>,
+) -> AppResult<Json<SubtitleTrack>> {
+    let label = changes.label.trim();
+    if label.is_empty() {
+        return Err(AppError::BadRequest(
+            "el nombre no puede estar vacío".to_string(),
+        ));
+    }
+    if !repo::rename(&state.db, id, label).await? {
+        return Err(AppError::NotFound(format!("no existe el subtítulo {id}")));
+    }
+    let track = repo::get(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("no existe el subtítulo {id}")))?;
+    let media_dir = state.settings.require_media_dir()?;
+    manifest::refresh_for_file(&state.db, &media_dir, track.media_file_id).await;
+    Ok(Json(track))
 }

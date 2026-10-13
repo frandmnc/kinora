@@ -13,13 +13,14 @@ pub struct NewSubtitle {
     pub label: String,
     pub is_default: bool,
     pub forced: bool,
+    pub source_name: Option<String>,
 }
 
 pub async fn insert(db: &SqlitePool, new: &NewSubtitle) -> sqlx::Result<i64> {
     sqlx::query_scalar(
         "INSERT INTO subtitles \
-         (media_file_id, rel_path, original_rel_path, language, srclang, label, is_default, forced) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+         (media_file_id, rel_path, original_rel_path, language, srclang, label, is_default, forced, source_name) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
     .bind(new.media_file_id)
     .bind(&new.rel_path)
@@ -29,6 +30,7 @@ pub async fn insert(db: &SqlitePool, new: &NewSubtitle) -> sqlx::Result<i64> {
     .bind(&new.label)
     .bind(new.is_default)
     .bind(new.forced)
+    .bind(&new.source_name)
     .fetch_one(db)
     .await
 }
@@ -40,7 +42,7 @@ pub async fn for_files(db: &SqlitePool, file_ids: &[i64]) -> sqlx::Result<Vec<Su
     }
     let placeholders = vec!["?"; file_ids.len()].join(", ");
     let sql = format!(
-        "SELECT id, media_file_id, language, srclang, label, is_default, forced \
+        "SELECT id, media_file_id, language, srclang, label, is_default, forced, source_name \
          FROM subtitles WHERE media_file_id IN ({placeholders}) ORDER BY id"
     );
     let mut query = sqlx::query_as(AssertSqlSafe(sql));
@@ -72,9 +74,19 @@ pub async fn labels_of(db: &SqlitePool, media_file_id: i64) -> sqlx::Result<Vec<
         .await
 }
 
+/// Cambia el nombre. Devuelve `false` si no existe.
+pub async fn rename(db: &SqlitePool, id: i64, label: &str) -> sqlx::Result<bool> {
+    let result = sqlx::query("UPDATE subtitles SET label = ? WHERE id = ?")
+        .bind(label)
+        .bind(id)
+        .execute(db)
+        .await?;
+    Ok(result.rows_affected() == 1)
+}
+
 pub async fn get(db: &SqlitePool, id: i64) -> sqlx::Result<Option<SubtitleTrack>> {
     sqlx::query_as(
-        "SELECT id, media_file_id, language, srclang, label, is_default, forced \
+        "SELECT id, media_file_id, language, srclang, label, is_default, forced, source_name \
          FROM subtitles WHERE id = ?",
     )
     .bind(id)

@@ -10,6 +10,7 @@ pub mod repo;
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{delete, get, post};
+use serde::Deserialize;
 use serde::Serialize;
 use ts_rs::TS;
 
@@ -29,6 +30,16 @@ pub struct SubtitleTrack {
     pub label: String,
     pub is_default: bool,
     pub forced: bool,
+    /// El archivo que se subió; `null` si venía dentro del video.
+    pub source_name: Option<String>,
+}
+
+/// Lo que se puede cambiar de un subtítulo desde el Admin.
+#[derive(Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+#[ts(export)]
+pub struct SubtitleChanges {
+    pub label: String,
 }
 
 /// Rutas del Player. Se montan bajo /api.
@@ -44,5 +55,8 @@ pub fn admin_routes() -> Router<AppState> {
             // Un subtítulo pesa unos cientos de KB; 20 MB alcanza y sobra.
             post(handlers::add).layer(DefaultBodyLimit::max(20 * 1024 * 1024)),
         )
-        .route("/subtitles/{id}", delete(handlers::remove))
+        .route(
+            "/subtitles/{id}",
+            delete(handlers::remove).patch(handlers::rename),
+        )
 }
