@@ -96,13 +96,23 @@ export function StatusPage() {
         <StatTile
           icon={Cpu}
           label="CPU de Kinora"
-          value={`${sample.cpu_kinora.toFixed(1)} %`}
+          value={`${sample.cpu_kinora.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`}
           sub={`100 % = un núcleo, de ${sample.cpu_cores}`}
         >
-          <TrendBars values={series('cpuKinora')} max={5} label="CPU de Kinora, últimos 2 minutos" />
+          <TrendBars
+            values={series('cpuKinora')}
+            max={5}
+            format={(v) => `${v.toLocaleString('es-AR', { maximumFractionDigits: v < 10 ? 1 : 0 })} %`}
+            label="CPU de Kinora, últimos 2 minutos"
+          />
         </StatTile>
         <StatTile icon={Gauge} label="CPU del equipo" value={`${sample.cpu_system.toFixed(0)} %`} sub="todos los núcleos">
-          <TrendBars values={series('cpuSystem')} max={100} label="CPU del equipo, últimos 2 minutos" />
+          <TrendBars
+            values={series('cpuSystem')}
+            max={100}
+            format={(v) => `${Math.round(v)} %`}
+            label="CPU del equipo, últimos 2 minutos"
+          />
         </StatTile>
         <StatTile
           icon={Server}
@@ -118,10 +128,20 @@ export function StatusPage() {
           value={`${formatSize(sample.send_rate)}/s`}
           sub={`${((sample.send_rate * 8) / 1_000_000).toFixed(1)} Mbps · ${formatSize(status.bytes_sent_total)} desde que arrancó`}
         >
-          <TrendBars values={series('sendRate')} label="Velocidad de envío, últimos 2 minutos" />
+          <TrendBars
+            values={series('sendRate')}
+            max={1_000_000}
+            format={(v) => `${formatSize(v)}/s`}
+            label="Velocidad de envío, últimos 2 minutos"
+          />
         </StatTile>
         <StatTile icon={MemoryStick} label="Memoria de Kinora" value={formatSize(sample.memory_kinora)} sub="del proceso">
-          <TrendBars values={series('memoryKinora')} range label="Memoria de Kinora, últimos 2 minutos" />
+          <TrendBars
+            values={series('memoryKinora')}
+            range
+            format={formatSize}
+            label="Memoria de Kinora, últimos 2 minutos"
+          />
         </StatTile>
         {playback && (
           <StatTile
@@ -134,6 +154,7 @@ export function StatusPage() {
               values={playback.days.map((d) => d.seconds)}
               labels={playback.days.map((d) => `${weekday(d.day)}: ${formatWatchTime(d.seconds)}`)}
               label="Tiempo visto por día, últimos 7 días"
+              format={formatWatchTime}
             />
           </StatTile>
         )}

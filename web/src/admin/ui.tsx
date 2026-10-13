@@ -138,52 +138,106 @@ export function Meter({
   )
 }
 
-/** Pasos de la rampa secuencial (azul, de claro a oscuro): `--seq-1` … `--seq-5` en admin.css. */
+/** Pasos de la rampa secuencial (coral, de claro a intenso): `--seq-1` … `--seq-5` en admin.css. */
 const RAMP_STEPS = 5
+
+/** Un tope "redondo" para la escala: 1, 2, 2,5, 5 o 10 por la potencia de 10 que corresponda. */
+export function niceMax(value: number) {
+  if (value <= 0) return 1
+  const power = 10 ** Math.floor(Math.log10(value))
+  return [1, 2, 2.5, 5, 10].map((m) => m * power).find((m) => m >= value) ?? 10 * power
+}
+
+/** Una barra de la rampa: la altura (0..1) decide el tono y la opacidad. */
+function rampBar(share: number, minHeight: number, title: string, key: number | string) {
+  const step = Math.min(RAMP_STEPS, 1 + Math.floor(share * RAMP_STEPS))
+  return (
+    <span
+      key={key}
+      title={title}
+      style={{
+        height: `${Math.max(share * 100, minHeight)}%`,
+        background: `var(--seq-${step})`,
+        opacity: 0.45 + 0.55 * share,
+      }}
+    />
+  )
+}
+
+/**
+ * Barras con su escala a la derecha: arriba el tope (con una línea de referencia punteada) y
+ * abajo el piso, para saber si una barra alta es mucho o poco.
+ */
+function ScaledBars({
+  bars,
+  top,
+  bottom,
+  label,
+  className = '',
+}: {
+  bars: ReactNode
+  top: string
+  bottom: string
+  label: string
+  className?: string
+}) {
+  return (
+    <div className="trend" role="img" aria-label={`${label} (escala de ${bottom} a ${top})`}>
+      <div className={`trend-bars ${className}`}>{bars}</div>
+      <div className="trend-scale" aria-hidden="true">
+        <span>{top}</span>
+        <span>{bottom}</span>
+      </div>
+    </div>
+  )
+}
 
 /**
  * Tendencia de los últimos minutos en barras finas: una por medición. Cuanto más alta, más
- * oscura y más opaca (en modo oscuro, más clara): el color refuerza la altura, así un pico se
- * nota de un vistazo. Es una rampa de un solo tono, no colores de estado: alto no es "mal".
- * Con `range`, la escala va del mínimo al máximo de lo medido (para valores que casi no se
- * mueven, como la memoria); si no, de 0 a `max` (o al máximo medido, si es mayor).
+ * intensa y más opaca: el color refuerza la altura, así un pico se nota de un vistazo.
+ * La escala va de 0 a `max` (o a un tope redondo por encima de lo medido, si es mayor). Con
+ * `range`, va del mínimo al máximo medido, para valores que casi no se mueven (la memoria).
+ * Al pasar el mouse por una barra se ve su valor y hace cuánto se midió.
  */
 export function TrendBars({
   values,
   max,
   range,
   label,
+  format,
+  every = 2,
 }: {
   values: number[]
   max?: number
   range?: boolean
   label: string
+  format: (value: number) => string
+  /** Segundos entre mediciones. */
+  every?: number
 }) {
-  const low = range && values.length > 0 ? Math.min(...values) : 0
-  const high = Math.max(max ?? 0, ...values, 0)
-  // En modo rango se deja un margen abajo, para que el mínimo no quede en cero.
-  const span = range ? Math.max(high - low, high * 0.02, 1e-9) : Math.max(high, 1e-9)
-  const base = range ? low - span * 0.25 : 0
-  const scale = range ? span * 1.25 : span
-  const share = (value: number) => Math.min(1, Math.max(0, (value - base) / scale))
+  const highest = Math.max(0, ...values)
+  const lowest = values.length > 0 ? Math.min(...values) : 0
+  let floor = 0
+  let ceiling = niceMax(Math.max(max ?? 0, highest))
+  if (range) {
+    // Un margen arriba y abajo de lo medido; si no varía, la barra queda a media altura.
+    const spread = Math.max(highest - lowest, highest * 0.02, 1e-9)
+    floor = Math.max(0, lowest - spread)
+    ceiling = highest + spread
+  }
+  const share = (value: number) => Math.min(1, Math.max(0, (value - floor) / (ceiling - floor)))
+  const ago = (i: number) => {
+    const seconds = (values.length - 1 - i) * every
+    return seconds === 0 ? 'ahora' : seconds < 60 ? `hace ${seconds} s` : `hace ${Math.round(seconds / 60)} min`
+  }
 
   return (
-    <div className="trend-bars" role="img" aria-label={label} title={label}>
-      {values.map((value, i) => {
-        const t = share(value)
-        const step = Math.min(RAMP_STEPS, 1 + Math.floor(t * RAMP_STEPS))
-        return (
-          <span
-            key={i}
-            style={{
-              height: `${Math.max(t * 100, 6)}%`,
-              background: `var(--seq-${step})`,
-              opacity: 0.4 + 0.6 * t,
-            }}
-          />
-        )
-      })}
-    </div>
+    <ScaledBars
+      label={label}
+      top={format(ceiling)}
+      bottom={format(floor)}
+      bars={values.map((value, i) => rampBar(share(value), 4, `${format(value)} · ${ago(i)}`, i))}
+    />
   )
 }
 
@@ -215,29 +269,30 @@ export function StatTile({
 }
 
 /**
- * Barras de pocos valores (por ejemplo, los últimos 7 días), con la misma rampa que
- * `TrendBars`: más alta, más oscura. Cada barra tiene su texto al pasar el mouse.
+ * Barras de pocos valores (por ejemplo, los últimos 7 días), con la misma rampa y escala que
+ * `TrendBars`. Cada barra tiene su texto al pasar el mouse.
  */
-export function MiniBars({ values, labels, label }: { values: number[]; labels: string[]; label: string }) {
-  const top = Math.max(...values, 1e-9)
+export function MiniBars({
+  values,
+  labels,
+  label,
+  format,
+}: {
+  values: number[]
+  labels: string[]
+  label: string
+  format: (value: number) => string
+}) {
+  const ceiling = Math.max(...values, 0)
+  const top = ceiling > 0 ? ceiling : 1
   return (
-    <div className="trend-bars days" role="img" aria-label={label}>
-      {values.map((value, i) => {
-        const t = value / top
-        const step = Math.min(RAMP_STEPS, 1 + Math.floor(t * RAMP_STEPS))
-        return (
-          <span
-            key={labels[i]}
-            title={labels[i]}
-            style={{
-              height: `${Math.max(t * 100, value > 0 ? 10 : 5)}%`,
-              background: `var(--seq-${step})`,
-              opacity: 0.4 + 0.6 * t,
-            }}
-          />
-        )
-      })}
-    </div>
+    <ScaledBars
+      className="days"
+      label={label}
+      top={ceiling > 0 ? format(ceiling) : '—'}
+      bottom={format(0)}
+      bars={values.map((value, i) => rampBar(value / top, value > 0 ? 8 : 4, labels[i], labels[i]))}
+    />
   )
 }
 

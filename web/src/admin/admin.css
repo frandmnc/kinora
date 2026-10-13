@@ -43,12 +43,12 @@
   --shadow: none;
   --shadow-hover: 0 6px 16px rgb(0 0 0 / 0.1);
   --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--text);
-  /* Rampa secuencial azul (de poco a mucho), para tendencias. */
-  --seq-1: #9ec5f4;
-  --seq-2: #6da7ec;
-  --seq-3: #3987e5;
-  --seq-4: #256abf;
-  --seq-5: #184f95;
+  /* Rampa secuencial coral, el color de la marca (de poco a mucho), para tendencias. */
+  --seq-1: #ffc2cc;
+  --seq-2: #ff8fa3;
+  --seq-3: #ff5a78;
+  --seq-4: #e31c5f;
+  --seq-5: #b3124b;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
@@ -82,11 +82,11 @@
     --critical-soft: #351a17;
     --shadow-hover: 0 6px 16px rgb(0 0 0 / 0.5);
     /* En oscuro la rampa se da vuelta: lo poco se pierde en el fondo, lo mucho brilla. */
-    --seq-1: #184f95;
-    --seq-2: #256abf;
-    --seq-3: #3987e5;
-    --seq-4: #6da7ec;
-    --seq-5: #86b6ef;
+    --seq-1: #5c1a2b;
+    --seq-2: #8f2440;
+    --seq-3: #d42d55;
+    --seq-4: #ff5a78;
+    --seq-5: #ff8fa3;
   }
 }
 
@@ -118,11 +118,11 @@
   --critical-text: #f08080;
   --critical-soft: #351a17;
   --shadow-hover: 0 6px 16px rgb(0 0 0 / 0.5);
-  --seq-1: #184f95;
-  --seq-2: #256abf;
-  --seq-3: #3987e5;
-  --seq-4: #6da7ec;
-  --seq-5: #86b6ef;
+  --seq-1: #5c1a2b;
+  --seq-2: #8f2440;
+  --seq-3: #d42d55;
+  --seq-4: #ff5a78;
+  --seq-5: #ff8fa3;
 }
 
 body {
@@ -759,17 +759,42 @@ a:hover {
   box-shadow: var(--shadow-hover);
 }
 
-.tile .trend-bars,
+.tile .trend,
 .tile .meter {
   margin-top: 12px;
 }
 
 /* Tendencias en barras: una por medición, alineadas abajo. */
+/* Las barras y, a la derecha, su escala (tope arriba, piso abajo). */
+.trend {
+  display: flex;
+  gap: 8px;
+  height: 38px;
+}
+
 .trend-bars {
+  position: relative;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: flex-end;
   gap: 1px;
-  height: 34px;
+  /* Línea de referencia punteada en el tope de la escala, y la base. */
+  border-top: 1px dashed var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.trend-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 42px;
+  margin: -6px 0 -5px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .trend-bars span {
@@ -1364,11 +1389,6 @@ a:has(> .badge) {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-/* Los datos técnicos alineados con el nombre (después del ícono), no con el borde. */
-.file-row-head .tech-line {
-  padding-left: 26px;
 }
 
 .file-row-main {

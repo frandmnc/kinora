@@ -7,6 +7,7 @@
 //   la cabecera de cada uno muestra los valores de ese momento.
 
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { niceMax } from './ui'
 
 export type Series<P> = {
   label: string
@@ -141,12 +142,6 @@ export function HistoryChart<P>({
   )
 }
 
-/** Un tope "redondo" para el eje: 1, 2, 2,5, 5 o 10 por la potencia de 10 que corresponda. */
-function niceMax(value: number) {
-  if (value <= 0) return 1
-  const power = 10 ** Math.floor(Math.log10(value))
-  return [1, 2, 2.5, 5, 10].map((m) => m * power).find((m) => m >= value) ?? 10 * power
-}
 
 function findLast<T>(items: T[], test: (item: T) => boolean): number | null {
   for (let i = items.length - 1; i >= 0; i--) if (test(items[i])) return i
