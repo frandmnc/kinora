@@ -138,14 +138,17 @@ export function Meter({
   )
 }
 
+/** Pasos de la rampa secuencial (azul, de claro a oscuro): `--seq-1` … `--seq-5` en admin.css. */
+const RAMP_STEPS = 5
+
 /**
- * Línea de tendencia mínima: trazo de 2 px en gris de segundo plano, un relleno muy suave
- * y el punto actual en el color de acento (con anillo del color de la superficie).
- *
- * Por defecto la escala arranca en cero. Con `range`, va del mínimo al máximo de los valores:
- * sirve para medidas que casi no varían (como la memoria), donde desde cero la línea sería plana.
+ * Tendencia de los últimos minutos en barras finas: una por medición. Cuanto más alta, más
+ * oscura y más opaca (en modo oscuro, más clara): el color refuerza la altura, así un pico se
+ * nota de un vistazo. Es una rampa de un solo tono, no colores de estado: alto no es "mal".
+ * Con `range`, la escala va del mínimo al máximo de lo medido (para valores que casi no se
+ * mueven, como la memoria); si no, de 0 a `max` (o al máximo medido, si es mayor).
  */
-export function Sparkline({
+export function TrendBars({
   values,
   max,
   range,
@@ -156,43 +159,30 @@ export function Sparkline({
   range?: boolean
   label: string
 }) {
-  const width = 200
-  const height = 34
-  const pad = 5
-  if (values.length < 2) return <div className="sparkline" aria-hidden="true" />
-
-  const low = range ? Math.min(...values) : 0
-  const high = Math.max(max ?? 0, ...values)
-  // En modo rango se deja un margen arriba y abajo; si no hay variación, la línea queda al medio.
+  const low = range && values.length > 0 ? Math.min(...values) : 0
+  const high = Math.max(max ?? 0, ...values, 0)
+  // En modo rango se deja un margen abajo, para que el mínimo no quede en cero.
   const span = range ? Math.max(high - low, high * 0.02, 1e-9) : Math.max(high, 1e-9)
   const base = range ? low - span * 0.25 : 0
-  const scale = range ? span * 1.5 : span
-  const x = (i: number) => pad + (i / (values.length - 1)) * (width - pad * 2)
-  const y = (v: number) => height - pad - ((v - base) / scale) * (height - pad * 2)
-  const line = values.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-  const area = `${line} L${x(values.length - 1).toFixed(1)},${height - pad} L${x(0).toFixed(1)},${height - pad} Z`
-  const last = values.length - 1
+  const scale = range ? span * 1.25 : span
+  const share = (value: number) => Math.min(1, Math.max(0, (value - base) / scale))
 
-  // La línea se estira con la tarjeta (`preserveAspectRatio="none"`), pero un círculo estirado
-  // se vuelve óvalo: el punto final va aparte, en HTML, ubicado en porcentajes.
   return (
-    <div className="sparkline" role="img" aria-label={label}>
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
-        <path d={area} fill="var(--deemph)" opacity="0.12" />
-        <path
-          d={line}
-          fill="none"
-          stroke="var(--deemph)"
-          strokeWidth="2"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <span
-        className="sparkline-dot"
-        style={{ left: `${(x(last) / width) * 100}%`, top: `${(y(values[last]) / height) * 100}%` }}
-      />
+    <div className="trend-bars" role="img" aria-label={label} title={label}>
+      {values.map((value, i) => {
+        const t = share(value)
+        const step = Math.min(RAMP_STEPS, 1 + Math.floor(t * RAMP_STEPS))
+        return (
+          <span
+            key={i}
+            style={{
+              height: `${Math.max(t * 100, 6)}%`,
+              background: `var(--seq-${step})`,
+              opacity: 0.4 + 0.6 * t,
+            }}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -225,37 +215,29 @@ export function StatTile({
 }
 
 /**
- * Barras de pocos valores (por ejemplo, los últimos 7 días). Barras finas con la punta
- * redondeada sobre una línea base; la última (el período actual) va resaltada.
- * Cada barra tiene su texto al pasar el mouse.
+ * Barras de pocos valores (por ejemplo, los últimos 7 días), con la misma rampa que
+ * `TrendBars`: más alta, más oscura. Cada barra tiene su texto al pasar el mouse.
  */
 export function MiniBars({ values, labels, label }: { values: number[]; labels: string[]; label: string }) {
-  const width = 200
-  const height = 34
   const top = Math.max(...values, 1e-9)
-  const slot = width / values.length
-  const barWidth = Math.min(16, slot * 0.55)
   return (
-    <svg className="sparkline" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}>
+    <div className="trend-bars days" role="img" aria-label={label}>
       {values.map((value, i) => {
-        const h = Math.max((value / top) * (height - 4), value > 0 ? 3 : 1.5)
-        const x = i * slot + (slot - barWidth) / 2
-        const current = i === values.length - 1
+        const t = value / top
+        const step = Math.min(RAMP_STEPS, 1 + Math.floor(t * RAMP_STEPS))
         return (
-          <rect
+          <span
             key={labels[i]}
-            x={x}
-            y={height - h}
-            width={barWidth}
-            height={h}
-            rx={Math.min(4, barWidth / 2)}
-            fill={current ? 'var(--accent)' : 'var(--deemph)'}
-          >
-            <title>{labels[i]}</title>
-          </rect>
+            title={labels[i]}
+            style={{
+              height: `${Math.max(t * 100, value > 0 ? 10 : 5)}%`,
+              background: `var(--seq-${step})`,
+              opacity: 0.4 + 0.6 * t,
+            }}
+          />
         )
       })}
-    </svg>
+    </div>
   )
 }
 

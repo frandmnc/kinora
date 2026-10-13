@@ -27,7 +27,7 @@ import type { ServerHistory } from '../../shared/types/ServerHistory'
 import type { HistoryPoint } from '../../shared/types/HistoryPoint'
 import type { HistoryRange } from '../../shared/types/HistoryRange'
 import { HistoryChart } from '../charts'
-import { Alert, Badge, Card, EmptyState, Meter, MiniBars, PageHeader, Sparkline, StatTile } from '../ui'
+import { Alert, Badge, Card, EmptyState, Meter, MiniBars, PageHeader, StatTile, TrendBars } from '../ui'
 
 const REFRESH_MS = 2000
 /** Mediciones guardadas para las tendencias: 60 × 2 s = los últimos 2 minutos. */
@@ -99,10 +99,10 @@ export function StatusPage() {
           value={`${sample.cpu_kinora.toFixed(1)} %`}
           sub={`100 % = un núcleo, de ${sample.cpu_cores}`}
         >
-          <Sparkline values={series('cpuKinora')} max={5} label="CPU de Kinora, últimos 2 minutos" />
+          <TrendBars values={series('cpuKinora')} max={5} label="CPU de Kinora, últimos 2 minutos" />
         </StatTile>
         <StatTile icon={Gauge} label="CPU del equipo" value={`${sample.cpu_system.toFixed(0)} %`} sub="todos los núcleos">
-          <Sparkline values={series('cpuSystem')} max={100} label="CPU del equipo, últimos 2 minutos" />
+          <TrendBars values={series('cpuSystem')} max={100} label="CPU del equipo, últimos 2 minutos" />
         </StatTile>
         <StatTile
           icon={Server}
@@ -118,10 +118,10 @@ export function StatusPage() {
           value={`${formatSize(sample.send_rate)}/s`}
           sub={`${((sample.send_rate * 8) / 1_000_000).toFixed(1)} Mbps · ${formatSize(status.bytes_sent_total)} desde que arrancó`}
         >
-          <Sparkline values={series('sendRate')} label="Velocidad de envío, últimos 2 minutos" />
+          <TrendBars values={series('sendRate')} label="Velocidad de envío, últimos 2 minutos" />
         </StatTile>
         <StatTile icon={MemoryStick} label="Memoria de Kinora" value={formatSize(sample.memory_kinora)} sub="del proceso">
-          <Sparkline values={series('memoryKinora')} range label="Memoria de Kinora, últimos 2 minutos" />
+          <TrendBars values={series('memoryKinora')} range label="Memoria de Kinora, últimos 2 minutos" />
         </StatTile>
         {playback && (
           <StatTile

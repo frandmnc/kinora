@@ -66,24 +66,27 @@ function FileRow({
 
   return (
     <div className="file-row">
-      <div className="file-row-main">
-        <FilePlay className="icon" />
-        <span className="mono grow truncate" title={file.rel_path}>
-          {name}
-        </span>
-        <span className="small muted">
-          {formatDuration(file.duration)} · {formatSize(file.size)}
-        </span>
-        <button
-          className="btn btn-ghost btn-sm btn-icon btn-danger"
-          title="Quitar este archivo: el video y sus subtítulos van a la papelera de la biblioteca"
-          aria-label={`Quitar ${name}`}
-          onClick={removeFile}
-        >
-          <Trash />
-        </button>
+      {/* Nombre y datos técnicos juntos, como un solo elemento; los subtítulos van aparte. */}
+      <div className="file-row-head">
+        <div className="file-row-main">
+          <FilePlay className="icon" />
+          <span className="mono grow truncate" title={file.rel_path}>
+            {name}
+          </span>
+          <span className="small muted">
+            {formatDuration(file.duration)} · {formatSize(file.size)}
+          </span>
+          <button
+            className="btn btn-ghost btn-sm btn-icon btn-danger"
+            title="Quitar este archivo: el video y sus subtítulos van a la papelera de la biblioteca"
+            aria-label={`Quitar ${name}`}
+            onClick={removeFile}
+          >
+            <Trash />
+          </button>
+        </div>
+        {file.tech && <TechLine file={file} />}
       </div>
-      {file.tech && <TechLine file={file} />}
       <div className="file-subtitles">
         {subtitles.map((track) => (
           <SubtitleChip
