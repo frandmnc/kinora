@@ -2153,3 +2153,20 @@ a:has(> .badge) {
   width: 14px;
   height: 14px;
 }
+
+/* Configuración: cambiar la contraseña */
+
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.password-form .fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.password-form p {
+  margin: 0;
+}
