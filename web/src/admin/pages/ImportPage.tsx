@@ -78,6 +78,8 @@ export function ImportPage() {
   }
 
   const step = result ? 3 : analysis ? 2 : 1
+  const ready = analysis?.filter(isReady) ?? []
+  const notReady = (analysis?.length ?? 0) - ready.length
 
   return (
     <>
@@ -101,11 +103,19 @@ export function ImportPage() {
       ) : analysis ? (
         <>
           <AnalysisTable files={analysis} />
-          {analysis.every(isReady) ? (
-            <DestinationForm files={analysis} disabled={!!busy} onImport={importFiles} onBack={restart} />
+          {/* Los que no se pueden importar todavía se dejan de lado: siguen en la bandeja. */}
+          {ready.length > 0 && ready.length < analysis.length && (
+            <Alert tone="warning">
+              {notReady} archivo{notReady === 1 ? '' : 's'} no se puede{notReady === 1 ? '' : 'n'} importar
+              todavía: se deja{notReady === 1 ? '' : 'n'} de lado y sigue{notReady === 1 ? '' : 'n'} en la bandeja.
+              Se importa{ready.length === 1 ? '' : 'n'} {ready.length === 1 ? 'el otro' : `los otros ${ready.length}`}.
+            </Alert>
+          )}
+          {ready.length > 0 ? (
+            <DestinationForm files={ready} disabled={!!busy} onImport={importFiles} onBack={restart} />
           ) : (
             <Alert tone="warning">
-              Hay archivos que todavía no se pueden importar.{' '}
+              Ninguno de estos archivos se puede importar todavía.{' '}
               <button className="btn btn-sm" onClick={restart}>
                 <ArrowLeft /> Elegir otros
               </button>
