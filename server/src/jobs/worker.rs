@@ -13,6 +13,7 @@ use tracing::{info, warn};
 use super::{Job, Running, repo};
 use crate::app::AppState;
 use crate::contents;
+use crate::imports::paths::without_version;
 use crate::imports::{ImportAction, PlaceFile, free_version, place};
 use crate::monitor::Monitor;
 use crate::probe::{self, Operation, Probe};
@@ -241,10 +242,18 @@ async fn process(
     let current = contents::repo::file_ids_of(&mut conn, job.content_id).await?;
     let (rel_path, replaces) = match job.action {
         ImportAction::Replaced => (job.rel_path.clone(), current),
-        ImportAction::AddedVersion => (
-            free_version(&mut conn, &paths.root, &job.rel_path).await?,
-            Vec::new(),
-        ),
+        // La ruta `… - v2.mp4` se eligió al confirmar. Si mientras tanto se ocupó (otra importación
+        // en el medio), se busca la próxima libre a partir de la ruta sin versión.
+        ImportAction::AddedVersion => {
+            let taken = paths.root.join(&job.rel_path).exists()
+                || contents::repo::rel_path_taken(&mut conn, &job.rel_path).await?;
+            let rel_path = if taken {
+                free_version(&mut conn, &paths.root, &without_version(&job.rel_path)).await?
+            } else {
+                job.rel_path.clone()
+            };
+            (rel_path, Vec::new())
+        }
         _ => (job.rel_path.clone(), Vec::new()),
     };
     drop(conn);

@@ -18,8 +18,8 @@ use super::{
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
 use crate::monitor::SessionStep;
-use crate::playback;
 use crate::subtitles::{self, SubtitleTrack};
+use crate::{manifest, playback, trash};
 
 #[derive(Deserialize)]
 pub struct ListParams {
@@ -278,6 +278,37 @@ pub async fn stream(
         frame
     });
     Ok(Response::from_parts(parts, Body::new(body)))
+}
+
+/// DELETE /api/admin/files/{id}
+/// Saca un archivo (una versión) del catálogo. El video y sus subtítulos van a la papelera de
+/// la biblioteca; el episodio o la película quedan, aunque sea sin archivo.
+pub async fn delete_file(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> AppResult<StatusCode> {
+    let (library_dir, rel_path) = repo::file_location(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("no existe el archivo {id}")))?;
+    let top_id = repo::top_of_file(&state.db, id).await?;
+    let media_dir = state.settings.require_media_dir()?;
+    let root = media_dir.join(library_dir);
+
+    let mut conn = state.db.acquire().await?;
+    let paths = repo::paths_of_file(&mut conn, id).await?;
+    let batch = trash::batch_dir(&root);
+    let trashed = trash::move_files(&root, &batch, &paths).await?;
+    if let Err(err) = repo::delete_media_file(&mut conn, id).await {
+        // Si no se pudo borrar de la base, los archivos vuelven: o todo o nada.
+        trash::restore(&root, &batch, &trashed).await;
+        return Err(err.into());
+    }
+    drop(conn);
+    info!("removed {rel_path}: moved to the trash");
+    if let Some(top_id) = top_id {
+        manifest::refresh(&state.db, &media_dir, top_id).await;
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[cfg(test)]

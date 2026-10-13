@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, Captions, Check, ChevronDown, ChevronRight, Clapperboard, FilePlay, Plus, Tv, X } from 'lucide-react'
+import { ArrowLeft, Captions, Check, ChevronDown, ChevronRight, Clapperboard, FilePlay, Plus, Trash, Tv, X } from 'lucide-react'
 import { api } from '../../shared/api'
 import { useApi } from '../../shared/useApi'
 import { formatDuration, formatSize } from '../../shared/format'
 import { isSubtitle } from '../../shared/upload'
+import { resolution } from '../../shared/versions'
 import type { Content } from '../../shared/types/Content'
 import type { ContentDetail } from '../../shared/types/ContentDetail'
 import type { Library } from '../../shared/types/Library'
@@ -138,6 +139,17 @@ function FileRow({
   const [error, setError] = useState<string>()
   const name = file.rel_path.split('/').pop()
 
+  async function removeFile() {
+    if (!confirm(`¿Quitar ${name}? El video y sus subtítulos van a la papelera de la biblioteca.`)) return
+    setError(undefined)
+    try {
+      await api(`/api/admin/files/${file.id}`, { method: 'DELETE' })
+      onChange()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
   async function remove(track: SubtitleTrack) {
     if (!confirm(`¿Quitar los subtítulos "${track.label}"? Se borran del disco.`)) return
     setError(undefined)
@@ -157,8 +169,15 @@ function FileRow({
           {name}
         </span>
         <span className="small muted">
-          {formatDuration(file.duration)} · {formatSize(file.size)}
+          {resolution(file)} · {formatDuration(file.duration)} · {formatSize(file.size)}
         </span>
+        <button
+          className="btn btn-ghost btn-sm btn-danger"
+          title="Saca el archivo del catálogo; el video y sus subtítulos van a la papelera de la biblioteca"
+          onClick={removeFile}
+        >
+          <Trash /> Quitar
+        </button>
       </div>
       <div className="file-subtitles">
         {subtitles.map((track) => (

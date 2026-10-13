@@ -404,7 +404,7 @@ Las películas llevan `files` en lugar de `seasons`.
 5. **Resolver conflictos.** Si un episodio ya tiene archivo, el usuario elige: omitir, reemplazar o agregar como otra versión (uno por uno o para todos). Sin elegir, el servidor rechaza el pedido sin crear nada.
    - Omitir: el archivo sigue en la bandeja.
    - Reemplazar: los archivos anteriores del episodio (todas sus versiones) y sus subtítulos van a `<biblioteca>/.kinora-trash/<fecha y hora>/`, con la misma ruta que tenían. Si mover el nuevo falla, vuelven a su lugar.
-   - Otra versión: `… - S01E05 - v2.mp4`, al lado del anterior.
+   - Otra versión: `… - S01E05 - v2.mp4`, al lado del anterior. El Player reproduce por defecto la de mayor resolución (entre iguales, la más nueva) y deja elegir otra en el detalle. Desde Bibliotecas, cada archivo se puede quitar (va a la papelera).
 6. **Confirmar.** El servidor crea en una transacción los contenidos que faltan (serie, temporada, episodios) y un trabajo por archivo. Los episodios existen desde este momento, sin archivo.
 7. **Procesar.** La cola ejecuta cada trabajo y asocia el archivo al contenido al terminar.
 
@@ -539,6 +539,7 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Cancelar un trabajo (el original vuelve a la bandeja; reintentar es volver a importarlo) | `POST /api/admin/jobs/{id}/cancel` |
 | Editar un contenido | `PATCH /api/admin/contents/{id}` |
 | Eliminar un contenido (a la papelera) | `DELETE /api/admin/contents/{id}` |
+| Quitar un archivo o versión (el video y sus subtítulos a la papelera) | `DELETE /api/admin/files/{id}` |
 | Métricas | `GET /api/admin/metrics/{server,storage,playback,imports}` |
 | Verificar integridad | `POST /api/admin/maintenance/integrity-check` |
 
@@ -581,6 +582,5 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Subtítulos ASS en la TV: dibujarlos con [JASSUB](https://github.com/ThaUnknown/jassub) o quemarlos en la imagen al convertir | Etapa 6, según el rendimiento de la TV |
 | Confirmar HEVC 10 bits en la UN43RU7100 | Etapa 6. Soporta HDR10 y HDR10+, por lo que es muy probable |
 | App de Tizen: empaquetar los archivos del Player o abrir la URL del servidor | Etapa 6 |
-| Varias versiones de un episodio: hoy el Player reproduce la primera. Elegir cuál (o la mejor para el dispositivo) | Cuando haya un caso real |
 | Archivos con dos episodios (`S01E01-E02`) | Cuando aparezca el primer caso. Por ahora se tratan como un solo episodio |
 | Proteger el Admin con PIN o por dirección IP | Cuando haga falta |

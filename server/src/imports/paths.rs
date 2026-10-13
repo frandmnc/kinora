@@ -30,6 +30,15 @@ pub fn version_file(rel_path: &str, version: u32) -> String {
     format!("{base} - v{version}.mp4")
 }
 
+/// La ruta sin el sufijo de versión: `… - S01E05 - v2.mp4` → `… - S01E05.mp4`.
+pub fn without_version(rel_path: &str) -> String {
+    let base = rel_path.strip_suffix(".mp4").unwrap_or(rel_path);
+    match base.rsplit_once(" - v") {
+        Some((rest, number)) if number.parse::<u32>().is_ok() => format!("{rest}.mp4"),
+        _ => rel_path.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -46,6 +55,20 @@ mod tests {
             movie_file(&content_dir("Interstellar", Some(2014))),
             "Interstellar (2014)/Interstellar (2014).mp4"
         );
+    }
+
+    #[test]
+    fn removes_the_version_suffix() {
+        assert_eq!(
+            without_version("Show/Season 01/Show - S01E05 - v2.mp4"),
+            "Show/Season 01/Show - S01E05.mp4"
+        );
+        assert_eq!(
+            without_version("Show/Season 01/Show - S01E05.mp4"),
+            "Show/Season 01/Show - S01E05.mp4"
+        );
+        // Un título que termina en " - v" seguido de letras no es una versión.
+        assert_eq!(without_version("A - vida.mp4"), "A - vida.mp4");
     }
 
     #[test]

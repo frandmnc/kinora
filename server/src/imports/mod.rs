@@ -9,7 +9,7 @@
 
 mod guess;
 mod handlers;
-mod paths;
+pub mod paths;
 mod place;
 
 pub use place::{PlaceFile, free_version, place};

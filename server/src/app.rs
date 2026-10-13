@@ -32,6 +32,7 @@ pub fn router(state: AppState) -> Router {
         .merge(settings::admin_routes())
         .merge(uploads::admin_routes())
         .merge(libraries::admin_routes())
+        .merge(contents::admin_routes())
         .merge(imports::admin_routes())
         .merge(jobs::admin_routes())
         .merge(subtitles::admin_routes())

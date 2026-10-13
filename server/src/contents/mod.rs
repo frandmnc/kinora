@@ -4,7 +4,7 @@ mod handlers;
 pub mod repo;
 
 use axum::Router;
-use axum::routing::{get, put};
+use axum::routing::{delete, get, put};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -116,4 +116,9 @@ pub fn routes() -> Router<AppState> {
         .route("/recent", get(handlers::recent))
         .route("/contents/{id}/progress", put(handlers::report_progress))
         .route("/files/{id}/stream", get(handlers::stream))
+}
+
+/// Rutas del Admin. Se montan bajo /api/admin.
+pub fn admin_routes() -> Router<AppState> {
+    Router::new().route("/files/{id}", delete(handlers::delete_file))
 }

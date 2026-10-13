@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
+import { pickFile } from '../../shared/versions'
 import { pause as pauseNavigation, resume as resumeNavigation } from '@noriginmedia/norigin-spatial-navigation'
 import { ArrowLeft, Captions, Check, LoaderCircle, Maximize, Minimize, Pause, Play } from 'lucide-react'
 import { api, mediaUrl } from '../../shared/api'
@@ -67,7 +68,9 @@ export function PlayPage() {
   if (error) return <Message title="No se pudo cargar" detail={error} />
   if (!detail) return <Message title="Cargando…" />
 
-  const file = detail.files[0]
+  // `?file=` elige una versión; si no viene, la de mayor resolución.
+  const requested = Number(new URLSearchParams(location.search).get('file')) || null
+  const file = pickFile(detail.files, requested)
   if (!file) return <Message title="Sin archivo para reproducir" />
 
   const title: string = location.state?.title ?? detail.content.title
