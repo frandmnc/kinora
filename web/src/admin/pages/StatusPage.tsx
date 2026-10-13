@@ -9,9 +9,11 @@ import {
   History,
   ListOrdered,
   MemoryStick,
+  Monitor,
   MonitorPlay,
   Pause,
   Play,
+  Power,
   Send,
   Server,
   Trophy,
@@ -88,7 +90,25 @@ export function StatusPage() {
     <>
       <PageHeader
         title="Estado"
-        description={`Encendido hace ${formatDuration(status.uptime_secs)}. Se actualiza cada ${REFRESH_MS / 1000} segundos; las tendencias muestran los últimos 2 minutos.`}
+        description={`Se actualiza cada ${REFRESH_MS / 1000} segundos; las tendencias muestran los últimos 2 minutos.`}
+        actions={
+          <div className="uptime">
+            <div title={`Kinora arrancó el ${startedAt(status.uptime_secs)}`}>
+              <span className="uptime-label">
+                <Power /> Kinora
+              </span>
+              <strong>{formatUptime(status.uptime_secs)}</strong>
+              <span className="small muted">desde {startedAt(status.uptime_secs)}</span>
+            </div>
+            <div title={`El equipo se prendió el ${startedAt(status.system_uptime_secs)}`}>
+              <span className="uptime-label">
+                <Monitor /> Equipo
+              </span>
+              <strong>{formatUptime(status.system_uptime_secs)}</strong>
+              <span className="small muted">desde {startedAt(status.system_uptime_secs)}</span>
+            </div>
+          </div>
+        }
       />
       {error && <Alert tone="warning">Se perdió la conexión con el servidor: {error}</Alert>}
 
@@ -528,4 +548,27 @@ function fullDate(date: Date) {
     minute: '2-digit',
     hour12: false,
   })
+}
+
+/** Cuánto hace que está encendido: "recién", "35 min", "2 h 15 min", "3 días, 4 h". */
+function formatUptime(seconds: number) {
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 1) return 'recién'
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return minutes % 60 === 0 ? `${hours} h` : `${hours} h ${minutes % 60} min`
+  const days = Math.floor(hours / 24)
+  const label = days === 1 ? '1 día' : `${days} días`
+  return hours % 24 === 0 ? label : `${label}, ${hours % 24} h`
+}
+
+/** Cuándo arrancó: "las 11:46" si fue hoy, "ayer 22:10" o "el lunes 12, 09:30". */
+function startedAt(uptime: number) {
+  const date = new Date(Date.now() - uptime * 1000)
+  const time = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((midnight(new Date()) - midnight(date)) / 86_400_000)
+  if (days === 0) return `las ${time}`
+  if (days === 1) return `ayer ${time}`
+  return `${date.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' })}, ${time}`
 }

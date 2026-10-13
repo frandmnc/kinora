@@ -3,4 +3,12 @@ import type { Sample } from "./Sample";
 import type { Transfer } from "./Transfer";
 import type { Viewer } from "./Viewer";
 
-export type ServerStatus = { uptime_secs: number, bytes_sent_total: number, sample: Sample, viewers: Array<Viewer>, transfers: Array<Transfer>, };
+export type ServerStatus = { 
+/**
+ * Segundos desde que arrancó Kinora.
+ */
+uptime_secs: number, 
+/**
+ * Segundos desde que se prendió el equipo.
+ */
+system_uptime_secs: number, bytes_sent_total: number, sample: Sample, viewers: Array<Viewer>, transfers: Array<Transfer>, };
