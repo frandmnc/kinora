@@ -129,8 +129,6 @@ pub struct Sample {
 pub struct ServerStatus {
     /// Segundos desde que arrancó Kinora.
     pub uptime_secs: i64,
-    /// Segundos desde que se prendió el equipo.
-    pub system_uptime_secs: i64,
     pub bytes_sent_total: i64,
     pub sample: Sample,
     pub viewers: Vec<Viewer>,
@@ -312,7 +310,6 @@ impl Monitor {
     pub fn status(&self) -> ServerStatus {
         ServerStatus {
             uptime_secs: self.started.elapsed().as_secs() as i64,
-            system_uptime_secs: sysinfo::System::uptime() as i64,
             bytes_sent_total: self.bytes_sent.load(Ordering::Relaxed) as i64,
             sample: self.latest.read().unwrap().clone(),
             viewers: self.viewer_list(),

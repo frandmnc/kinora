@@ -9,7 +9,6 @@ import {
   History,
   ListOrdered,
   MemoryStick,
-  Monitor,
   MonitorPlay,
   Pause,
   Play,
@@ -92,21 +91,12 @@ export function StatusPage() {
         title="Estado"
         description={`Se actualiza cada ${REFRESH_MS / 1000} segundos; las tendencias muestran los últimos 2 minutos.`}
         actions={
-          <div className="uptime">
-            <div title={`Kinora arrancó el ${startedAt(status.uptime_secs)}`}>
-              <span className="uptime-label">
-                <Power /> Kinora
-              </span>
-              <strong>{formatUptime(status.uptime_secs)}</strong>
-              <span className="small muted">desde {startedAt(status.uptime_secs)}</span>
-            </div>
-            <div title={`El equipo se prendió el ${startedAt(status.system_uptime_secs)}`}>
-              <span className="uptime-label">
-                <Monitor /> Equipo
-              </span>
-              <strong>{formatUptime(status.system_uptime_secs)}</strong>
-              <span className="small muted">desde {startedAt(status.system_uptime_secs)}</span>
-            </div>
+          <div className="uptime" title={`Kinora arrancó ${startedAt(status.uptime_secs)}`}>
+            <span className="uptime-label">
+              <Power /> Encendido hace
+            </span>
+            <strong>{formatUptime(status.uptime_secs)}</strong>
+            <span className="small muted">desde {startedAt(status.uptime_secs)}</span>
           </div>
         }
       />

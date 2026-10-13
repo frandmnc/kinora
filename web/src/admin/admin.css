@@ -1993,39 +1993,36 @@ a:has(> .badge) {
   font-weight: 600;
 }
 
-/* Estado: cuánto hace que están encendidos Kinora y el equipo */
+/* Estado: cuánto hace que está encendido Kinora */
 
 .uptime {
   display: flex;
-  gap: 10px;
-}
-
-.uptime > div {
-  display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 8px 14px;
+  gap: 2px;
+  padding: 12px 20px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--surface);
-  min-width: 150px;
+  min-width: 200px;
 }
 
 .uptime-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-3);
 }
 
 .uptime-label svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
 }
 
 .uptime strong {
-  font-size: 17px;
-  letter-spacing: -0.01em;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
 }
