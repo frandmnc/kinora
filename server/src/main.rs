@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
         tokio::spawn(async move { manifest::refresh_all(&db, &media_dir).await });
     }
     let monitor = Monitor::new();
-    monitor::spawn_sampler(monitor.clone());
+    monitor::spawn_sampler(monitor.clone(), db.clone());
     let jobs = Jobs::load(&db).await?;
     let state = AppState {
         db,

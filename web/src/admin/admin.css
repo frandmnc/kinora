@@ -1620,3 +1620,109 @@ a:has(> .badge) {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* Historial del servidor */
+
+.history-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.history-chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.history-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  color: var(--text-2);
+}
+
+.history-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-legend-item b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+}
+
+.history-swatch {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.history-swatch.ink {
+  background: var(--accent);
+}
+
+.history-swatch.context {
+  background: var(--deemph);
+}
+
+.history-chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.history-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.history-axis {
+  fill: var(--text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.history-line.ink {
+  stroke: var(--accent);
+}
+
+.history-line.context {
+  stroke: var(--deemph);
+}
+
+.history-crosshair {
+  stroke: var(--text-3);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.history-dot {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.history-dot.ink {
+  fill: var(--accent);
+}
+
+.history-dot.context {
+  fill: var(--deemph);
+}
+
+.history-hit {
+  fill: transparent;
+  cursor: crosshair;
+}

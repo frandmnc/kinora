@@ -308,9 +308,15 @@ CREATE TABLE playback_sessions (
 );
 
 CREATE TABLE server_samples (
-  ts INTEGER PRIMARY KEY,        -- un registro por minuto
-  cpu_system REAL, cpu_kinora REAL, cpu_ffmpeg REAL,
-  mem_system_used INTEGER, mem_system_total INTEGER, mem_kinora INTEGER
+  minute INTEGER PRIMARY KEY,      -- inicio del minuto (promedios de las mediciones cada 2 s)
+  cpu_kinora REAL NOT NULL,        -- % de toda la CPU, sin ffmpeg
+  cpu_ffmpeg REAL NOT NULL,        -- % de toda la CPU que usó la cola
+  cpu_system REAL NOT NULL,
+  memory_kinora INTEGER NOT NULL,
+  memory_used INTEGER NOT NULL,
+  memory_total INTEGER NOT NULL,
+  bytes_sent INTEGER NOT NULL,     -- enviados en ese minuto
+  viewers INTEGER NOT NULL         -- máximo de personas mirando a la vez
 );
 ```
 
@@ -462,7 +468,7 @@ No hay sesiones de reproducción. Se agregarán si en el futuro el servidor tran
 
 | Grupo | Métricas | Fuente |
 |---|---|---|
-| Servidor | CPU y memoria del sistema, de Kinora y de ffmpeg; uptime | `sysinfo`, una muestra por minuto en `server_samples`, 30 días |
+| Servidor | CPU y memoria del sistema, de Kinora y de ffmpeg; envío; uptime | `sysinfo`, una fila por minuto en `server_samples`, 30 días. En Estado, "Historial del servidor" con 24 horas, 7 días o 30 días (unos 300 puntos cada uno) |
 | Servidor en vivo | Los mismos valores, actualizados cada 2 segundos | Memoria del proceso |
 | Almacenamiento | Espacio libre por disco, tamaño por biblioteca | `sysinfo` y `media_files` |
 | Reproducción | Minutos por día, semana y mes; lo más visto; viendo ahora | `playback_daily` y los avisos de progreso |
@@ -540,7 +546,7 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Editar un contenido | `PATCH /api/admin/contents/{id}` |
 | Eliminar un contenido (a la papelera) | `DELETE /api/admin/contents/{id}` |
 | Quitar un archivo o versión (el video y sus subtítulos a la papelera) | `DELETE /api/admin/files/{id}` |
-| Métricas | `GET /api/admin/metrics/{server,storage,playback,imports}` |
+| Métricas | `GET /api/admin/metrics/{playback,sessions,conversion}`, `GET /api/admin/metrics/server?range=day\|week\|month` |
 | Verificar integridad | `POST /api/admin/maintenance/integrity-check` |
 
 ## Mantenimiento

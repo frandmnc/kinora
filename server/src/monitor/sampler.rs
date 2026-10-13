@@ -5,23 +5,27 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
+use sqlx::SqlitePool;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
-use tracing::info;
+use tracing::{info, warn};
 
+use super::history::{self, MinuteTotals};
 use super::{Monitor, Sample, clock};
+use crate::db::now;
 
 const SAMPLE_EVERY: Duration = Duration::from_secs(2);
 /// Con actividad (streams o la cola) se informa seguido; sin actividad, cada tanto.
 const LOG_EVERY_ACTIVE: Duration = Duration::from_secs(10);
 const LOG_EVERY_IDLE: Duration = Duration::from_secs(60);
 
-pub fn spawn_sampler(monitor: Arc<Monitor>) {
+pub fn spawn_sampler(monitor: Arc<Monitor>, db: SqlitePool) {
     tokio::spawn(async move {
         let mut system = System::new();
         let pid = sysinfo::get_current_pid().ok();
         let mut interval = tokio::time::interval(SAMPLE_EVERY);
         let mut last_bytes = 0;
         let mut last_log = Instant::now();
+        let mut minute = MinuteTotals::default();
 
         loop {
             interval.tick().await;
@@ -53,11 +57,19 @@ pub fn spawn_sampler(monitor: Arc<Monitor>) {
                 memory_total: system.total_memory() as i64,
                 send_rate: ((bytes - last_bytes) as f64 / SAMPLE_EVERY.as_secs_f64()) as i64,
             };
+            let sent = bytes - last_bytes;
             last_bytes = bytes;
             *monitor.latest.write().unwrap() = sample.clone();
 
             monitor.expire_viewers();
             let viewers = monitor.viewer_list();
+
+            // Cada minuto se guarda el resumen en el historial.
+            if let Some(row) = minute.add(now(), &sample, sent as i64, viewers.len())
+                && let Err(err) = history::save(&db, &row).await
+            {
+                warn!("could not save the server history: {err}");
+            }
             // Con alguien mirando o la cola trabajando se informa seguido.
             let log_every = if viewers.is_empty() && sample.cpu_ffmpeg.is_none() {
                 LOG_EVERY_IDLE

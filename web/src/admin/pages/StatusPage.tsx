@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
   ArrowUpRight,
@@ -23,6 +23,10 @@ import type { Viewer } from '../../shared/types/Viewer'
 import type { PlaybackSummary } from '../../shared/types/PlaybackSummary'
 import type { Session } from '../../shared/types/Session'
 import type { ConversionSummary } from '../../shared/types/ConversionSummary'
+import type { ServerHistory } from '../../shared/types/ServerHistory'
+import type { HistoryPoint } from '../../shared/types/HistoryPoint'
+import type { HistoryRange } from '../../shared/types/HistoryRange'
+import { HistoryChart } from '../charts'
 import { Alert, Badge, Card, EmptyState, Meter, MiniBars, PageHeader, Sparkline, StatTile } from '../ui'
 
 const REFRESH_MS = 2000
@@ -136,6 +140,8 @@ export function StatusPage() {
       </div>
 
       {conversion && <ConversionCard summary={conversion} cpu={sample.cpu_ffmpeg} memory={sample.memory_ffmpeg} />}
+
+      <HistoryCard />
 
       <Card
         title="Viendo ahora"
@@ -369,4 +375,136 @@ function Stat({ label, value, children }: { label: string; value: string; childr
       <div className="tile-sub">{children}</div>
     </div>
   )
+}
+
+const RANGES: [HistoryRange, string][] = [
+  ['day', '24 horas'],
+  ['week', '7 días'],
+  ['month', '30 días'],
+]
+
+/** CPU, memoria y envío del último día, semana o mes (una medición por minuto, guardada 30 días). */
+function HistoryCard() {
+  const [range, setRange] = useState<HistoryRange>('day')
+  const { data: history, reload } = useApi<ServerHistory>(`/api/admin/metrics/server?range=${range}`)
+  const [hover, setHover] = useState<number | null>(null)
+
+  // Los puntos nuevos llegan de a uno por minuto.
+  useEffect(() => {
+    const timer = setInterval(reload, 60_000)
+    return () => clearInterval(timer)
+  }, [reload])
+
+  // Un lugar por período, con o sin datos: los que no tienen son ratos con el servidor apagado.
+  const slots = useMemoSlots(history)
+  const axisLabel = (t: number, i: number) => {
+    if (i === 0) return ''
+    const date = new Date(t * 1000)
+    const previous = new Date(slots[i - 1].t * 1000)
+    if (range === 'day') {
+      return Math.floor(date.getHours() / 6) !== Math.floor(previous.getHours() / 6) ? clock(date) : ''
+    }
+    const newDay = date.getDate() !== previous.getDate()
+    if (range === 'week') return newDay ? weekdayShort(date) : ''
+    return newDay && date.getDay() === 1 ? dayMonth(date) : ''
+  }
+  const hovered = hover !== null ? slots[hover] : null
+  const empty = history && history.points.length === 0
+
+  return (
+    <Card
+      title="Historial del servidor"
+      description={
+        hovered
+          ? `${fullDate(new Date(hovered.t * 1000))}${hovered.point ? '' : ' · apagado'}`
+          : 'promedios; los cortes son ratos con el servidor apagado'
+      }
+      actions={
+        <div className="segmented" role="group" aria-label="Período">
+          {RANGES.map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={range === value} onClick={() => setRange(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {empty ? (
+        <EmptyState icon={History} title="Todavía no hay historial">
+          Se guarda una medición por minuto desde que se actualizó Kinora.
+        </EmptyState>
+      ) : (
+        <div className="card-body history-charts">
+          <HistoryChart
+            title="CPU"
+            slots={slots}
+            series={[
+              { label: 'Kinora (con conversiones)', tone: 'ink', value: (p: HistoryPoint) => p.cpu_kinora + p.cpu_ffmpeg },
+              { label: 'Todo el equipo', tone: 'context', value: (p: HistoryPoint) => p.cpu_system },
+            ]}
+            max={100}
+            format={percent}
+            axisLabel={axisLabel}
+            hover={hover}
+            onHover={setHover}
+          />
+          <HistoryChart
+            title="Memoria del equipo"
+            slots={slots}
+            series={[{ label: 'En uso', tone: 'ink', value: (p: HistoryPoint) => p.memory_share * 100 }]}
+            max={100}
+            format={percent}
+            axisLabel={axisLabel}
+            hover={hover}
+            onHover={setHover}
+          />
+          <HistoryChart
+            title="Envío de video"
+            slots={slots}
+            series={[{ label: 'Promedio', tone: 'ink', value: (p: HistoryPoint) => p.send_mbps }]}
+            format={(v) => `${v < 10 && v > 0 ? v.toFixed(1) : Math.round(v)} Mbps`}
+            axisLabel={axisLabel}
+            hover={hover}
+            onHover={setHover}
+          />
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function useMemoSlots(history: ServerHistory | undefined) {
+  return useMemo(() => {
+    if (!history) return []
+    const byTime = new Map(history.points.map((p) => [p.t, p]))
+    const slots: { t: number; point: HistoryPoint | null }[] = []
+    for (let t = history.from; t < history.to; t += history.step) slots.push({ t, point: byTime.get(t) ?? null })
+    return slots
+  }, [history])
+}
+
+function percent(value: number) {
+  return value > 0 && value < 1 ? `${value.toFixed(1).replace('.', ',')} %` : `${Math.round(value)} %`
+}
+
+function clock(date: Date) {
+  return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+function weekdayShort(date: Date) {
+  return date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' })
+}
+
+function dayMonth(date: Date) {
+  return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+}
+
+function fullDate(date: Date) {
+  return date.toLocaleString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
 }

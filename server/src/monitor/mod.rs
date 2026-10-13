@@ -4,6 +4,7 @@
 //! y la pantalla Estado del Admin (GET /api/admin/status).
 
 mod handlers;
+pub mod history;
 mod sampler;
 
 use std::collections::HashMap;
@@ -354,7 +355,9 @@ pub fn clock(seconds: f64) -> String {
 
 /// Rutas del Admin. Se montan bajo /api/admin.
 pub fn admin_routes() -> Router<AppState> {
-    Router::new().route("/status", get(handlers::status))
+    Router::new()
+        .route("/status", get(handlers::status))
+        .route("/metrics/server", get(handlers::history))
 }
 
 #[cfg(test)]
