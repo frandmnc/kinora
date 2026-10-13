@@ -61,6 +61,11 @@ impl Jobs {
         }))
     }
 
+    /// Si hay un trabajo corriendo ahora.
+    pub fn is_running(&self) -> bool {
+        self.running.lock().unwrap().is_some()
+    }
+
     pub fn is_started(&self) -> bool {
         self.started.load(Ordering::Relaxed)
     }

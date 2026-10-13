@@ -26,7 +26,8 @@ pub fn spawn_worker(state: AppState) {
         recover(&state).await;
         loop {
             // Detenida: espera a que la inicien (o cada tanto mira igual, por las dudas).
-            if !state.jobs.is_started() {
+            // Mientras se copian las bibliotecas a otro disco tampoco: lo que se escribiera se perdería.
+            if !state.jobs.is_started() || state.settings.transfer.is_busy() {
                 wait(&state).await;
                 continue;
             }

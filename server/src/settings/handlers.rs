@@ -6,13 +6,15 @@ use axum::http::StatusCode;
 use serde::Deserialize;
 
 use super::folders::{home_dir, is_writable, shortcuts, subfolders};
-use super::relocate::{check_already_moved, move_libraries};
+use super::relocate::{check_already_moved, move_libraries, same_disk, validate_move};
+use super::transfer::{self, TransferStatus};
 use super::{
     Folder, FolderListing, MediaDirChange, MediaDirSetting, MediaUsage, NewFolder, SetMediaDir,
     usage,
 };
 use crate::app::AppState;
 use crate::config::expand_home;
+use crate::disk::{self, format_size};
 use crate::error::{AppError, AppResult};
 use crate::libraries;
 use crate::naming::safe_name;
@@ -23,6 +25,7 @@ pub async fn get_media_dir(State(state): State<AppState>) -> Json<MediaDirSettin
     Json(MediaDirSetting {
         available: media_dir.as_ref().is_some_and(|dir| dir.is_dir()),
         path: media_dir.map(|dir| dir.to_string_lossy().into_owned()),
+        moving: state.settings.transfer.is_busy(),
     })
 }
 
@@ -58,6 +61,53 @@ pub async fn set_media_dir(
     match (current, request.change) {
         (Some(current), _) if current == path => {}
         (Some(_), _) | (None, _) if library_dirs.is_empty() => {}
+        (Some(current), Some(MediaDirChange::Move)) if !same_disk(&current, &path) => {
+            // Otro disco: se copia en segundo plano y la carpeta media cambia recién al terminar.
+            let moves = validate_move(&current, &path, &library_dirs)?;
+            if state.settings.transfer.is_busy() {
+                return Err(AppError::Conflict(
+                    "ya se están moviendo las bibliotecas".to_string(),
+                ));
+            }
+            if state.jobs.is_running() {
+                return Err(AppError::Conflict(
+                    "la cola está procesando un archivo: pausala y esperá a que termine"
+                        .to_string(),
+                ));
+            }
+            let needed = tokio::task::spawn_blocking(move || {
+                moves
+                    .iter()
+                    .map(|(from, _)| transfer::tree_size(from))
+                    .sum::<u64>()
+            })
+            .await?;
+            if let Some(space) = disk::space_of(&path)
+                && space.available < needed + 1024 * 1024 * 1024
+            {
+                return Err(AppError::Conflict(format!(
+                    "no entra: hacen falta {} (más 1 GB de margen) y en el disco nuevo hay {}",
+                    format_size(needed),
+                    format_size(space.available)
+                )));
+            }
+            tracing::info!(
+                "copying {} libraries from {} to {} ({})",
+                library_dirs.len(),
+                current.display(),
+                path.display(),
+                format_size(needed)
+            );
+            transfer::start(state.clone(), current, path, library_dirs);
+            return Ok(Json(MediaDirSetting {
+                path: state
+                    .settings
+                    .media_dir()
+                    .map(|p| p.to_string_lossy().into_owned()),
+                available: true,
+                moving: true,
+            }));
+        }
         (Some(current), Some(MediaDirChange::Move)) => {
             let (from, to, dirs) = (current.clone(), path.clone(), library_dirs.clone());
             tokio::task::spawn_blocking(move || move_libraries(&from, &to, &dirs)).await??;
@@ -91,6 +141,7 @@ pub async fn set_media_dir(
     Ok(Json(MediaDirSetting {
         path: Some(path.to_string_lossy().into_owned()),
         available: true,
+        moving: false,
     }))
 }
 
@@ -169,4 +220,21 @@ fn existing_folder(path: &str) -> AppResult<PathBuf> {
         )));
     }
     Ok(path)
+}
+
+/// GET /api/admin/settings/media-dir/move
+/// Cómo va la copia a otro disco (o cómo terminó la última).
+pub async fn move_status(State(state): State<AppState>) -> Json<TransferStatus> {
+    Json(state.settings.transfer.status())
+}
+
+/// POST /api/admin/settings/media-dir/move/cancel
+/// Corta la copia: se borra lo copiado y todo queda como estaba.
+pub async fn cancel_move(State(state): State<AppState>) -> AppResult<StatusCode> {
+    if !state.settings.transfer.request_cancel() {
+        return Err(AppError::Conflict(
+            "no hay una copia en marcha para cancelar".to_string(),
+        ));
+    }
+    Ok(StatusCode::ACCEPTED)
 }

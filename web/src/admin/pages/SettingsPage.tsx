@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { FolderCheck, FolderInput, FolderOpen, HardDrive, RefreshCw } from 'lucide-react'
+import { FolderCheck, FolderInput, FolderOpen, HardDrive, LoaderCircle, RefreshCw } from 'lucide-react'
 import { api } from '../../shared/api'
 import { formatSize } from '../../shared/format'
 import { useApi } from '../../shared/useApi'
@@ -9,8 +9,9 @@ import type { MediaDirChange } from '../../shared/types/MediaDirChange'
 import type { MediaDirSetting } from '../../shared/types/MediaDirSetting'
 import type { MediaUsage } from '../../shared/types/MediaUsage'
 import type { SetMediaDir } from '../../shared/types/SetMediaDir'
+import type { TransferStatus } from '../../shared/types/TransferStatus'
 import { FolderPicker } from '../FolderPicker'
-import { Alert, Badge, Card, PageHeader } from '../ui'
+import { Alert, Badge, Card, Meter, PageHeader } from '../ui'
 
 export function SettingsPage() {
   const { data: mediaDir, error, reload } = useApi<MediaDirSetting>('/api/admin/settings/media-dir')
@@ -20,15 +21,18 @@ export function SettingsPage() {
   const [pending, setPending] = useState<string>()
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string>()
+  // Mostrar el avance de una copia a otro disco (la que se acaba de empezar o una que ya estaba).
+  const [watchMove, setWatchMove] = useState(false)
 
   async function save(path: string, change: MediaDirChange | null) {
     setSaveError(undefined)
     setSaving(true)
     try {
       const body: SetMediaDir = { path, change }
-      await api('/api/admin/settings/media-dir', { method: 'PUT', body })
+      const result = await api<MediaDirSetting>('/api/admin/settings/media-dir', { method: 'PUT', body })
       setPicking(false)
       setPending(undefined)
+      if (result.moving) setWatchMove(true)
       reload()
     } catch (err) {
       setSaveError((err as Error).message)
@@ -53,7 +57,8 @@ export function SettingsPage() {
         description="donde Kinora guarda todo lo importado; cada biblioteca es una subcarpeta"
         actions={
           !picking &&
-          !pending && (
+          !pending &&
+          !mediaDir?.moving && (
             <button className="btn btn-primary" onClick={() => setPicking(true)}>
               <FolderOpen /> {mediaDir?.path ? 'Cambiar' : 'Elegir carpeta'}
             </button>
@@ -80,6 +85,9 @@ export function SettingsPage() {
             ))}
           {saveError && <Alert>{saveError}</Alert>}
 
+          {(watchMove || mediaDir?.moving) && (
+            <TransferView onFinished={reload} onClose={() => setWatchMove(false)} />
+          )}
           {pending && (
             <MoveChoice
               from={mediaDir?.path ?? ''}
@@ -133,8 +141,9 @@ function MoveChoice({
             <FolderInput /> Moverlas
           </strong>
           <span>
-            Kinora mueve las carpetas desde <span className="mono">{from}</span>. Es instantáneo si la carpeta nueva
-            está en el mismo disco. Entre discos distintos todavía no se puede.
+            Kinora mueve las carpetas desde <span className="mono">{from}</span>. En el mismo disco es instantáneo. En
+            otro disco las copia (puede tardar) y recién al terminar cambia de carpeta; mientras tanto se puede seguir
+            mirando.
           </span>
         </button>
         <button className="choice" disabled={saving} onClick={() => onChoose('already_moved')}>
@@ -151,6 +160,94 @@ function MoveChoice({
       </div>
     </>
   )
+}
+
+/** El avance de la copia de las bibliotecas a otro disco. Se actualiza cada segundo mientras dura. */
+/** `onFinished` tiene que ser estable (como el `reload` de `useApi`): se llama al terminar. */
+function TransferView({ onFinished, onClose }: { onFinished: () => void; onClose: () => void }) {
+  const { data: transfer, reload } = useApi<TransferStatus>('/api/admin/settings/media-dir/move')
+  const [error, setError] = useState<string>()
+  const busy = transfer?.state === 'copying' || transfer?.state === 'finishing'
+
+  useEffect(() => {
+    if (!busy) return
+    const timer = setInterval(reload, 1000)
+    return () => clearInterval(timer)
+  }, [busy, reload])
+
+  // Al terminar (bien, mal o cancelada) se vuelve a pedir la carpeta media: puede haber cambiado.
+  const finished = transfer && !busy
+  useEffect(() => {
+    if (finished) onFinished()
+  }, [finished, onFinished])
+
+  if (!transfer || transfer.state === 'idle') return null
+  const share = transfer.total_bytes > 0 ? transfer.copied_bytes / transfer.total_bytes : 0
+  const elapsed = transfer.started_at ? Date.now() / 1000 - transfer.started_at : 0
+  const remaining = share > 0.02 ? (elapsed / share) * (1 - share) : null
+
+  async function cancel() {
+    if (!confirm('¿Cancelar la copia? Se borra lo copiado y todo queda como estaba.')) return
+    try {
+      await api('/api/admin/settings/media-dir/move/cancel', { method: 'POST' })
+      reload()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  if (transfer.state === 'done') {
+    return (
+      <Alert tone="info">
+        Listo: las bibliotecas se copiaron a <span className="mono">{transfer.to}</span> y se borraron del disco anterior.{' '}
+        <button className="btn btn-sm" onClick={onClose}>
+          Cerrar
+        </button>
+      </Alert>
+    )
+  }
+  if (transfer.state === 'failed' || transfer.state === 'cancelled') {
+    return (
+      <Alert tone={transfer.state === 'failed' ? 'critical' : 'warning'}>
+        {transfer.state === 'failed' ? `No se pudo copiar: ${transfer.error}.` : 'Copia cancelada.'} Se borró lo
+        copiado; las bibliotecas siguen en <span className="mono">{transfer.from}</span>.{' '}
+        <button className="btn btn-sm" onClick={onClose}>
+          Cerrar
+        </button>
+      </Alert>
+    )
+  }
+  return (
+    <div className="transfer">
+      <div className="row">
+        <LoaderCircle className="spin" size={16} />
+        <strong className="grow">
+          {transfer.state === 'finishing' ? 'Terminando…' : `Copiando a ${transfer.to}`}
+        </strong>
+        <button className="btn btn-ghost btn-sm btn-danger" onClick={cancel} disabled={transfer.state !== 'copying'}>
+          Cancelar
+        </button>
+      </div>
+      <Meter value={share} label="Avance de la copia" />
+      <div className="small muted row">
+        <span className="grow mono truncate">{transfer.current}</span>
+        <span>
+          {formatSize(transfer.copied_bytes)} de {formatSize(transfer.total_bytes)}
+          {remaining !== null && ` · faltan ${formatRemaining(remaining)}`}
+        </span>
+      </div>
+      <div className="small muted">
+        Se puede seguir mirando. Importar, la cola y los cambios del Admin esperan a que termine.
+      </div>
+      {error && <Alert>{error}</Alert>}
+    </div>
+  )
+}
+
+function formatRemaining(seconds: number) {
+  if (seconds < 60) return `${Math.max(1, Math.round(seconds))} s`
+  const minutes = Math.round(seconds / 60)
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`
 }
 
 /** Cuánto ocupa la carpeta media, cuánto queda en el disco y qué es cada subcarpeta. */

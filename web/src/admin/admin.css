@@ -1726,3 +1726,15 @@ a:has(> .badge) {
   fill: transparent;
   cursor: crosshair;
 }
+
+/* Copia de las bibliotecas a otro disco */
+
+.transfer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}

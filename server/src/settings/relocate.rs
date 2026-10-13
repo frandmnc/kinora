@@ -1,8 +1,8 @@
 //! Cambiar la carpeta media cuando ya hay bibliotecas.
 //!
-//! - "Mover": Kinora renombra cada carpeta de biblioteca (y la bandeja de entrada) a la carpeta
-//!   nueva. Solo dentro del mismo disco, donde renombrar es instantáneo. Mover entre discos
-//!   implica copiar, y llega con la cola de trabajos (Etapa 4).
+//! - "Mover": en el mismo disco, Kinora renombra cada carpeta de biblioteca (y la bandeja de
+//!   entrada): es instantáneo. Entre discos hay que copiar: eso lo hace `transfer`, en segundo
+//!   plano.
 //! - "Ya lo moví yo": no toca nada; solo verifica que las carpetas estén en la ubicación nueva.
 
 use std::path::{Path, PathBuf};
@@ -27,28 +27,19 @@ pub fn check_already_moved(new_media: &Path, library_dirs: &[String]) -> AppResu
     Ok(())
 }
 
-/// Mueve las carpetas de biblioteca y la bandeja de entrada de `old_media` a `new_media`.
-/// Si algo falla a mitad de camino, deshace lo que ya movió.
-pub fn move_libraries(
+/// Comprueba que se pueda mover (o copiar) de `old_media` a `new_media` sin pisar nada.
+/// Devuelve los pares origen → destino: cada biblioteca, y la bandeja si existe.
+pub fn validate_move(
     old_media: &Path,
     new_media: &Path,
     library_dirs: &[String],
-) -> AppResult<()> {
+) -> AppResult<Vec<(PathBuf, PathBuf)>> {
     if !old_media.is_dir() {
         return Err(AppError::BadRequest(format!(
             "la carpeta media actual {} no está disponible: no hay nada para mover",
             old_media.display()
         )));
     }
-    if !same_disk(old_media, new_media) {
-        return Err(AppError::BadRequest(
-            "la carpeta nueva está en otro disco. Mover entre discos llega con la cola de trabajos \
-             (Etapa 4). Si ya copiaste las carpetas vos, elegí \"Ya lo moví yo\""
-                .to_string(),
-        ));
-    }
-
-    // Qué se mueve: cada biblioteca, y la bandeja si existe.
     let mut moves: Vec<(PathBuf, PathBuf)> = library_dirs
         .iter()
         .map(|dir| (old_media.join(dir), new_media.join(dir)))
@@ -57,7 +48,6 @@ pub fn move_libraries(
     if old_inbox.is_dir() {
         moves.push((old_inbox, inbox_dir(new_media)));
     }
-
     for (from, to) in &moves {
         if new_media.starts_with(from) {
             return Err(AppError::BadRequest(format!(
@@ -71,6 +61,22 @@ pub fn move_libraries(
                 to.display()
             )));
         }
+    }
+    Ok(moves)
+}
+
+/// Mueve las carpetas de biblioteca y la bandeja de entrada de `old_media` a `new_media`.
+/// Si algo falla a mitad de camino, deshace lo que ya movió.
+pub fn move_libraries(
+    old_media: &Path,
+    new_media: &Path,
+    library_dirs: &[String],
+) -> AppResult<()> {
+    let moves = validate_move(old_media, new_media, library_dirs)?;
+    if !same_disk(old_media, new_media) {
+        return Err(AppError::BadRequest(
+            "la carpeta nueva está en otro disco: hay que copiar".to_string(),
+        ));
     }
 
     let mut done: Vec<&(PathBuf, PathBuf)> = Vec::new();
@@ -96,7 +102,7 @@ pub fn move_libraries(
 
 /// Dos rutas están en el mismo disco si su sistema de archivos tiene el mismo identificador.
 #[cfg(unix)]
-fn same_disk(a: &Path, b: &Path) -> bool {
+pub fn same_disk(a: &Path, b: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
     match (a.metadata(), b.metadata()) {
         (Ok(a), Ok(b)) => a.dev() == b.dev(),
@@ -105,7 +111,7 @@ fn same_disk(a: &Path, b: &Path) -> bool {
 }
 
 #[cfg(not(unix))]
-fn same_disk(_a: &Path, _b: &Path) -> bool {
+pub fn same_disk(_a: &Path, _b: &Path) -> bool {
     // Fuera de Unix no hay forma simple de saberlo: se intenta, y si renombrar falla, se avisa.
     true
 }

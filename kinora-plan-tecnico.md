@@ -106,7 +106,7 @@ La distribución será el binario con las dos interfaces embebidas, más `ffmpeg
 | Dónde | Qué |
 |---|---|
 | `config.toml` | Interfaz de red, puerto, carpeta de datos (base de datos y backups), formato |
-| Admin → Configuración | Carpeta media, elegida con un explorador de carpetas del servidor. Si ya hay bibliotecas, se elige entre "moverlas" (renombrado instantáneo, solo dentro del mismo disco; entre discos llega con la cola de la Etapa 4) o "ya las moví yo" (se verifica que estén) |
+| Admin → Configuración | Carpeta media, elegida con un explorador de carpetas del servidor. Si ya hay bibliotecas, se elige entre "moverlas" (en el mismo disco, renombrado instantáneo; en otro disco, copia en segundo plano con avance, verificada archivo por archivo, y la carpeta cambia recién al terminar) o "ya las moví yo" (se verifica que estén) |
 | Admin → Bibliotecas | Bibliotecas: subcarpetas de la carpeta media que Kinora crea y renombra |
 
 ```toml
@@ -534,6 +534,7 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 |---|---|
 | Administrar bibliotecas | `GET`, `POST`, `PATCH`, `DELETE /api/admin/libraries[/{id}]` |
 | Carpeta media | `GET`, `PUT /api/admin/settings/media-dir` |
+| Copia a otro disco: avance y cancelar | `GET /api/admin/settings/media-dir/move`, `POST /api/admin/settings/media-dir/move/cancel` |
 | Explorar y crear carpetas del servidor | `GET /api/admin/folders?path=`, `POST /api/admin/folders` |
 | Bandeja de entrada: listar, subir, descartar | `GET /api/admin/uploads`, `POST /api/admin/uploads?name=`, `DELETE /api/admin/uploads/{name}` |
 | Analizar archivos | `POST /api/admin/imports/analyze` |

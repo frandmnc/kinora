@@ -4,4 +4,8 @@ export type MediaDirSetting = {
 /**
  * `null` si todavía no se eligió.
  */
-path: string | null, available: boolean, };
+path: string | null, available: boolean, 
+/**
+ * Si se están copiando las bibliotecas a otro disco (la carpeta cambia al terminar).
+ */
+moving: boolean, };

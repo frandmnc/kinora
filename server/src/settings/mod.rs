@@ -7,6 +7,7 @@ mod folders;
 mod handlers;
 mod relocate;
 pub mod repo;
+pub mod transfer;
 mod usage;
 
 use std::path::PathBuf;
@@ -14,7 +15,7 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use ts_rs::TS;
@@ -26,13 +27,17 @@ const MEDIA_DIR: &str = "media_dir";
 
 pub struct Settings {
     media_dir: RwLock<Option<PathBuf>>,
+    /// La copia de las bibliotecas a otro disco, si hay una en marcha.
+    pub transfer: transfer::Transfer,
 }
 
 impl Settings {
     pub async fn load(db: &SqlitePool) -> Result<Arc<Settings>> {
         let media_dir = repo::get(db, MEDIA_DIR).await?.map(PathBuf::from);
+        transfer::clean_up_interrupted(db).await;
         Ok(Arc::new(Settings {
             media_dir: RwLock::new(media_dir),
+            transfer: transfer::Transfer::new(),
         }))
     }
 
@@ -57,7 +62,7 @@ impl Settings {
         Ok(media_dir)
     }
 
-    async fn set_media_dir(&self, db: &SqlitePool, path: PathBuf) -> Result<()> {
+    pub async fn set_media_dir(&self, db: &SqlitePool, path: PathBuf) -> Result<()> {
         repo::set(db, MEDIA_DIR, &path.to_string_lossy()).await?;
         *self.media_dir.write().unwrap() = Some(path);
         Ok(())
@@ -70,6 +75,8 @@ pub struct MediaDirSetting {
     /// `null` si todavía no se eligió.
     pub path: Option<String>,
     pub available: bool,
+    /// Si se están copiando las bibliotecas a otro disco (la carpeta cambia al terminar).
+    pub moving: bool,
 }
 
 #[derive(Deserialize, TS)]
@@ -168,8 +175,37 @@ pub fn admin_routes() -> Router<AppState> {
             get(handlers::get_media_dir).put(handlers::set_media_dir),
         )
         .route("/settings/media-dir/usage", get(handlers::media_usage))
+        .route("/settings/media-dir/move", get(handlers::move_status))
+        .route(
+            "/settings/media-dir/move/cancel",
+            post(handlers::cancel_move),
+        )
         .route(
             "/folders",
             get(handlers::browse_folders).post(handlers::create_folder),
         )
+}
+
+/// Mientras se copian las bibliotecas a otro disco, el Admin no deja hacer cambios: lo que se
+/// escribiera en la carpeta vieja se perdería al terminar. Se puede mirar (GET) y cancelar la copia.
+pub async fn block_while_moving(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let reading = request.method() == axum::http::Method::GET;
+    let cancelling = request
+        .uri()
+        .path()
+        .ends_with("/settings/media-dir/move/cancel");
+    if state.settings.transfer.is_busy() && !reading && !cancelling {
+        return AppError::Conflict(
+            "se están copiando las bibliotecas a otro disco: esperá a que termine (o cancelalo en \
+             Configuración)"
+                .to_string(),
+        )
+        .into_response();
+    }
+    next.run(request).await
 }

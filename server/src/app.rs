@@ -36,7 +36,11 @@ pub fn router(state: AppState) -> Router {
         .merge(imports::admin_routes())
         .merge(jobs::admin_routes())
         .merge(subtitles::admin_routes())
-        .merge(debug::admin_routes());
+        .merge(debug::admin_routes())
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            settings::block_while_moving,
+        ));
 
     let api = Router::new()
         .route("/health", get(health::health))
