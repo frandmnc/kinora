@@ -157,6 +157,91 @@ button:focus-visible {
   background: var(--brand);
 }
 
+/* "Ver todo" al final de cada fila del inicio */
+
+.see-all-poster {
+  flex-direction: column;
+  gap: 10px;
+  background: var(--player-surface);
+  box-shadow: none;
+  border: 2px dashed var(--player-surface-2);
+  color: var(--player-muted);
+}
+
+.see-all-poster svg {
+  width: 44px;
+  height: 44px;
+}
+
+.see-all-poster strong {
+  color: var(--player-text);
+  font-size: 22px;
+}
+
+.see-all-poster span {
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--player-muted);
+}
+
+/* Biblioteca */
+
+.library-header {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+.library-header h1 {
+  font-size: 48px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.search {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 420px;
+  max-width: 100%;
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: var(--player-surface);
+  color: var(--player-muted);
+}
+
+.search svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--player-text);
+  font: inherit;
+  font-size: 22px;
+}
+
+.search:focus-within {
+  outline: 4px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 220px);
+  gap: 36px 28px;
+}
+
 /* Detalle */
 
 .back {
@@ -438,6 +523,28 @@ a.episode.is-focused {
 
   .card {
     width: 130px;
+  }
+
+  .library-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 24px 14px;
+  }
+
+  .library-grid .card {
+    width: auto;
+  }
+
+  .library-header h1 {
+    font-size: 32px;
+  }
+
+  .search {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .see-all-poster strong {
+    font-size: 17px;
   }
 
   .card-sub {

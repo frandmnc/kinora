@@ -1,3 +1,4 @@
+import { LayoutGrid } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
 import { formatDuration } from '../../shared/format'
 import type { Library } from '../../shared/types/Library'
@@ -6,6 +7,9 @@ import type { ContinueItem } from '../../shared/types/ContinueItem'
 import type { RecentItem } from '../../shared/types/RecentItem'
 import { Poster } from '../Poster'
 import { FocusGroup, FocusableLink } from '../focus'
+
+/** Cuántas carátulas muestra cada biblioteca en el inicio; el resto, en "Ver todo". */
+const SHELF_ITEMS = 15
 
 /** Inicio: "Seguir viendo", "Agregados recientemente" y una fila de carátulas por biblioteca. */
 export function HomePage() {
@@ -62,13 +66,20 @@ export function HomePage() {
         <section key={library.id} className="shelf">
           <h2>{library.name}</h2>
           <FocusGroup className="shelf-row">
-            {items.map((content) => (
+            {items.slice(0, SHELF_ITEMS).map((content) => (
               <FocusableLink key={content.id} to={`/content/${content.id}`} className="card">
                 <Poster title={content.title} />
                 <span className="card-title">{content.title}</span>
                 {content.year && <span className="card-sub">{content.year}</span>}
               </FocusableLink>
             ))}
+            <FocusableLink to={`/library/${library.id}`} className="card see-all">
+              <div className="poster see-all-poster">
+                <LayoutGrid />
+                <strong>Ver todo</strong>
+                <span>{items.length} títulos</span>
+              </div>
+            </FocusableLink>
           </FocusGroup>
         </section>
       ))}
