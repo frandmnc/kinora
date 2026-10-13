@@ -7,6 +7,14 @@ export function setServerUrl(url: string) {
   serverUrl = url.replace(/\/$/, '')
 }
 
+// El perfil elegido en el Player ("¿Quién está mirando?"). Va en cada pedido: el progreso,
+// "Seguir viendo" y el historial son de cada perfil. El Admin no elige perfil.
+let profileId: number | null = null
+
+export function setProfile(id: number | null) {
+  profileId = id
+}
+
 /** Evento que se dispara cuando el servidor contesta que no hay sesión. */
 export const SIGNED_OUT = 'kinora:signed-out'
 
@@ -30,13 +38,13 @@ type Options = {
 
 export async function api<T>(path: string, options: Options = {}): Promise<T> {
   const hasBody = options.body !== undefined
+  const headers: Record<string, string> = {}
+  if (options.file) headers['content-type'] = 'application/octet-stream'
+  else if (hasBody) headers['content-type'] = 'application/json'
+  if (profileId !== null) headers['kinora-profile'] = String(profileId)
   const response = await fetch(serverUrl + path, {
     method: options.method ?? 'GET',
-    headers: options.file
-      ? { 'content-type': 'application/octet-stream' }
-      : hasBody
-        ? { 'content-type': 'application/json' }
-        : undefined,
+    headers,
     body: options.file ?? (hasBody ? JSON.stringify(options.body) : undefined),
     keepalive: options.keepalive,
   })

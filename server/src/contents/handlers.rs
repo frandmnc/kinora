@@ -20,6 +20,7 @@ use crate::app::AppState;
 use crate::error::{AppError, AppResult};
 use crate::monitor::SessionStep;
 use crate::probe::{Probe, TechInfo};
+use crate::profiles::Profile;
 use crate::subtitles::{self, SubtitleTrack};
 use crate::{manifest, playback, trash};
 
@@ -100,6 +101,7 @@ fn recent_note(batch: &[&repo::ImportedFile]) -> String {
 pub async fn detail(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    profile: Option<Profile>,
 ) -> AppResult<Json<ContentDetail>> {
     let contents = repo::with_descendants(&state.db, id).await?;
     let ids: Vec<i64> = contents.iter().map(|c| c.id).collect();
@@ -124,8 +126,11 @@ pub async fn detail(
         file.tech = tech.get(&file.id).cloned();
         parts.files.entry(file.content_id).or_default().push(file);
     }
-    for progress in repo::progress_of(&state.db, &ids).await? {
-        parts.progress.insert(progress.content_id, progress);
+    // El progreso es de cada perfil; el Admin (sin perfil) no lo ve.
+    if let Some(profile) = &profile {
+        for progress in repo::progress_of(&state.db, profile.id, &ids).await? {
+            parts.progress.insert(progress.content_id, progress);
+        }
     }
     let mut root = None;
     for content in contents {
@@ -173,6 +178,7 @@ pub async fn report_progress(
     State(state): State<AppState>,
     Path(id): Path<i64>,
     ConnectInfo(client): ConnectInfo<SocketAddr>,
+    profile: Profile,
     Json(report): Json<PlaybackReport>,
 ) -> AppResult<StatusCode> {
     let title = repo::display_title(&state.db, id)
@@ -183,11 +189,21 @@ pub async fn report_progress(
     let watched = report
         .duration
         .is_some_and(|duration| duration > 0.0 && position >= duration * WATCHED_AT);
-    repo::save_progress(&state.db, id, position, report.duration, watched).await?;
+    repo::save_progress(
+        &state.db,
+        profile.id,
+        id,
+        position,
+        report.duration,
+        watched,
+    )
+    .await?;
 
     let client_ip = client.ip().to_string();
+    // Quién mira, para "Viendo ahora" y la terminal: el perfil y desde qué equipo.
+    let viewer_name = format!("{} · {client_ip}", profile.name);
     let viewer = state.monitor.report_viewer(
-        client_ip.clone(),
+        viewer_name.clone(),
         id,
         title.clone(),
         position,
@@ -205,12 +221,13 @@ pub async fn report_progress(
                 &state.db,
                 id,
                 &title,
+                &profile,
                 &client_ip,
                 position,
                 report.duration,
             )
             .await?;
-            state.monitor.set_session(&client_ip, id, session);
+            state.monitor.set_session(&viewer_name, id, session);
         }
         SessionStep::Update(session) => {
             playback::repo::update_session(

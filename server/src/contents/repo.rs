@@ -84,16 +84,21 @@ pub async fn files_of(db: &SqlitePool, content_ids: &[i64]) -> sqlx::Result<Vec<
 }
 
 /// El progreso de varios contenidos.
-pub async fn progress_of(db: &SqlitePool, content_ids: &[i64]) -> sqlx::Result<Vec<Progress>> {
+/// El progreso de un perfil en varios contenidos.
+pub async fn progress_of(
+    db: &SqlitePool,
+    profile_id: i64,
+    content_ids: &[i64],
+) -> sqlx::Result<Vec<Progress>> {
     if content_ids.is_empty() {
         return Ok(Vec::new());
     }
     let placeholders = vec!["?"; content_ids.len()].join(", ");
     let sql = format!(
         "SELECT content_id, position, duration, watched, updated_at \
-         FROM progress WHERE content_id IN ({placeholders})"
+         FROM progress WHERE profile_id = ? AND content_id IN ({placeholders})"
     );
-    let mut query = sqlx::query_as(AssertSqlSafe(sql));
+    let mut query = sqlx::query_as(AssertSqlSafe(sql)).bind(profile_id);
     for id in content_ids {
         query = query.bind(id);
     }
@@ -103,18 +108,20 @@ pub async fn progress_of(db: &SqlitePool, content_ids: &[i64]) -> sqlx::Result<V
 /// Guarda el progreso: inserta la fila o, si ya existe, la actualiza ("upsert").
 pub async fn save_progress(
     db: &SqlitePool,
+    profile_id: i64,
     content_id: i64,
     position: f64,
     duration: Option<f64>,
     watched: bool,
 ) -> sqlx::Result<()> {
     sqlx::query(
-        "INSERT INTO progress (content_id, position, duration, watched, updated_at) \
-         VALUES (?, ?, ?, ?, ?) \
-         ON CONFLICT (content_id) DO UPDATE SET \
+        "INSERT INTO progress (profile_id, content_id, position, duration, watched, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?) \
+         ON CONFLICT (profile_id, content_id) DO UPDATE SET \
            position = excluded.position, duration = excluded.duration, \
            watched = excluded.watched, updated_at = excluded.updated_at",
     )
+    .bind(profile_id)
     .bind(content_id)
     .bind(position)
     .bind(duration)
@@ -525,7 +532,7 @@ mod tests {
                 "INSERT INTO subtitles (media_file_id, rel_path, label) VALUES ({file}, 'F/a.vtt', 'Español')"
             ),
             format!(
-                "INSERT INTO progress (content_id, position, watched, updated_at) VALUES ({episode}, 10, 0, 0)"
+                "INSERT INTO progress (profile_id, content_id, position, watched, updated_at) VALUES (1, {episode}, 10, 0, 0)"
             ),
             format!(
                 "INSERT INTO playback_daily (day, content_id, seconds) VALUES ('2026-10-13', {episode}, 60)"
@@ -553,5 +560,46 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(history, (None, 60.0));
+    }
+
+    #[tokio::test]
+    async fn each_profile_has_its_own_progress() {
+        let db = connect_in_memory().await;
+        let mut conn = db.acquire().await.unwrap();
+        sqlx::query("INSERT INTO libraries (name, dir) VALUES ('Películas', 'Películas')")
+            .execute(&mut *conn)
+            .await
+            .unwrap();
+        let movie = insert_content(
+            &mut conn,
+            &NewContent {
+                library_id: 1,
+                kind: ContentKind::Movie,
+                parent_id: None,
+                number: None,
+                title: "Interstellar".into(),
+                year: Some(2014),
+                dir: None,
+            },
+        )
+        .await
+        .unwrap();
+        drop(conn);
+        // El perfil 1 lo crea la migración; el 2 es otra persona de la casa.
+        let other = crate::profiles::repo::create(&db, "Invitado")
+            .await
+            .unwrap();
+
+        save_progress(&db, 1, movie, 600.0, Some(6000.0), false)
+            .await
+            .unwrap();
+        save_progress(&db, other.id, movie, 5900.0, Some(6000.0), true)
+            .await
+            .unwrap();
+
+        let mine = progress_of(&db, 1, &[movie]).await.unwrap();
+        let theirs = progress_of(&db, other.id, &[movie]).await.unwrap();
+        assert_eq!((mine[0].position, mine[0].watched), (600.0, false));
+        assert_eq!((theirs[0].position, theirs[0].watched), (5900.0, true));
     }
 }

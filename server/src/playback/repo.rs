@@ -2,6 +2,8 @@
 
 use sqlx::SqlitePool;
 
+use crate::profiles::Profile;
+
 use super::{DayTotal, TitleTotal};
 
 /// Suma segundos al día y contenido indicados.
@@ -80,7 +82,11 @@ pub struct RecentProgress {
 }
 
 /// El progreso más reciente primero.
-pub async fn recent_progress(db: &SqlitePool, limit: i64) -> sqlx::Result<Vec<RecentProgress>> {
+pub async fn recent_progress(
+    db: &SqlitePool,
+    profile_id: i64,
+    limit: i64,
+) -> sqlx::Result<Vec<RecentProgress>> {
     sqlx::query_as(
         "SELECT p.content_id, p.position, p.duration, p.watched, \
                 c.number AS episode_number, season.number AS season_number, \
@@ -90,8 +96,10 @@ pub async fn recent_progress(db: &SqlitePool, limit: i64) -> sqlx::Result<Vec<Re
          JOIN contents c ON c.id = p.content_id \
          LEFT JOIN contents season ON season.id = c.parent_id AND c.kind = 'episode' \
          LEFT JOIN contents show ON show.id = season.parent_id \
+         WHERE p.profile_id = ? \
          ORDER BY p.updated_at DESC LIMIT ?",
     )
+    .bind(profile_id)
     .bind(limit)
     .fetch_all(db)
     .await
@@ -110,6 +118,7 @@ pub struct NextEpisode {
 /// El episodio con archivo que sigue a (temporada, episodio) dentro de una serie.
 pub async fn next_episode(
     db: &SqlitePool,
+    profile_id: i64,
     show_id: i64,
     season: i64,
     episode: i64,
@@ -119,12 +128,13 @@ pub async fn next_episode(
                 p.position, p.duration, p.watched \
          FROM contents e \
          JOIN contents s ON s.id = e.parent_id \
-         LEFT JOIN progress p ON p.content_id = e.id \
+         LEFT JOIN progress p ON p.content_id = e.id AND p.profile_id = ? \
          WHERE s.parent_id = ? AND e.kind = 'episode' \
            AND EXISTS (SELECT 1 FROM media_files f WHERE f.content_id = e.id) \
            AND (s.number > ? OR (s.number = ? AND e.number > ?)) \
          ORDER BY s.number, e.number LIMIT 1",
     )
+    .bind(profile_id)
     .bind(show_id)
     .bind(season)
     .bind(season)
@@ -141,6 +151,7 @@ pub async fn start_session(
     db: &SqlitePool,
     content_id: i64,
     title: &str,
+    profile: &Profile,
     client: &str,
     position: f64,
     duration: Option<f64>,
@@ -148,13 +159,15 @@ pub async fn start_session(
     let now = crate::db::now();
     sqlx::query_scalar(
         "INSERT INTO playback_sessions \
-         (content_id, library_id, title, library_name, client, started_at, ended_at, \
-          start_position, end_position, duration) \
-         SELECT c.id, c.library_id, ?, l.name, ?, ?, ?, ?, ?, ? \
+         (content_id, library_id, title, library_name, profile_id, profile_name, client, \
+          started_at, ended_at, start_position, end_position, duration) \
+         SELECT c.id, c.library_id, ?, l.name, ?, ?, ?, ?, ?, ?, ?, ? \
          FROM contents c JOIN libraries l ON l.id = c.library_id WHERE c.id = ? \
          RETURNING id",
     )
     .bind(title)
+    .bind(profile.id)
+    .bind(&profile.name)
     .bind(client)
     .bind(now)
     .bind(now)
@@ -200,7 +213,7 @@ pub async fn recent_sessions(
     min_seconds: f64,
 ) -> sqlx::Result<Vec<super::Session>> {
     sqlx::query_as(
-        "SELECT id, content_id, title, library_name, client, started_at, ended_at, \
+        "SELECT id, content_id, title, library_name, profile_name, client, started_at, ended_at, \
                 seconds_watched, start_position, end_position, duration, completed \
          FROM playback_sessions WHERE seconds_watched >= ? \
          ORDER BY started_at DESC LIMIT ?",

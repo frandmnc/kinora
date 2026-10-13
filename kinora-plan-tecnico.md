@@ -10,7 +10,7 @@ Este plan describe la arquitectura, las decisiones tomadas y el orden de impleme
 
 | Principio | Consecuencia |
 |---|---|
-| Solo red local | No hay cuentas ni login. El servidor escucha en `0.0.0.0` |
+| Pensado para la casa | Una cuenta con perfiles (ver Autenticación). El servidor escucha en `0.0.0.0`; desde afuera se entra por Tailscale |
 | La base de datos es la fuente de verdad | No hay escaneo de carpetas. El contenido entra solo por importación |
 | Un único formato | Todo lo importado queda en el formato de Kinora. La reproducción siempre es directa |
 | El contenido es distinto de sus archivos | Una película o un episodio existe aunque no tenga archivo. El progreso pertenece al contenido |
@@ -56,7 +56,7 @@ flowchart LR
 
 Una ruta de API inexistente devolverá un error de API, no la página principal.
 
-Hoy no hay login. La separación entre `/api/*` y `/api/admin/*` permitirá proteger el Admin más adelante con un solo middleware, por ejemplo con un PIN o limitando el acceso a una dirección IP. El Player solo lee y guarda progreso.
+Toda la API pide sesión (ver Autenticación). El Admin usa la cuenta; el Player, además, el perfil elegido, que va en el encabezado `Kinora-Profile`.
 
 ## Tecnología
 
@@ -538,7 +538,8 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Agregados recientemente (películas y series con algo nuevo; lo importado dentro de 24 h cuenta como una tanda) | `GET /api/recent` |
 | Reproducir un archivo | `GET /api/files/{id}/stream` |
 | Obtener un subtítulo | `GET /api/subtitles/{id}` |
-| Informar progreso | `PUT /api/contents/{id}/progress` |
+| Informar progreso (del perfil elegido) | `PUT /api/contents/{id}/progress` |
+| Perfiles: ver, crear, renombrar, eliminar | `GET`, `POST /api/profiles`, `PATCH`, `DELETE /api/profiles/{id}` |
 
 **Cuenta (`/api/auth`, sin sesión):**
 
@@ -602,7 +603,6 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 - Transcodificación en vivo y streaming adaptativo (HLS).
 - Selección de pista de audio en el Player. Chrome no la permite en un `<video>` común; requiere HLS.
 - Datos y carátulas de proveedores externos (TMDB).
-- Perfiles de usuario y login.
 - DLNA.
 - Importar el estado visto/no visto desde la base de datos de Plex.
 

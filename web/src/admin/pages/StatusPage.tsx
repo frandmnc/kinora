@@ -204,6 +204,7 @@ export function StatusPage() {
               <thead>
                 <tr>
                   <th>Cuándo</th>
+                  <th>Quién</th>
                   <th>Qué</th>
                   <th>Biblioteca</th>
                   <th>Equipo</th>
@@ -215,6 +216,7 @@ export function StatusPage() {
                 {sessions.map((session) => (
                   <tr key={session.id}>
                     <td className="secondary">{when(session.started_at)}</td>
+                    <td>{session.profile_name ?? '—'}</td>
                     <td>
                       <span className="row">
                         <strong>{session.title}</strong>

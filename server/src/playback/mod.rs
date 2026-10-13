@@ -48,6 +48,8 @@ pub struct Session {
     pub content_id: Option<i64>,
     pub title: String,
     pub library_name: Option<String>,
+    /// Quién miró (el nombre que tenía el perfil en ese momento).
+    pub profile_name: Option<String>,
     pub client: String,
     pub started_at: i64,
     pub ended_at: i64,

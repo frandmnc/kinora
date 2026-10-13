@@ -7,11 +7,12 @@ use axum::response::{IntoResponse, Response};
 use tracing::{info, warn};
 
 use super::{
-    AuthState, Credentials, PasswordChange, Session, SessionInfo, clear_cookie, client_of,
+    AuthState, Credentials, PasswordChange, Session, SessionInfo, Setup, clear_cookie, client_of,
     device_of, from_home, repo, secret, session_cookie, token_of,
 };
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
+use crate::profiles;
 
 const MIN_PASSWORD: usize = 8;
 
@@ -45,7 +46,7 @@ pub async fn setup(
     State(state): State<AppState>,
     peer: ConnectInfo<SocketAddr>,
     headers: HeaderMap,
-    Json(request): Json<Credentials>,
+    Json(request): Json<Setup>,
 ) -> AppResult<Response> {
     if !from_home(&headers, &peer) {
         return Err(AppError::Forbidden(
@@ -63,8 +64,11 @@ pub async fn setup(
         return Err(AppError::BadRequest("falta el usuario".to_string()));
     }
     check_password(&request.password)?;
+    let profile = profiles::handlers::clean_name(&request.profile)?;
     let hash = secret::hash_password(&request.password)?;
     repo::create_account(&state.db, username, &hash).await?;
+    // El primer perfil existe desde siempre (con lo visto hasta ahora): toma el nombre elegido.
+    profiles::repo::rename(&state.db, 1, &profile).await?;
     info!("account created for {username}");
     open_session(&state, &peer, &headers).await
 }

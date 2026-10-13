@@ -57,6 +57,17 @@ pub struct Credentials {
     pub password: String,
 }
 
+/// Para crear la cuenta: el usuario, la contraseña y el nombre del primer perfil.
+#[derive(Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+#[ts(export)]
+pub struct Setup {
+    pub username: String,
+    pub password: String,
+    /// "Fran": el perfil principal (lo visto hasta ahora queda en él).
+    pub profile: String,
+}
+
 #[derive(Deserialize, TS)]
 #[serde(deny_unknown_fields)]
 #[ts(export)]

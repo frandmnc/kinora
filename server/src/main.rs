@@ -15,6 +15,7 @@ mod monitor;
 mod naming;
 mod playback;
 mod probe;
+mod profiles;
 mod settings;
 mod subtitles;
 mod trash;

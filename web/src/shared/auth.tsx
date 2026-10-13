@@ -74,6 +74,7 @@ function CredentialsForm({ brand, setup, onDone }: { brand: ReactNode; setup: bo
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
+  const [profile, setProfileName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
@@ -88,7 +89,7 @@ function CredentialsForm({ brand, setup, onDone }: { brand: ReactNode; setup: bo
     try {
       await api(setup ? '/api/auth/setup' : '/api/auth/login', {
         method: 'POST',
-        body: { username, password },
+        body: setup ? { username, password, profile } : { username, password },
       })
       onDone()
     } catch (err) {
@@ -152,6 +153,13 @@ function CredentialsForm({ brand, setup, onDone }: { brand: ReactNode; setup: bo
               required
             />
             <span className="auth-hint">Al menos 8 caracteres.</span>
+          </label>
+        )}
+        {setup && (
+          <label className="auth-field">
+            Tu nombre
+            <input value={profile} onChange={(e) => setProfileName(e.target.value)} maxLength={20} required />
+            <span className="auth-hint">Es tu perfil: lo que ya miraste queda en él. Después podés sumar otros.</span>
           </label>
         )}
         {error && <p className="auth-error">{error}</p>}

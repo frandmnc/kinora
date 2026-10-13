@@ -830,3 +830,209 @@ a.episode.is-focused {
 .auth-button:disabled {
   opacity: 0.6;
 }
+
+/* Perfiles: "¿Quién está mirando?" y administrar */
+
+.profiles-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 60px 40px;
+}
+
+.profiles-screen h1 {
+  margin: 0;
+  font-size: 48px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.profile-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 36px;
+}
+
+.profile-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--player-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.profile-tile.is-focused,
+.profile-tile:hover {
+  color: var(--player-text);
+}
+
+.profile-tile.is-focused .avatar,
+.profile-tile:hover .avatar {
+  transform: scale(1.06);
+}
+
+.profile-name {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: rgb(255 255 255 / 0.95);
+  font-weight: 800;
+  transition: transform 0.15s;
+}
+
+.avatar-large {
+  width: 160px;
+  height: 160px;
+  border-radius: 16px;
+  font-size: 72px;
+}
+
+.avatar-small {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  font-size: 20px;
+}
+
+.avatar-new {
+  background: var(--player-surface-2);
+  color: var(--player-muted);
+}
+
+.avatar-new svg {
+  width: 22px;
+  height: 22px;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.ghost-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border: 2px solid var(--player-surface-2);
+  border-radius: 8px;
+  background: none;
+  color: var(--player-text);
+  font: inherit;
+  font-size: 19px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ghost-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ghost-button:hover {
+  border-color: var(--player-muted);
+}
+
+.ghost-button.danger {
+  border-color: var(--brand);
+  color: #ff8fa3;
+}
+
+.manage {
+  justify-content: flex-start;
+  gap: 18px;
+}
+
+.manage h1 {
+  margin-bottom: 18px;
+}
+
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: min(760px, 100%);
+}
+
+.profile-input {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  padding: 0 16px;
+  border: 2px solid var(--player-surface-2);
+  border-radius: 8px;
+  background: var(--player-surface);
+  color: var(--player-text);
+  font: inherit;
+  font-size: 22px;
+}
+
+.profile-input:focus {
+  outline: none;
+}
+
+.manage .play-button {
+  margin-top: 18px;
+}
+
+/* Inicio: la marca y el perfil elegido */
+
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.home-header .brand-bar {
+  margin: 0;
+}
+
+.profile-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px 6px 6px;
+  border: none;
+  border-radius: 10px;
+  background: var(--player-surface);
+  color: var(--player-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .profiles-screen h1 {
+    font-size: 30px;
+  }
+
+  .avatar-large {
+    width: 96px;
+    height: 96px;
+    font-size: 44px;
+  }
+
+  .profile-name {
+    font-size: 18px;
+  }
+
+  .profile-row {
+    flex-wrap: wrap;
+  }
+}

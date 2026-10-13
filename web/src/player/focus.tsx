@@ -76,3 +76,77 @@ export function FocusGroup({
     </FocusContext.Provider>
   )
 }
+
+/** Un botón que se puede enfocar con las flechas. Enter lo activa, como un clic. */
+export function FocusableButton({
+  onPress,
+  className = '',
+  focusKey,
+  title,
+  children,
+}: {
+  onPress: () => void
+  className?: string
+  focusKey?: string
+  title?: string
+  children: ReactNode
+}) {
+  const { ref, focused, focusSelf } = useFocusable<object, HTMLButtonElement>({
+    focusKey,
+    onEnterPress: onPress,
+  })
+  return (
+    <button
+      ref={ref}
+      type="button"
+      title={title}
+      className={`${className} ${focused ? 'is-focused' : ''}`}
+      onClick={onPress}
+      onMouseEnter={() => focusSelf()}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * Un campo de texto que se puede enfocar con las flechas. Izquierda y derecha mueven el cursor
+ * dentro del texto; arriba y abajo salen del campo. Enter llama a `onEnter` (la navegación con
+ * flechas cancela el Enter del navegador, así que no envía formularios sola).
+ */
+export function FocusableInput({
+  value,
+  onChange,
+  onEnter,
+  placeholder,
+  label,
+  className = '',
+  maxLength,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onEnter?: () => void
+  placeholder?: string
+  label: string
+  className?: string
+  maxLength?: number
+}) {
+  const { ref, focused, focusSelf } = useFocusable<object, HTMLInputElement>({
+    onArrowPress: (direction) => direction === 'up' || direction === 'down',
+  })
+  return (
+    <input
+      ref={ref}
+      className={`${className} ${focused ? 'is-focused' : ''}`}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onFocus={() => focusSelf()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && onEnter) onEnter()
+      }}
+      placeholder={placeholder}
+      aria-label={label}
+      maxLength={maxLength}
+    />
+  )
+}

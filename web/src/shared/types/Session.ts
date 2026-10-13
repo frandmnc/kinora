@@ -7,4 +7,8 @@ export type Session = { id: number,
 /**
  * `null` si el contenido ya no existe (el título se conserva igual).
  */
-content_id: number | null, title: string, library_name: string | null, client: string, started_at: number, ended_at: number, seconds_watched: number, start_position: number, end_position: number, duration: number | null, completed: boolean, };
+content_id: number | null, title: string, library_name: string | null, 
+/**
+ * Quién miró (el nombre que tenía el perfil en ese momento).
+ */
+profile_name: string | null, client: string, started_at: number, ended_at: number, seconds_watched: number, start_position: number, end_position: number, duration: number | null, completed: boolean, };

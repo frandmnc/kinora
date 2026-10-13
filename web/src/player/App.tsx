@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Route, Routes, useLocation, useNavigate } from 'react-router'
 import { pause, resume } from '@noriginmedia/norigin-spatial-navigation'
 import { AuthGate } from '../shared/auth'
+import { ProfileGate } from './profiles'
 import { HomePage } from './pages/HomePage'
 import { DetailPage } from './pages/DetailPage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -35,7 +36,11 @@ export function App() {
 
   return (
     <AuthGate brand={<PlayerBrand />}>
-      {() => <PlayerRoutes />}
+      {(_, signOut) => (
+        <ProfileGate onSignOut={signOut}>
+          <PlayerRoutes />
+        </ProfileGate>
+      )}
     </AuthGate>
   )
 }

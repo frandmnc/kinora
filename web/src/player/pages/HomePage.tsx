@@ -6,13 +6,15 @@ import type { Content } from '../../shared/types/Content'
 import type { ContinueItem } from '../../shared/types/ContinueItem'
 import type { RecentItem } from '../../shared/types/RecentItem'
 import { Poster } from '../Poster'
-import { FocusGroup, FocusableLink } from '../focus'
+import { FocusGroup, FocusableButton, FocusableLink } from '../focus'
+import { Avatar, useProfile } from '../profiles'
 
 /** Cuántas carátulas muestra cada biblioteca en el inicio; el resto, en "Ver todo". */
 const SHELF_ITEMS = 15
 
 /** Inicio: "Seguir viendo", "Agregados recientemente" y una fila de carátulas por biblioteca. */
 export function HomePage() {
+  const { profile, switchProfile } = useProfile()
   const { data: libraries, error: librariesError } = useApi<Library[]>('/api/libraries')
   const { data: contents, error: contentsError } = useApi<Content[]>('/api/contents')
   const { data: continueItems } = useApi<ContinueItem[]>('/api/continue-watching')
@@ -34,7 +36,13 @@ export function HomePage() {
 
   return (
     <FocusGroup className="screen" autoFocus>
-      <header className="brand-bar">Kinora</header>
+      <header className="home-header">
+        <span className="brand-bar">Kinora</span>
+        <FocusableButton className="profile-chip" onPress={switchProfile} title="Cambiar de perfil">
+          <Avatar id={profile.id} name={profile.name} size="small" />
+          {profile.name}
+        </FocusableButton>
+      </header>
 
       {continueItems.length > 0 && (
         <section className="shelf">

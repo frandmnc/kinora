@@ -7,6 +7,7 @@ use super::{ContinueItem, DayTotal, PlaybackSummary, Session, local_day, repo};
 use crate::app::AppState;
 use crate::contents::repo::display_title;
 use crate::error::AppResult;
+use crate::profiles::Profile;
 
 /// Menos de esto, no vale la pena ofrecer "seguir viendo": es como no haber empezado.
 const MIN_POSITION: f64 = 10.0;
@@ -17,11 +18,12 @@ const MAX_ITEMS: usize = 12;
 /// un episodio, el siguiente.
 pub async fn continue_watching(
     State(state): State<AppState>,
+    profile: Profile,
 ) -> AppResult<Json<Vec<ContinueItem>>> {
     let mut items = Vec::new();
     let mut seen_tops = HashSet::new();
 
-    for recent in repo::recent_progress(&state.db, 100).await? {
+    for recent in repo::recent_progress(&state.db, profile.id, 100).await? {
         // `insert` devuelve false si la película o serie ya tuvo su fila.
         if items.len() >= MAX_ITEMS || !seen_tops.insert(recent.top_id) {
             continue;
@@ -51,7 +53,8 @@ pub async fn continue_watching(
         if !recent.is_episode {
             continue;
         }
-        if let Some(next) = repo::next_episode(&state.db, recent.top_id, season, episode).await?
+        if let Some(next) =
+            repo::next_episode(&state.db, profile.id, recent.top_id, season, episode).await?
             && next.watched != Some(true)
         {
             items.push(ContinueItem {
