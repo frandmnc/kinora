@@ -506,6 +506,7 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Panel | Métricas, viendo ahora, estado de la cola |
 | Bibliotecas | Crear, editar y eliminar bibliotecas |
 | Importar | Subir archivos a la bandeja, analizar, asignar destino y confirmar |
+| Papelera | Lo que salió de las bibliotecas, por biblioteca y por tanda (fecha, qué y cuánto ocupa); borrar una tanda o vaciar todo |
 | Configuración | Carpeta media, con un explorador de carpetas del servidor |
 | Cola | Trabajos en curso, pendientes y fallidos; cancelar y reintentar |
 | Bibliotecas | Cada biblioteca muestra una tarjeta por película o serie (números, avisos, eliminar con confirmación); cada una abre su página con temporadas, episodios, archivos, versiones y subtítulos |
@@ -550,6 +551,7 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Eliminar una película o serie: su carpeta va a la papelera; se borran catálogo y progreso, el historial queda | `DELETE /api/admin/contents/{id}` |
 | Quitar un archivo o versión (el video y sus subtítulos a la papelera) | `DELETE /api/admin/files/{id}` |
 | Métricas | `GET /api/admin/metrics/{playback,sessions,conversion}`, `GET /api/admin/metrics/server?range=day\|week\|month` |
+| Papelera: ver, vaciar, borrar una tanda | `GET`, `DELETE /api/admin/trash`, `DELETE /api/admin/trash/{library_id}/{tanda}` |
 | Verificar integridad | `POST /api/admin/maintenance/integrity-check` |
 
 ## Mantenimiento
@@ -559,7 +561,7 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Backup de SQLite con `VACUUM INTO` | Una vez por día y a pedido | Copia en `data_dir/backups`, se conservan 14 |
 | Verificar integridad | A pedido | Lista de archivos registrados que no existen en el disco |
 | Reconstruir desde disco | A pedido, ante una pérdida de la base | Catálogo recreado a partir de los `kinora.json` |
-| Vaciar papelera | A pedido | Borra `.kinora-trash/` previa confirmación |
+| Vaciar papelera | A pedido, desde la pantalla Papelera del Admin | Borra `.kinora-trash/` de todas las bibliotecas, o una tanda sola, previa confirmación |
 
 ## Etapas
 

@@ -1,5 +1,5 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router'
-import { Activity, Database, ExternalLink, LibraryBig, ListOrdered, Settings, Upload } from 'lucide-react'
+import { Activity, Database, ExternalLink, LibraryBig, ListOrdered, Settings, Trash2, Upload } from 'lucide-react'
 import { useEffect } from 'react'
 import { useApi } from '../shared/useApi'
 import type { Health } from '../shared/types/Health'
@@ -8,6 +8,7 @@ import { LibraryPage } from './pages/LibraryPage'
 import { ContentPage } from './pages/ContentPage'
 import { ImportPage } from './pages/ImportPage'
 import { JobsPage } from './pages/JobsPage'
+import { TrashPage } from './pages/TrashPage'
 import { DatabasePage } from './pages/DatabasePage'
 import { StatusPage } from './pages/StatusPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -26,6 +27,7 @@ export function App() {
             <Route path="/libraries/:libraryId/contents/:id" element={<ContentPage />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/jobs" element={<JobsPage />} />
+            <Route path="/trash" element={<TrashPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/database" element={<DatabasePage />} />
             <Route path="/database/:table" element={<DatabasePage />} />
@@ -64,6 +66,9 @@ function Sidebar() {
         </NavLink>
         <NavLink to="/jobs">
           <ListOrdered /> Cola
+        </NavLink>
+        <NavLink to="/trash">
+          <Trash2 /> Papelera
         </NavLink>
         <NavLink to="/settings">
           <Settings /> Configuración

@@ -1855,3 +1855,32 @@ a:has(> .badge) {
 .btn-danger-solid:hover:not(:disabled) {
   filter: brightness(0.92);
 }
+
+/* Papelera */
+
+.trash-batch {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.trash-batch-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.trash-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0 3px 2px;
+  color: var(--text-2);
+}
+
+.trash-item .icon {
+  width: 15px;
+  height: 15px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
