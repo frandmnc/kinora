@@ -7,9 +7,13 @@ export type ImportedFile = { file: string,
  */
 action: ImportAction, 
 /**
- * Ruta final dentro de la biblioteca, si se importó.
+ * Ruta final dentro de la biblioteca, si se importó (o donde va a quedar, si está en cola).
  */
 destination: string | null, 
+/**
+ * Si necesitó remux: el trabajo en la cola. Entra a la biblioteca cuando termine.
+ */
+job_id: number | null, 
 /**
  * Archivos anteriores que fueron a la papelera (al reemplazar).
  */

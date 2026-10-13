@@ -7,6 +7,7 @@ mod disk;
 mod error;
 mod health;
 mod imports;
+mod jobs;
 mod libraries;
 mod manifest;
 mod monitor;
@@ -28,6 +29,7 @@ use tracing_subscriber::fmt::time::ChronoLocal;
 
 use crate::app::AppState;
 use crate::config::Config;
+use crate::jobs::Jobs;
 use crate::monitor::Monitor;
 use crate::settings::Settings;
 
@@ -59,11 +61,14 @@ async fn main() -> Result<()> {
     }
     let monitor = Monitor::new();
     monitor::spawn_sampler(monitor.clone());
-    let app = app::router(AppState {
+    let state = AppState {
         db,
         monitor,
         settings: settings.clone(),
-    });
+        jobs: Jobs::new(),
+    };
+    jobs::spawn_worker(state.clone());
+    let app = app::router(state);
 
     let addr = SocketAddr::new(config.bind, config.port);
     let listener = tokio::net::TcpListener::bind(addr)

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, bail};
+use anyhow::Context;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -10,16 +10,18 @@ use super::guess::guess;
 use sqlx::SqliteConnection;
 use tracing::info;
 
+use super::place::{PlaceFile, free_version, place};
 use super::{
     AnalyzeRequest, ConflictChoice, EpisodeFile, FileAnalysis, ImportAction, ImportRequest,
     ImportResult, ImportTarget, ImportedFile, paths,
 };
 use crate::app::AppState;
 use crate::contents::ContentKind;
-use crate::contents::repo::{self, NewContent, NewMediaFile, insert_content, insert_media_file};
+use crate::contents::repo::{self, NewContent, insert_content};
+use crate::disk::{self, format_size};
 use crate::error::{AppError, AppResult};
-use crate::probe::{self, Analysis};
-use crate::{libraries, manifest, subtitles, trash, uploads};
+use crate::probe::{self, Analysis, Operation};
+use crate::{jobs, libraries, manifest, subtitles, trash, uploads};
 
 /// POST /api/admin/imports/analyze
 pub async fn analyze(
@@ -50,7 +52,9 @@ async fn analyze_file(path: &Path) -> FileAnalysis {
         video: None,
         audio: Vec::new(),
         subtitles: Vec::new(),
-        problems: Vec::new(),
+        operation: None,
+        changes: Vec::new(),
+        blockers: Vec::new(),
         error: None,
     };
 
@@ -79,7 +83,10 @@ async fn analyze_file(path: &Path) -> FileAnalysis {
                 })
                 .collect();
             analysis.subtitles = subtitles::describe(&probe);
-            analysis.problems = probe.problems(path);
+            let plan = probe.plan(path);
+            analysis.operation = Some(plan.operation);
+            analysis.changes = plan.changes;
+            analysis.blockers = plan.blockers;
         }
     }
     analysis
@@ -90,6 +97,8 @@ struct PlannedFile {
     episode: Option<i64>,
     on_conflict: Option<ConflictChoice>,
     source: PathBuf,
+    /// Copiar (en el momento) o remuxar (en la cola).
+    operation: Operation,
     analysis: Analysis,
 }
 
@@ -158,19 +167,39 @@ pub async fn create(
         let analysis = probe::run(&source)
             .await
             .map_err(|err| AppError::BadRequest(format!("{name}: {err:#}")))?;
-        let problems = analysis.probe.problems(&source);
-        if !problems.is_empty() {
+        let plan = analysis.probe.plan(&source);
+        if !plan.blockers.is_empty() {
             return Err(AppError::BadRequest(format!(
-                "{name} no está en el formato de Kinora: {}",
-                problems.join("; ")
+                "{name} no se puede importar todavía: {}",
+                plan.blockers.join("; ")
             )));
         }
         planned.push(PlannedFile {
             episode,
             on_conflict,
             source,
+            operation: plan.operation,
             analysis,
         });
+    }
+
+    // El remux escribe un archivo nuevo antes de borrar el original: hace falta lugar para
+    // los dos mientras dura.
+    let needed: u64 = planned
+        .iter()
+        .filter(|f| f.operation != Operation::Copy)
+        .filter_map(|f| std::fs::metadata(&f.source).ok())
+        .map(|m| m.len())
+        .sum();
+    if needed > 0
+        && let Some(space) = disk::space_of(&media_dir)
+        && space.available < needed + 1024 * 1024 * 1024
+    {
+        return Err(AppError::Conflict(format!(
+            "no hay lugar en el disco: el remux necesita {} libres (más 1 GB de margen) y hay {}",
+            format_size(needed),
+            format_size(space.available)
+        )));
     }
 
     // 2. En una transacción: crear lo que falta (serie, temporada, episodios) y decidir qué
@@ -301,20 +330,38 @@ pub async fn create(
     }
     tx.commit().await?;
 
-    // 3. Mover y registrar cada archivo. Si uno falla, los demás siguen.
+    // 3. Los que ya cumplen el formato se mueven ahora; los que necesitan remux van a la cola.
+    //    Si uno falla, los demás siguen.
     let trash_batch = trash::batch_dir(&root);
     let mut results = Vec::new();
+    let mut queued = false;
     for (file, placement) in planned.iter().zip(placements) {
         let mut imported = ImportedFile {
             file: file_name(&file.source),
             action: placement.action,
             destination: None,
+            job_id: None,
             trashed: Vec::new(),
             subtitles: 0,
             error: None,
         };
-        if placement.action != ImportAction::Skipped {
-            match place(&state, &root, &trash_batch, file, &placement).await {
+        if placement.action == ImportAction::Skipped {
+        } else if file.operation == Operation::Copy {
+            let placed = place(
+                &state,
+                &root,
+                &trash_batch,
+                PlaceFile {
+                    content_id: placement.content_id,
+                    rel_path: &placement.rel_path,
+                    file: &file.source,
+                    analysis: &file.analysis,
+                    source_name: &imported.file,
+                    replaces: &placement.replaces,
+                },
+            )
+            .await;
+            match placed {
                 Ok((media_file_id, trashed)) => {
                     imported.trashed = trashed;
                     let tracks = subtitles::find_tracks(&file.analysis.probe);
@@ -323,6 +370,7 @@ pub async fn create(
                         &root,
                         media_file_id,
                         &placement.rel_path,
+                        &root.join(&placement.rel_path),
                         tracks,
                     )
                     .await as i64;
@@ -330,8 +378,20 @@ pub async fn create(
                 }
                 Err(err) => imported.error = Some(format!("{err:#}")),
             }
+        } else {
+            match enqueue(&state, &root, library.id, file, &placement).await {
+                Ok(job_id) => {
+                    imported.job_id = Some(job_id);
+                    imported.destination = Some(placement.rel_path);
+                    queued = true;
+                }
+                Err(err) => imported.error = Some(format!("{err:#}")),
+            }
         }
         results.push(imported);
+    }
+    if queued {
+        state.jobs.wake();
     }
 
     manifest::refresh(&state.db, &media_dir, top_id).await;
@@ -364,100 +424,44 @@ async fn existing(
     Ok((id, dir))
 }
 
-/// La primera versión libre: `… - v2.mp4`, `… - v3.mp4`…
-async fn free_version(conn: &mut SqliteConnection, root: &Path, path: &str) -> AppResult<String> {
-    for version in 2.. {
-        let candidate = paths::version_file(path, version);
-        if !root.join(&candidate).exists() && !repo::rel_path_taken(conn, &candidate).await? {
-            return Ok(candidate);
-        }
-    }
-    unreachable!("siempre hay una versión libre")
-}
-
-/// Pone el archivo en su lugar y lo registra. Si reemplaza a otros, primero los manda a la
-/// papelera (con sus subtítulos); si después algo falla, vuelven a su lugar.
-/// Devuelve el id del archivo nuevo y lo que fue a la papelera.
-async fn place(
+/// Crea el trabajo y saca el archivo de la bandeja: pasa a `.kinora-tmp/`, donde espera su turno
+/// (así no se puede importar dos veces). Si no se puede mover, el trabajo no queda.
+async fn enqueue(
     state: &AppState,
     root: &Path,
-    trash_batch: &Path,
+    library_id: i64,
     file: &PlannedFile,
     placement: &Placement,
-) -> anyhow::Result<(i64, Vec<String>)> {
-    let mut old_paths = Vec::new();
-    for &id in &placement.replaces {
-        old_paths.extend(repo::paths_of_file(&mut *state.db.acquire().await?, id).await?);
+) -> anyhow::Result<i64> {
+    let source_name = file_name(&file.source);
+    let source_size = tokio::fs::metadata(&file.source).await?.len() as i64;
+    let id = jobs::repo::insert(
+        &state.db,
+        &jobs::repo::NewJob {
+            library_id,
+            content_id: placement.content_id,
+            source_name: &source_name,
+            operation: file.operation,
+            action: placement.action,
+            rel_path: &placement.rel_path,
+            source_size,
+        },
+    )
+    .await?;
+    let waiting = root
+        .join(".kinora-tmp")
+        .join(jobs::source_file_name(id, &source_name));
+    let moved = async {
+        tokio::fs::create_dir_all(waiting.parent().expect("tiene carpeta")).await?;
+        tokio::fs::rename(&file.source, &waiting).await
     }
-    let trashed = trash::move_files(root, trash_batch, &old_paths)
-        .await
-        .context("no se pudo mover el archivo anterior a la papelera")?;
-
-    if let Err(err) = move_into_library(root, &file.source, &placement.rel_path).await {
-        trash::restore(root, trash_batch, &trashed).await;
-        return Err(err);
+    .await;
+    if let Err(err) = moved {
+        jobs::repo::delete(&state.db, id).await?;
+        return Err(err).context("no se pudo pasar el archivo a la cola");
     }
-
-    // En la base, el cambio es de una vez: se van los anteriores y entra el nuevo.
-    let size = tokio::fs::metadata(root.join(&placement.rel_path))
-        .await?
-        .len() as i64;
-    let video = file.analysis.probe.video();
-    let media_file = NewMediaFile {
-        content_id: placement.content_id,
-        rel_path: placement.rel_path.clone(),
-        size,
-        duration: file.analysis.probe.duration(),
-        video_codec: video.and_then(|v| v.codec_string()),
-        width: video.and_then(|v| v.width),
-        height: video.and_then(|v| v.height),
-        probe_json: file.analysis.json.clone(),
-        source_path: file_name(&file.source),
-    };
-    let mut tx = state.db.begin().await?;
-    for &id in &placement.replaces {
-        repo::delete_media_file(&mut tx, id).await?;
-    }
-    let id = insert_media_file(&mut tx, &media_file).await?;
-    tx.commit().await?;
-    if !trashed.is_empty() {
-        info!("moved to the trash: {}", trashed.join(", "));
-    }
-    Ok((id, trashed))
-}
-
-/// Mueve el archivo de la bandeja a su lugar en la biblioteca. Como están en el mismo disco,
-/// es un renombrado: instantáneo y atómico. Si la biblioteca estuviera en otro disco, se copia
-/// a `.kinora-tmp/` y recién al terminar se mueve, para que nunca quede un archivo a medias.
-async fn move_into_library(root: &Path, source: &Path, rel_path: &str) -> anyhow::Result<()> {
-    let destination = root.join(rel_path);
-    if destination.exists() {
-        bail!("ya existe {}", destination.display());
-    }
-    if let Some(parent) = destination.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
-
-    if tokio::fs::rename(source, &destination).await.is_err() {
-        let tmp_dir = root.join(".kinora-tmp");
-        tokio::fs::create_dir_all(&tmp_dir).await?;
-        let tmp = tmp_dir.join(format!("{}.part", file_name(source)));
-        let copied = async {
-            tokio::fs::copy(source, &tmp)
-                .await
-                .context("no se pudo copiar")?;
-            tokio::fs::rename(&tmp, &destination)
-                .await
-                .context("no se pudo mover a la biblioteca")
-        }
-        .await;
-        if copied.is_err() {
-            let _ = tokio::fs::remove_file(&tmp).await;
-        }
-        copied?;
-        tokio::fs::remove_file(source).await?;
-    }
-    Ok(())
+    info!("queued job {id}: {:?} {source_name}", file.operation);
+    Ok(id)
 }
 
 fn clean_title(title: &str) -> AppResult<String> {

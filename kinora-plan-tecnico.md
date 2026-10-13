@@ -265,14 +265,16 @@ CREATE TABLE progress (
 
 CREATE TABLE import_jobs (
   id INTEGER PRIMARY KEY,
-  source_path TEXT NOT NULL,
+  library_id INTEGER NOT NULL REFERENCES libraries(id),
   content_id INTEGER NOT NULL REFERENCES contents(id),
-  operation TEXT NOT NULL,       -- copy, remux, audio, video
-  conflict TEXT,                 -- null, replace, add_version
-  state TEXT NOT NULL,           -- pending, running, verifying, done, failed, cancelled
-  progress REAL,                 -- 0..1
+  source_name TEXT NOT NULL,     -- el nombre que tenía en la bandeja de entrada
+  operation TEXT NOT NULL,       -- remux, audio, video
+  action TEXT NOT NULL,          -- added, replaced, added_version
+  rel_path TEXT NOT NULL,        -- destino final, relativo a la carpeta de la biblioteca
+  state TEXT NOT NULL,           -- pending, running, done, failed, cancelled
+  progress REAL NOT NULL DEFAULT 0,
   error TEXT,
-  source_size INTEGER,
+  source_size INTEGER NOT NULL,
   result_size INTEGER,
   created_at INTEGER NOT NULL,
   started_at INTEGER,
@@ -412,22 +414,25 @@ Al importar, el archivo se mueve de la bandeja a la biblioteca. Los archivos que
 
 ## Cola de conversión
 
-**La cola es el único proceso en segundo plano de Kinora.** Ejecutará un trabajo por vez.
+**La cola es el único proceso en segundo plano de Kinora.** Ejecuta un trabajo por vez. Desde la Etapa 3 hace remux (y la conversión del audio a AAC); en la Etapa 4 suma la conversión del video.
+
+Los archivos que ya cumplen el formato no pasan por la cola: se mueven en el momento. Los que necesitan remux salen de la bandeja al confirmar y esperan en `<biblioteca>/.kinora-tmp/job-<id>-source.<ext>`, así no se pueden importar dos veces. Qué reemplaza un trabajo (si se eligió "reemplazar") se decide al terminar, con los archivos que tenga el episodio en ese momento. Los subtítulos internos se extraen del original, porque el MP4 no lleva los del MKV.
 
 Cada trabajo sigue estos pasos:
 
 1. Escribir el resultado en `.kinora-tmp/`.
-2. Verificar con ffprobe que el resultado cumple el formato, que su duración coincide con la del original (tolerancia de un segundo) y que conserva el rango dinámico: misma `color_transfer`, mismos `color_primaries` y, en HDR, los metadatos de masterización y de nivel de luz.
+2. Verificar con ffprobe que el resultado cumple el formato, que su duración coincide con la del original (tolerancia del 1% o 2 segundos: lo que se busca son archivos cortados; los MKV a veces empiezan unos instantes después de 0 y lo cuentan en su duración; se comparan solo video y audio, porque los subtítulos pueden terminar después) y que conserva el rango dinámico: misma `color_transfer`, mismos `color_primaries` y, en HDR, los metadatos de masterización y de nivel de luz.
 3. Mover el archivo a su ruta final con un renombrado atómico.
 4. Registrar el archivo y sus subtítulos en la base de datos.
 5. Reescribir `kinora.json`.
 
 | Situación | Comportamiento |
 |---|---|
-| ffmpeg falla | Marcar el trabajo como fallido, guardar el error, borrar el temporal y seguir con el siguiente |
+| ffmpeg falla | Marcar el trabajo como fallido, guardar el error, borrar el temporal, devolver el original a la bandeja y seguir con el siguiente |
 | La verificación falla | Igual que una falla de ffmpeg. El original queda intacto |
 | El servidor se reinicia durante un trabajo | Borrar el temporal y volver el trabajo a pendiente |
-| El usuario cancela | Detener ffmpeg, borrar el temporal y marcar el trabajo como cancelado |
+| El usuario cancela | Detener ffmpeg (o sacarlo de la fila si no empezó), borrar el temporal, devolver el original a la bandeja y marcar el trabajo como cancelado |
+| Falta espacio | Antes de confirmar: el remux necesita el tamaño de los originales libre, más 1 GB de margen |
 
 El avance se obtiene de `ffmpeg -progress`. El Admin lo muestra con el tiempo estimado.
 
@@ -525,8 +530,8 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Confirmar una importación | `POST /api/admin/imports` |
 | Agregar un subtítulo a un archivo (el cuerpo es el archivo) | `POST /api/admin/files/{id}/subtitles?name=&language=&forced=` |
 | Quitar un subtítulo (y sus archivos) | `DELETE /api/admin/subtitles/{id}` |
-| Consultar la cola | `GET /api/admin/jobs` |
-| Cancelar o reintentar un trabajo | `POST /api/admin/jobs/{id}/cancel`, `POST /api/admin/jobs/{id}/retry` |
+| Consultar la cola (pendientes, en curso y los últimos 20 terminados) | `GET /api/admin/jobs` |
+| Cancelar un trabajo (el original vuelve a la bandeja; reintentar es volver a importarlo) | `POST /api/admin/jobs/{id}/cancel` |
 | Editar un contenido | `PATCH /api/admin/contents/{id}` |
 | Eliminar un contenido (a la papelera) | `DELETE /api/admin/contents/{id}` |
 | Métricas | `GET /api/admin/metrics/{server,storage,playback,imports}` |

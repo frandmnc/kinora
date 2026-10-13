@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use axum::Json;
 use axum::body::Body;
@@ -9,7 +9,7 @@ use serde::Deserialize;
 use tokio::io::AsyncWriteExt;
 use tracing::info;
 
-use super::{InboxFile, inbox_dir, resolve, validate_name};
+use super::{InboxFile, inbox_dir, resolve, unique_path, validate_name};
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
 
@@ -129,19 +129,6 @@ async fn write_body(mut body: Body, path: &Path) -> AppResult<u64> {
     }
     file.flush().await?;
     Ok(size)
-}
-
-/// "a.mkv" si está libre; si no, "a (2).mkv", "a (3).mkv"...
-fn unique_path(dir: &Path, name: &str) -> PathBuf {
-    let candidate = dir.join(name);
-    if !candidate.exists() {
-        return candidate;
-    }
-    let (stem, extension) = name.rsplit_once('.').unwrap_or((name, ""));
-    (2..)
-        .map(|n| dir.join(format!("{stem} ({n}).{extension}")))
-        .find(|path| !path.exists())
-        .expect("siempre hay un número libre")
 }
 
 #[cfg(test)]

@@ -1,7 +1,8 @@
 //! Importación: analizar archivos de las carpetas de origen y agregarlos al catálogo.
 //!
 //! Los archivos vienen de la bandeja de entrada (ver `uploads`) y se identifican por su nombre.
-//! Por ahora solo se importan archivos que ya cumplen el formato de Kinora (se mueven tal cual).
+//! Los que ya cumplen el formato de Kinora se mueven tal cual, en el momento. Los que necesitan
+//! remux (MKV con HEVC) van a la cola (`jobs`) y entran a la biblioteca al terminar.
 //! El destino puede ser un contenido nuevo o uno existente (otra temporada, episodios que faltan,
 //! una versión mejor). Si un episodio ya tiene archivo, el pedido dice qué hacer: omitir,
 //! reemplazar (el anterior va a la papelera) o agregar como otra versión.
@@ -9,6 +10,9 @@
 mod guess;
 mod handlers;
 mod paths;
+mod place;
+
+pub use place::{PlaceFile, free_version, place};
 
 use axum::Router;
 use axum::routing::post;
@@ -16,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::app::AppState;
+use crate::probe::Operation;
 
 #[derive(Deserialize, TS)]
 #[serde(deny_unknown_fields)]
@@ -35,10 +40,14 @@ pub struct FileAnalysis {
     pub video: Option<String>,
     /// Ej. ["aac 2 canales jpn"].
     pub audio: Vec<String>,
-    /// Ej. ["Español (ASS)", "Inglés (SRT, archivo)"].
+    /// Ej. ["Español (ASS)", "Inglés (SRT)"].
     pub subtitles: Vec<String>,
-    /// Diferencias con el formato de Kinora. Vacía = se puede importar copiando.
-    pub problems: Vec<String>,
+    /// Qué hay que hacerle para que cumpla el formato. `null` si no se pudo leer.
+    pub operation: Option<Operation>,
+    /// Lo que va a cambiar: "contenedor matroska → MP4", "audio opus → AAC".
+    pub changes: Vec<String>,
+    /// Lo que impide importarlo por ahora. Vacía = se puede importar.
+    pub blockers: Vec<String>,
     /// Si ffprobe no pudo leer el archivo.
     pub error: Option<String>,
     pub guess: Guess,
@@ -133,8 +142,10 @@ pub struct ImportedFile {
     pub file: String,
     /// Qué se hizo con el archivo.
     pub action: ImportAction,
-    /// Ruta final dentro de la biblioteca, si se importó.
+    /// Ruta final dentro de la biblioteca, si se importó (o donde va a quedar, si está en cola).
     pub destination: Option<String>,
+    /// Si necesitó remux: el trabajo en la cola. Entra a la biblioteca cuando termine.
+    pub job_id: Option<i64>,
     /// Archivos anteriores que fueron a la papelera (al reemplazar).
     pub trashed: Vec<String>,
     /// Cuántas pistas de subtítulos quedaron.
@@ -142,8 +153,9 @@ pub struct ImportedFile {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, sqlx::Type, TS)]
 #[serde(rename_all = "snake_case")]
+#[sqlx(rename_all = "snake_case")]
 #[ts(export)]
 pub enum ImportAction {
     /// El destino no tenía archivo.

@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 /// Lo que nos interesa de la salida de `ffprobe -show_format -show_streams`.
 /// Los campos que faltan en el JSON quedan en `None` o vacíos.
@@ -32,6 +33,8 @@ pub struct ProbeStream {
     pub width: Option<i64>,
     pub height: Option<i64>,
     pub channels: Option<i64>,
+    /// En segundos. En MKV no viene: está en la etiqueta `DURATION`.
+    pub duration: Option<String>,
     #[serde(default)]
     pub disposition: HashMap<String, i64>,
     #[serde(default)]
@@ -77,6 +80,17 @@ impl Probe {
         self.format.duration.as_deref()?.parse().ok()
     }
 
+    /// Lo que dura la imagen y el sonido: la pista de video o audio más larga. Puede ser menos
+    /// que `duration`, que en un MKV incluye subtítulos que terminan después del video.
+    pub fn media_duration(&self) -> Option<f64> {
+        self.streams
+            .iter()
+            .filter(|s| s.is("video") || s.is("audio"))
+            .filter_map(ProbeStream::duration)
+            .reduce(f64::max)
+            .or_else(|| self.duration())
+    }
+
     /// Primer video real: las carátulas incrustadas también figuran como streams de video.
     pub fn video(&self) -> Option<&ProbeStream> {
         self.streams
@@ -88,9 +102,13 @@ impl Probe {
         self.streams.iter().filter(|s| s.is("audio"))
     }
 
-    /// Diferencias con el formato de Kinora. Si está vacía, el archivo se puede copiar tal cual.
-    pub fn problems(&self, path: &Path) -> Vec<String> {
-        let mut problems = Vec::new();
+    /// Qué hay que hacerle al archivo para que cumpla el formato de Kinora, y qué impide
+    /// importarlo por ahora.
+    pub fn plan(&self, path: &Path) -> FormatPlan {
+        let mut changes = Vec::new();
+        let mut blockers = Vec::new();
+        let mut convert_video = false;
+        let mut convert_audio = false;
 
         let mp4_extension = path
             .extension()
@@ -98,21 +116,25 @@ impl Probe {
             .is_some_and(|e| e.eq_ignore_ascii_case("mp4"));
         if !mp4_extension || !self.format.format_name.contains("mp4") {
             let container = self.format.format_name.split(',').next().unwrap_or("?");
-            problems.push(format!("el contenedor es {container}, no MP4"));
+            changes.push(format!("contenedor {container} → MP4"));
         }
 
         match self.video() {
-            None => problems.push("no tiene video".to_string()),
+            None => blockers.push("no tiene video".to_string()),
             Some(video) => {
                 let codec = video.codec_name.as_deref().unwrap_or("desconocido");
                 if codec != "hevc" {
-                    problems.push(format!("el video es {codec}, no HEVC"));
-                } else if video.codec_tag_string.as_deref() != Some("hvc1") {
+                    convert_video = true;
+                    blockers.push(format!(
+                        "el video es {codec}: convertirlo a HEVC llega en la Etapa 4"
+                    ));
+                } else if changes.is_empty() && video.codec_tag_string.as_deref() != Some("hvc1") {
+                    // Solo importa en un MP4: al cambiar de caja, la etiqueta se pone igual.
                     let tag = video.codec_tag_string.as_deref().unwrap_or("desconocida");
-                    problems.push(format!("el video HEVC tiene la etiqueta {tag}, no hvc1"));
+                    changes.push(format!("etiqueta {tag} → hvc1"));
                 }
                 if let Some(profile) = video.dolby_vision_profile() {
-                    problems.push(format!("tiene Dolby Vision perfil {profile}"));
+                    blockers.push(format!("tiene Dolby Vision perfil {profile}"));
                 }
             }
         }
@@ -122,15 +144,54 @@ impl Probe {
             has_audio = true;
             let codec = audio.codec_name.as_deref().unwrap_or("desconocido");
             if codec != "aac" {
-                problems.push(format!("el audio es {codec}, no AAC"));
+                convert_audio = true;
+                changes.push(format!("audio {codec} → AAC"));
             }
         }
         if !has_audio {
-            problems.push("no tiene audio".to_string());
+            blockers.push("no tiene audio".to_string());
         }
 
-        problems
+        let operation = if convert_video {
+            Operation::Video
+        } else if convert_audio {
+            Operation::Audio
+        } else if !changes.is_empty() {
+            Operation::Remux
+        } else {
+            Operation::Copy
+        };
+        FormatPlan {
+            operation,
+            changes,
+            blockers,
+        }
     }
+}
+
+/// La operación mínima para llevar un archivo al formato de Kinora.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, sqlx::Type, TS)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(rename_all = "snake_case")]
+#[ts(export)]
+pub enum Operation {
+    /// Ya cumple: se mueve tal cual.
+    Copy,
+    /// Video HEVC y audio AAC en otra caja (MKV) o con otra etiqueta: se cambia la caja, sin
+    /// tocar la imagen ni el sonido. Tarda lo que tarda copiar el archivo.
+    Remux,
+    /// Como el remux, pero además el audio se convierte a AAC. Unos segundos más.
+    Audio,
+    /// El video no es HEVC: hay que convertirlo (Etapa 4).
+    Video,
+}
+
+pub struct FormatPlan {
+    pub operation: Operation,
+    /// Lo que se va a cambiar, para mostrar: "contenedor matroska → MP4", "audio opus → AAC".
+    pub changes: Vec<String>,
+    /// Lo que impide importarlo por ahora.
+    pub blockers: Vec<String>,
 }
 
 impl ProbeStream {
@@ -163,6 +224,19 @@ impl ProbeStream {
         }
     }
 
+    /// Segundos de esta pista: el campo `duration`, o la etiqueta `DURATION` de MKV ("00:02:30.935").
+    fn duration(&self) -> Option<f64> {
+        if let Some(seconds) = self.duration.as_deref().and_then(|d| d.parse().ok()) {
+            return Some(seconds);
+        }
+        let tag = self.tags.get("DURATION")?;
+        let mut parts = tag.splitn(3, ':');
+        let hours: f64 = parts.next()?.parse().ok()?;
+        let minutes: f64 = parts.next()?.parse().ok()?;
+        let seconds: f64 = parts.next()?.parse().ok()?;
+        Some(hours * 3600.0 + minutes * 60.0 + seconds)
+    }
+
     pub fn language(&self) -> Option<&str> {
         self.tags.get("language").map(String::as_str)
     }
@@ -193,7 +267,9 @@ mod tests {
     #[test]
     fn kinora_format_has_no_problems() {
         let probe = Probe::parse(KINORA_MP4).unwrap();
-        assert!(probe.problems(Path::new("a.mp4")).is_empty());
+        let plan = probe.plan(Path::new("a.mp4"));
+        assert_eq!(plan.operation, Operation::Copy);
+        assert!(plan.changes.is_empty() && plan.blockers.is_empty());
         assert_eq!(probe.duration(), Some(1559.98));
         let video = probe.video().unwrap();
         assert_eq!(video.bit_depth(), 10);
@@ -201,15 +277,47 @@ mod tests {
     }
 
     #[test]
-    fn mkv_with_h264_lists_each_problem() {
-        let probe = Probe::parse(ANIME_MKV).unwrap();
+    fn h264_needs_the_video_conversion() {
+        let plan = Probe::parse(ANIME_MKV).unwrap().plan(Path::new("a.mkv"));
+        assert_eq!(plan.operation, Operation::Video);
+        assert_eq!(plan.changes, ["contenedor matroska → MP4"]);
         assert_eq!(
-            probe.problems(Path::new("a.mkv")),
-            [
-                "el contenedor es matroska, no MP4",
-                "el video es h264, no HEVC"
-            ]
+            plan.blockers,
+            ["el video es h264: convertirlo a HEVC llega en la Etapa 4"]
         );
+    }
+
+    #[test]
+    fn hevc_in_mkv_is_a_remux_and_opus_converts_the_audio() {
+        let mkv = KINORA_MP4
+            .replace("mov,mp4,m4a,3gp,3g2,mj2", "matroska,webm")
+            .replace(r#""codec_tag_string": "hvc1","#, "");
+        let plan = Probe::parse(&mkv).unwrap().plan(Path::new("a.mkv"));
+        assert_eq!(plan.operation, Operation::Remux);
+        assert_eq!(plan.changes, ["contenedor matroska → MP4"]);
+
+        let opus = mkv.replace(r#""codec_name": "aac""#, r#""codec_name": "opus""#);
+        let plan = Probe::parse(&opus).unwrap().plan(Path::new("a.mkv"));
+        assert_eq!(plan.operation, Operation::Audio);
+        assert_eq!(
+            plan.changes,
+            ["contenedor matroska → MP4", "audio opus → AAC"]
+        );
+        assert!(plan.blockers.is_empty());
+    }
+
+    #[test]
+    fn media_duration_ignores_subtitles_that_end_later() {
+        let mkv = r#"{
+            "format": { "format_name": "matroska,webm", "duration": "153.010000" },
+            "streams": [
+                { "codec_type": "video", "tags": { "DURATION": "00:02:30.935000000" } },
+                { "codec_type": "audio", "tags": { "DURATION": "00:02:31.932000000" } },
+                { "codec_type": "subtitle", "tags": { "DURATION": "00:02:33.010000000" } }
+            ]
+        }"#;
+        let probe = Probe::parse(mkv).unwrap();
+        assert!((probe.media_duration().unwrap() - 151.932).abs() < 0.001);
     }
 
     #[test]
@@ -220,7 +328,7 @@ mod tests {
         );
         let probe = Probe::parse(&json).unwrap();
         assert_eq!(
-            probe.problems(Path::new("a.mp4")),
+            probe.plan(Path::new("a.mp4")).blockers,
             ["tiene Dolby Vision perfil 5"]
         );
     }

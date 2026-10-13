@@ -87,6 +87,8 @@ pub fn describe(probe: &Probe) -> Vec<String> {
 }
 
 /// Convierte cada pista a WebVTT al lado del video ya importado y la registra en la base.
+/// `source` es el archivo del que salen las pistas internas: el video mismo, o el original si
+/// hubo remux (el MP4 no lleva los subtítulos del MKV).
 /// Si una pista falla, se anota en la terminal y se sigue con las demás.
 /// Devuelve cuántas quedaron.
 pub async fn attach_subtitles(
@@ -94,11 +96,12 @@ pub async fn attach_subtitles(
     root: &Path,
     media_file_id: i64,
     video_rel: &str,
+    source: &Path,
     tracks: Vec<FoundTrack>,
 ) -> usize {
     let mut attached = 0;
     for track in tracks {
-        match attach(db, root, media_file_id, video_rel, track).await {
+        match attach(db, root, media_file_id, video_rel, source, track).await {
             Ok(_) => attached += 1,
             Err(err) => warn!("could not add subtitle to {video_rel}: {err:#}"),
         }
@@ -133,7 +136,15 @@ pub async fn attach_file(
         forced,
         source: TrackSource::File { path, extension },
     };
-    let id = attach(db, root, media_file_id, video_rel, track).await?;
+    let id = attach(
+        db,
+        root,
+        media_file_id,
+        video_rel,
+        &root.join(video_rel),
+        track,
+    )
+    .await?;
     repo::get(db, id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("subtitle {id} vanished after insert"))
@@ -145,9 +156,9 @@ async fn attach(
     root: &Path,
     media_file_id: i64,
     video_rel: &str,
+    source: &Path,
     track: FoundTrack,
 ) -> Result<i64> {
-    let video = root.join(video_rel);
     let base = video_rel.strip_suffix(".mp4").unwrap_or(video_rel);
     let language = track.language.clone().unwrap_or_else(|| "und".to_string());
     // Base.spa.vtt, y si se repite el idioma: Base.spa.2.vtt, Base.spa.3.vtt…
@@ -161,7 +172,7 @@ async fn attach(
         })
         .expect("siempre hay un nombre libre");
 
-    let original = convert(&video, root, &name, &track.source).await?;
+    let original = convert(source, root, &name, &track.source).await?;
     let (srclang, _) = language_info(track.language.as_deref());
     // Dos pistas "Español" no se distinguen en el menú: la segunda pasa a "Español 2".
     let taken = repo::labels_of(db, media_file_id).await?;

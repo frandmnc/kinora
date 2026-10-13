@@ -7,11 +7,12 @@ use axum::routing::get;
 use sqlx::SqlitePool;
 
 use crate::error::AppError;
+use crate::jobs::Jobs;
 use crate::monitor::Monitor;
 use crate::settings::Settings;
 use crate::{
-    contents, debug, health, imports, libraries, monitor, playback, settings, subtitles, uploads,
-    web,
+    contents, debug, health, imports, jobs, libraries, monitor, playback, settings, subtitles,
+    uploads, web,
 };
 
 /// Lo que comparten todos los handlers. Axum le pasa una copia a cada pedido;
@@ -21,6 +22,7 @@ pub struct AppState {
     pub db: SqlitePool,
     pub monitor: Arc<Monitor>,
     pub settings: Arc<Settings>,
+    pub jobs: Arc<Jobs>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -31,6 +33,7 @@ pub fn router(state: AppState) -> Router {
         .merge(uploads::admin_routes())
         .merge(libraries::admin_routes())
         .merge(imports::admin_routes())
+        .merge(jobs::admin_routes())
         .merge(subtitles::admin_routes())
         .merge(debug::admin_routes());
 

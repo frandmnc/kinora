@@ -6,10 +6,12 @@ import {
   Check,
   CircleCheck,
   CircleX,
+  Clock,
   CloudUpload,
   FilePlay,
   Inbox as InboxIcon,
   LoaderCircle,
+  Repeat,
   SkipForward,
   Trash,
   TriangleAlert,
@@ -30,11 +32,12 @@ import type { ConflictChoice } from '../../shared/types/ConflictChoice'
 import type { Content } from '../../shared/types/Content'
 import type { ContentDetail } from '../../shared/types/ContentDetail'
 import { Alert, Badge, Card, EmptyState, Meter, OkBadge, PageHeader } from '../ui'
+import { OPERATION_LABELS } from '../labels'
 
 /**
  * Importar en tres pasos: subir archivos a la bandeja → revisar el análisis y elegir el destino → ver el resultado.
  * El destino es un contenido nuevo o uno existente; si un episodio ya tiene archivo, se elige qué hacer.
- * Por ahora solo archivos que ya están en el formato de Kinora.
+ * Los que necesitan remux pasan por la cola; convertir el video llega en la Etapa 4.
  */
 export function ImportPage() {
   const [analysis, setAnalysis] = useState<FileAnalysis[]>()
@@ -80,7 +83,7 @@ export function ImportPage() {
     <>
       <PageHeader
         title="Importar"
-        description="Por ahora solo se importan archivos que ya están en el formato de Kinora (MP4, HEVC, AAC). La conversión llega en la Etapa 4."
+        description="Los archivos en MP4 con HEVC y AAC se mueven tal cual. Los MKV con video HEVC pasan por la cola para cambiarles la caja (remux), que tarda segundos. Convertir otros videos llega en la Etapa 4."
         actions={<Stepper current={step} />}
       />
 
@@ -138,7 +141,7 @@ function Stepper({ current }: { current: number }) {
 }
 
 function isReady(file: FileAnalysis) {
-  return !file.error && file.problems.length === 0
+  return !file.error && file.blockers.length === 0
 }
 
 // --- Paso 1: subir archivos a la bandeja de entrada ---
@@ -330,18 +333,25 @@ function AnalysisTable({ files }: { files: FileAnalysis[] }) {
                     <Badge tone="critical" icon={CircleX}>
                       No se pudo leer
                     </Badge>
-                  ) : file.problems.length === 0 ? (
-                    <OkBadge>Listo para importar</OkBadge>
-                  ) : (
+                  ) : file.blockers.length > 0 ? (
                     <ul className="problems">
-                      {file.problems.map((problem) => (
-                        <li key={problem}>
+                      {file.blockers.map((blocker) => (
+                        <li key={blocker}>
                           <Badge tone="warning" icon={CircleX}>
-                            {problem}
+                            {blocker}
                           </Badge>
                         </li>
                       ))}
                     </ul>
+                  ) : file.operation === 'copy' ? (
+                    <OkBadge>Listo: se mueve tal cual</OkBadge>
+                  ) : (
+                    <div className="operation">
+                      <Badge tone="accent" icon={Repeat}>
+                        {OPERATION_LABELS[file.operation ?? 'remux']}
+                      </Badge>
+                      <span className="small muted">{file.changes.join(' · ')}</span>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -759,13 +769,27 @@ const ACTION_LABELS: Record<ImportAction, string> = {
 function ResultView({ result, onRestart }: { result: ImportResult; onRestart: () => void }) {
   const failed = result.files.filter((file) => file.error).length
   const trashed = result.files.some((file) => file.trashed.length > 0)
+  const queued = result.files.some((file) => file.job_id !== null)
   return (
     <Card
-      title={failed === 0 ? 'Importación completa' : `Importación con ${failed} error(es)`}
+      title={
+        failed > 0
+          ? `Importación con ${failed} error(es)`
+          : queued
+            ? 'Importación en marcha'
+            : 'Importación completa'
+      }
       actions={
-        <button className="btn btn-primary" onClick={onRestart}>
-          Importar otra cosa
-        </button>
+        <>
+          {queued && (
+            <Link to="/jobs" className="btn">
+              Ver la cola
+            </Link>
+          )}
+          <button className="btn btn-primary" onClick={onRestart}>
+            Importar otra cosa
+          </button>
+        </>
       }
       footer={
         <span className="small muted">
@@ -800,6 +824,19 @@ function ResultView({ result, onRestart }: { result: ImportResult; onRestart: ()
                 <div className="small muted">Sigue en la bandeja de entrada</div>
               </span>
               <Badge>{ACTION_LABELS.skipped}</Badge>
+            </>
+          ) : file.job_id !== null ? (
+            <>
+              <Clock className="icon" />
+              <span className="grow">
+                <span className="mono">{file.destination}</span>
+                <div className="small muted">
+                  Necesita remux: entra a la biblioteca cuando termine.
+                </div>
+              </span>
+              <Link to="/jobs" className="badge">
+                En cola
+              </Link>
             </>
           ) : (
             <>

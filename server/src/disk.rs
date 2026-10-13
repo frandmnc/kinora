@@ -24,6 +24,17 @@ pub fn space_of(path: &Path) -> Option<DiskSpace> {
         })
 }
 
+/// "1.4 GB", "820 MB": para mensajes.
+pub fn format_size(bytes: u64) -> String {
+    const GB: f64 = 1024.0 * 1024.0 * 1024.0;
+    let bytes = bytes as f64;
+    if bytes >= GB {
+        format!("{:.1} GB", bytes / GB)
+    } else {
+        format!("{:.0} MB", bytes / 1024.0 / 1024.0)
+    }
+}
+
 #[derive(Debug, Default, PartialEq)]
 pub struct FolderSize {
     pub bytes: u64,

@@ -1,11 +1,12 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router'
-import { Activity, Database, ExternalLink, LibraryBig, Settings, Upload } from 'lucide-react'
+import { Activity, Database, ExternalLink, LibraryBig, ListOrdered, Settings, Upload } from 'lucide-react'
 import { useEffect } from 'react'
 import { useApi } from '../shared/useApi'
 import type { Health } from '../shared/types/Health'
 import { LibrariesPage } from './pages/LibrariesPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { ImportPage } from './pages/ImportPage'
+import { JobsPage } from './pages/JobsPage'
 import { DatabasePage } from './pages/DatabasePage'
 import { StatusPage } from './pages/StatusPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -22,6 +23,7 @@ export function App() {
             <Route path="/libraries" element={<LibrariesPage />} />
             <Route path="/libraries/:id" element={<LibraryPage />} />
             <Route path="/import" element={<ImportPage />} />
+            <Route path="/jobs" element={<JobsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/database" element={<DatabasePage />} />
             <Route path="/database/:table" element={<DatabasePage />} />
@@ -57,6 +59,9 @@ function Sidebar() {
         </NavLink>
         <NavLink to="/import">
           <Upload /> Importar
+        </NavLink>
+        <NavLink to="/jobs">
+          <ListOrdered /> Cola
         </NavLink>
         <NavLink to="/settings">
           <Settings /> Configuración

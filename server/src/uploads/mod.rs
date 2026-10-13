@@ -57,6 +57,19 @@ pub fn resolve(media_dir: &Path, name: &str) -> AppResult<PathBuf> {
     Ok(path)
 }
 
+/// "a.mkv" si está libre; si no, "a (2).mkv", "a (3).mkv"...
+pub fn unique_path(dir: &Path, name: &str) -> PathBuf {
+    let candidate = dir.join(name);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let (stem, extension) = name.rsplit_once('.').unwrap_or((name, ""));
+    (2..)
+        .map(|n| dir.join(format!("{stem} ({n}).{extension}")))
+        .find(|path| !path.exists())
+        .expect("siempre hay un número libre")
+}
+
 fn validate_name(name: &str) -> AppResult<()> {
     let invalid = name.is_empty()
         || name.starts_with('.')
