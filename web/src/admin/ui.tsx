@@ -159,7 +159,7 @@ export function Sparkline({
   const width = 200
   const height = 34
   const pad = 5
-  if (values.length < 2) return <svg className="sparkline" aria-hidden="true" />
+  if (values.length < 2) return <div className="sparkline" aria-hidden="true" />
 
   const low = range ? Math.min(...values) : 0
   const high = Math.max(max ?? 0, ...values)
@@ -173,29 +173,27 @@ export function Sparkline({
   const area = `${line} L${x(values.length - 1).toFixed(1)},${height - pad} L${x(0).toFixed(1)},${height - pad} Z`
   const last = values.length - 1
 
+  // La línea se estira con la tarjeta (`preserveAspectRatio="none"`), pero un círculo estirado
+  // se vuelve óvalo: el punto final va aparte, en HTML, ubicado en porcentajes.
   return (
-    <svg className="sparkline" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={label}>
-      <title>{label}</title>
-      <path d={area} fill="var(--deemph)" opacity="0.12" />
-      <path
-        d={line}
-        fill="none"
-        stroke="var(--deemph)"
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
+    <div className="sparkline" role="img" aria-label={label}>
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+        <path d={area} fill="var(--deemph)" opacity="0.12" />
+        <path
+          d={line}
+          fill="none"
+          stroke="var(--deemph)"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <span
+        className="sparkline-dot"
+        style={{ left: `${(x(last) / width) * 100}%`, top: `${(y(values[last]) / height) * 100}%` }}
       />
-      <circle
-        cx={x(last)}
-        cy={y(values[last])}
-        r="4"
-        fill="var(--accent)"
-        stroke="var(--surface)"
-        strokeWidth="2"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+    </div>
   )
 }
 

@@ -748,10 +748,27 @@ a:hover {
 }
 
 .sparkline {
+  position: relative;
   display: block;
   width: 100%;
   height: 34px;
+}
+
+.sparkline svg {
+  display: block;
+  width: 100%;
+  height: 100%;
   overflow: visible;
+}
+
+.sparkline-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: translate(-50%, -50%);
 }
 
 /* Medidor: el relleno lleva el estado; la pista es un tono claro del mismo color. */
