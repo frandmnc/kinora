@@ -12,7 +12,9 @@ use tower::ServiceExt;
 use tower_http::services::ServeFile;
 use tracing::info;
 
-use super::{Content, ContentDetail, ContentKind, MediaFile, PlaybackReport, Progress, repo};
+use super::{
+    Content, ContentDetail, ContentKind, MediaFile, PlaybackReport, Progress, RecentItem, repo,
+};
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
 use crate::monitor::SessionStep;
@@ -33,6 +35,62 @@ pub async fn list(
 ) -> AppResult<Json<Vec<Content>>> {
     let contents = repo::list_top_level(&state.db, params.library_id, params.kind).await?;
     Ok(Json(contents))
+}
+
+/// Cuántas películas o series muestra "Agregados recientemente".
+const RECENT_ITEMS: usize = 20;
+/// Lo importado dentro de este margen antes de lo último cuenta como la misma tanda.
+const SAME_BATCH_SECS: i64 = 24 * 3600;
+
+/// GET /api/recent
+/// Las películas y series con algo agregado hace poco, de la más nueva a la más vieja.
+pub async fn recent(State(state): State<AppState>) -> AppResult<Json<Vec<RecentItem>>> {
+    // Agrupa los últimos archivos por película o serie, en el orden en que aparecen.
+    let mut groups: Vec<(i64, Vec<repo::ImportedFile>)> = Vec::new();
+    for file in repo::latest_files(&state.db, 500).await? {
+        // Primero la posición (un número: no deja nada prestado) y después se modifica.
+        match groups.iter().position(|(top, _)| *top == file.top_id) {
+            Some(i) => groups[i].1.push(file),
+            None if groups.len() < RECENT_ITEMS => groups.push((file.top_id, vec![file])),
+            None => {}
+        }
+    }
+
+    let mut conn = state.db.acquire().await?;
+    let mut items = Vec::new();
+    for (top_id, files) in groups {
+        let Some(content) = repo::find(&mut conn, top_id).await? else {
+            continue;
+        };
+        let added_at = files[0].imported_at;
+        let batch: Vec<&repo::ImportedFile> = files
+            .iter()
+            .filter(|f| added_at - f.imported_at <= SAME_BATCH_SECS)
+            .collect();
+        items.push(RecentItem {
+            note: recent_note(&batch),
+            added_at,
+            content,
+        });
+    }
+    Ok(Json(items))
+}
+
+/// "T1 E5" si es un episodio; "T2 · 12 episodios" si son varios de una temporada;
+/// "12 episodios" si son de varias. Vacío en una película.
+fn recent_note(batch: &[&repo::ImportedFile]) -> String {
+    let episodes: Vec<(i64, i64)> = batch
+        .iter()
+        .filter_map(|f| Some((f.season?, f.episode?)))
+        .collect();
+    match episodes.as_slice() {
+        [] => String::new(),
+        [(season, episode)] => format!("T{season} E{episode}"),
+        [(season, _), rest @ ..] if rest.iter().all(|(s, _)| s == season) => {
+            format!("T{season} · {} episodios", episodes.len())
+        }
+        _ => format!("{} episodios", episodes.len()),
+    }
 }
 
 /// GET /api/contents/{id}
@@ -220,4 +278,33 @@ pub async fn stream(
         frame
     });
     Ok(Response::from_parts(parts, Body::new(body)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn describes_what_was_added() {
+        let file = |season, episode| repo::ImportedFile {
+            top_id: 1,
+            season,
+            episode,
+            imported_at: 0,
+        };
+        let one = [file(Some(1), Some(5))];
+        assert_eq!(recent_note(&one.iter().collect::<Vec<_>>()), "T1 E5");
+        let season = [file(Some(2), Some(1)), file(Some(2), Some(2))];
+        assert_eq!(
+            recent_note(&season.iter().collect::<Vec<_>>()),
+            "T2 · 2 episodios"
+        );
+        let mixed = [file(Some(1), Some(9)), file(Some(2), Some(1))];
+        assert_eq!(
+            recent_note(&mixed.iter().collect::<Vec<_>>()),
+            "2 episodios"
+        );
+        let movie = [file(None, None)];
+        assert_eq!(recent_note(&movie.iter().collect::<Vec<_>>()), "");
+    }
 }

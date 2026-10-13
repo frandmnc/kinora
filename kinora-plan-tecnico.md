@@ -517,7 +517,7 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Buscar contenidos | `GET /api/contents?library_id=&kind=&q=` |
 | Consultar un contenido con hijos, archivos y progreso | `GET /api/contents/{id}` |
 | Seguir viendo | `GET /api/continue-watching` |
-| Agregados recientemente | `GET /api/recent` |
+| Agregados recientemente (películas y series con algo nuevo; lo importado dentro de 24 h cuenta como una tanda) | `GET /api/recent` |
 | Reproducir un archivo | `GET /api/files/{id}/stream` |
 | Obtener un subtítulo | `GET /api/subtitles/{id}` |
 | Informar progreso | `PUT /api/contents/{id}/progress` |

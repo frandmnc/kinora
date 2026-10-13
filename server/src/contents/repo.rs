@@ -245,6 +245,31 @@ pub async fn library_dir(db: &SqlitePool, library_id: i64) -> sqlx::Result<Strin
         .await
 }
 
+/// Un archivo importado, con la película o serie a la que pertenece.
+#[derive(sqlx::FromRow)]
+pub struct ImportedFile {
+    pub top_id: i64,
+    pub season: Option<i64>,
+    pub episode: Option<i64>,
+    pub imported_at: i64,
+}
+
+/// Los últimos archivos importados, del más nuevo al más viejo.
+pub async fn latest_files(db: &SqlitePool, limit: i64) -> sqlx::Result<Vec<ImportedFile>> {
+    sqlx::query_as(
+        "SELECT COALESCE(show.id, c.id) AS top_id, season.number AS season, \
+                CASE WHEN c.kind = 'episode' THEN c.number END AS episode, f.imported_at \
+         FROM media_files f \
+         JOIN contents c ON c.id = f.content_id \
+         LEFT JOIN contents season ON c.kind = 'episode' AND season.id = c.parent_id \
+         LEFT JOIN contents show ON show.id = season.parent_id \
+         ORDER BY f.imported_at DESC, f.id DESC LIMIT ?",
+    )
+    .bind(limit)
+    .fetch_all(db)
+    .await
+}
+
 pub struct NewContent {
     pub library_id: i64,
     pub kind: ContentKind,

@@ -3,18 +3,22 @@ import { formatDuration } from '../../shared/format'
 import type { Library } from '../../shared/types/Library'
 import type { Content } from '../../shared/types/Content'
 import type { ContinueItem } from '../../shared/types/ContinueItem'
+import type { RecentItem } from '../../shared/types/RecentItem'
 import { Poster } from '../Poster'
 import { FocusGroup, FocusableLink } from '../focus'
 
-/** Inicio: "Seguir viendo" y una fila de carátulas por biblioteca. */
+/** Inicio: "Seguir viendo", "Agregados recientemente" y una fila de carátulas por biblioteca. */
 export function HomePage() {
   const { data: libraries, error: librariesError } = useApi<Library[]>('/api/libraries')
   const { data: contents, error: contentsError } = useApi<Content[]>('/api/contents')
   const { data: continueItems } = useApi<ContinueItem[]>('/api/continue-watching')
+  const { data: recent } = useApi<RecentItem[]>('/api/recent')
   const error = librariesError ?? contentsError
 
   if (error) return <Message title="Sin conexión con el servidor" detail={error} />
-  if (!libraries || !contents || !continueItems) return <Message title="Cargando…" />
+  // Se espera a tener todo: el foco inicial va al primer elemento, y si una fila llega tarde
+  // aparece arriba del foco y lo deja en el medio de la pantalla.
+  if (!libraries || !contents || !continueItems || !recent) return <Message title="Cargando…" />
 
   const shelves = libraries
     .map((library) => ({ library, items: contents.filter((c) => c.library_id === library.id) }))
@@ -34,6 +38,21 @@ export function HomePage() {
           <FocusGroup className="shelf-row">
             {continueItems.map((item) => (
               <ContinueCard key={item.content_id} item={item} />
+            ))}
+          </FocusGroup>
+        </section>
+      )}
+
+      {recent.length > 0 && (
+        <section className="shelf">
+          <h2>Agregados recientemente</h2>
+          <FocusGroup className="shelf-row">
+            {recent.map(({ content, note, added_at }) => (
+              <FocusableLink key={content.id} to={`/content/${content.id}`} className="card">
+                <Poster title={content.title} />
+                <span className="card-title">{content.title}</span>
+                <span className="card-sub">{[note || content.year, ago(added_at)].filter(Boolean).join(' · ')}</span>
+              </FocusableLink>
             ))}
           </FocusGroup>
         </section>
@@ -81,6 +100,17 @@ function ContinueCard({ item }: { item: ContinueItem }) {
       </span>
     </FocusableLink>
   )
+}
+
+/** "hoy", "ayer", "hace 3 días", "hace 2 semanas". */
+function ago(seconds: number) {
+  // Días de calendario: algo de anoche a las 23 h es "ayer" aunque no hayan pasado 24 horas.
+  const midnight = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const days = Math.round((midnight(new Date()) - midnight(new Date(seconds * 1000))) / 86_400_000)
+  if (days < 1) return 'hoy'
+  if (days === 1) return 'ayer'
+  if (days < 14) return `hace ${days} días`
+  return `hace ${Math.floor(days / 7)} semanas`
 }
 
 export function Message({ title, detail }: { title: string; detail?: string }) {

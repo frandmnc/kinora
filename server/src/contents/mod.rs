@@ -77,6 +77,17 @@ pub struct Progress {
     pub updated_at: i64,
 }
 
+/// Una película o serie con algo agregado hace poco, para "Agregados recientemente".
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct RecentItem {
+    pub content: Content,
+    /// Cuándo se agregó lo último (segundos desde 1970).
+    pub added_at: i64,
+    /// Qué se agregó: "T1 E5", "T2 · 12 episodios"; vacío en una película.
+    pub note: String,
+}
+
 /// Lo que informa el Player cada 10 segundos y en cada cambio.
 #[derive(Debug, Deserialize, TS)]
 #[serde(deny_unknown_fields)]
@@ -102,6 +113,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/contents", get(handlers::list))
         .route("/contents/{id}", get(handlers::detail))
+        .route("/recent", get(handlers::recent))
         .route("/contents/{id}/progress", put(handlers::report_progress))
         .route("/files/{id}/stream", get(handlers::stream))
 }
