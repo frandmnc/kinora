@@ -6,14 +6,14 @@ use super::Library;
 use crate::error::{AppError, AppResult};
 
 pub async fn list_all(db: &SqlitePool) -> AppResult<Vec<Library>> {
-    let libraries = sqlx::query_as("SELECT id, name, dir FROM libraries ORDER BY name")
+    let libraries = sqlx::query_as("SELECT id, name, dir, icon FROM libraries ORDER BY name")
         .fetch_all(db)
         .await?;
     Ok(libraries)
 }
 
 pub async fn find(db: &SqlitePool, id: i64) -> AppResult<Library> {
-    sqlx::query_as("SELECT id, name, dir FROM libraries WHERE id = ?")
+    sqlx::query_as("SELECT id, name, dir, icon FROM libraries WHERE id = ?")
         .bind(id)
         .fetch_optional(db)
         .await?
@@ -21,7 +21,7 @@ pub async fn find(db: &SqlitePool, id: i64) -> AppResult<Library> {
 }
 
 pub async fn insert(db: &SqlitePool, name: &str, dir: &str) -> AppResult<Library> {
-    sqlx::query_as("INSERT INTO libraries (name, dir) VALUES (?, ?) RETURNING id, name, dir")
+    sqlx::query_as("INSERT INTO libraries (name, dir) VALUES (?, ?) RETURNING id, name, dir, icon")
         .bind(name)
         .bind(dir)
         .fetch_one(db)
@@ -30,13 +30,24 @@ pub async fn insert(db: &SqlitePool, name: &str, dir: &str) -> AppResult<Library
 }
 
 pub async fn update(db: &SqlitePool, id: i64, name: &str, dir: &str) -> AppResult<Library> {
-    sqlx::query_as("UPDATE libraries SET name = ?, dir = ? WHERE id = ? RETURNING id, name, dir")
-        .bind(name)
-        .bind(dir)
+    sqlx::query_as(
+        "UPDATE libraries SET name = ?, dir = ? WHERE id = ? RETURNING id, name, dir, icon",
+    )
+    .bind(name)
+    .bind(dir)
+    .bind(id)
+    .fetch_optional(db)
+    .await
+    .map_err(duplicate_as_conflict)?
+    .ok_or_else(|| not_found(id))
+}
+
+pub async fn set_icon(db: &SqlitePool, id: i64, icon: Option<&str>) -> AppResult<Library> {
+    sqlx::query_as("UPDATE libraries SET icon = ? WHERE id = ? RETURNING id, name, dir, icon")
+        .bind(icon)
         .bind(id)
         .fetch_optional(db)
-        .await
-        .map_err(duplicate_as_conflict)?
+        .await?
         .ok_or_else(|| not_found(id))
 }
 

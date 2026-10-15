@@ -99,13 +99,14 @@ mod tests {
             .into_iter()
             .map(|c| c.name)
             .collect();
-        assert_eq!(names, ["id", "name", "dir"]);
+        assert_eq!(names, ["id", "name", "dir", "icon"]);
         assert_eq!(
             rows(&db, "libraries", 10, 0).await.unwrap(),
             vec![vec![
                 Value::from(1),
                 Value::from("Anime"),
-                Value::from("Anime")
+                Value::from("Anime"),
+                Value::Null
             ]]
         );
     }

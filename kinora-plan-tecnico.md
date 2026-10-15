@@ -507,7 +507,7 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Pantalla | Función |
 |---|---|
 | Panel | Métricas, viendo ahora, estado de la cola |
-| Bibliotecas | Crear, editar y eliminar bibliotecas |
+| Bibliotecas | Crear, editar y eliminar bibliotecas, y elegir su ícono para el menú del Player |
 | Importar | Subir archivos a la bandeja, analizar, asignar destino y confirmar |
 | Papelera | Lo que salió de las bibliotecas, por biblioteca y por tanda (fecha, qué y cuánto ocupa); borrar una tanda o vaciar todo |
 | Configuración | Carpeta media, con un explorador de carpetas del servidor |

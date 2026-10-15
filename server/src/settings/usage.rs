@@ -89,11 +89,13 @@ mod tests {
                 id: 1,
                 name: "Anime".into(),
                 dir: "Anime".into(),
+                icon: None,
             },
             Library {
                 id: 2,
                 name: "Películas".into(),
                 dir: "Películas".into(),
+                icon: None,
             },
         ];
         let usage = measure(&media, &libraries);

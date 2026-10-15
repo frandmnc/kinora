@@ -4,8 +4,8 @@ mod handlers;
 mod repo;
 
 use axum::Router;
-use axum::routing::{get, patch};
-use serde::Serialize;
+use axum::routing::{get, patch, put};
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::app::AppState;
@@ -19,6 +19,16 @@ pub struct Library {
     pub name: String,
     /// Nombre de la carpeta dentro de `media_dir`.
     pub dir: String,
+    /// El ícono elegido para el menú del Player ("clapperboard", "tv"…). `null`: se elige solo,
+    /// según si tiene más películas o series.
+    pub icon: Option<String>,
+}
+
+#[derive(Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+#[ts(export)]
+pub struct LibraryIcon {
+    pub icon: Option<String>,
 }
 
 /// Rutas del Player. Se montan bajo /api.
@@ -34,4 +44,5 @@ pub fn admin_routes() -> Router<AppState> {
             "/libraries/{id}",
             patch(handlers::rename).delete(handlers::delete),
         )
+        .route("/libraries/{id}/icon", put(handlers::set_icon))
 }

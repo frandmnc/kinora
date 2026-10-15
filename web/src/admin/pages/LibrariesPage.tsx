@@ -8,6 +8,8 @@ import type { Library } from '../../shared/types/Library'
 import type { NewLibrary } from '../../shared/types/NewLibrary'
 import type { LibraryChanges } from '../../shared/types/LibraryChanges'
 import type { MediaDirSetting } from '../../shared/types/MediaDirSetting'
+import type { LibraryIcon } from '../../shared/types/LibraryIcon'
+import { IconPicker } from '../IconPicker'
 import { Alert, Card, EmptyState, PageHeader } from '../ui'
 
 export function LibrariesPage() {
@@ -89,6 +91,11 @@ export function LibrariesPage() {
                   key={library.id}
                   library={library}
                   titles={contents && contents.filter((c) => c.library_id === library.id).length}
+                  contents={contents}
+                  onIcon={(icon) => {
+                    const body: LibraryIcon = { icon }
+                    run(() => api(`/api/admin/libraries/${library.id}/icon`, { method: 'PUT', body }))
+                  }}
                   onRename={(changes) =>
                     run(() => api(`/api/admin/libraries/${library.id}`, { method: 'PATCH', body: changes }))
                   }
@@ -131,12 +138,17 @@ function CreateForm({ onCreate }: { onCreate: (library: NewLibrary) => Promise<b
 function LibraryRow({
   library,
   titles,
+  contents,
+  onIcon,
   onRename,
   onDelete,
 }: {
   library: Library
   /** Cuántas películas y series tiene (`undefined` mientras se cuentan). */
   titles?: number
+  /** Todas las películas y series, para el ícono automático. */
+  contents?: Content[]
+  onIcon: (icon: string | null) => void
   onRename: (changes: LibraryChanges) => Promise<boolean>
   onDelete: () => void
 }) {
@@ -151,29 +163,32 @@ function LibraryRow({
   return (
     <tr>
       <td>
-        {editing ? (
-          <form className="inline-form" onSubmit={save}>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-            <button className="btn btn-primary btn-sm btn-icon" type="submit" title="Guardar">
-              <Check />
-            </button>
-            <button
-              className="btn btn-sm btn-icon"
-              type="button"
-              title="Cancelar"
-              onClick={() => {
-                setName(library.name)
-                setEditing(false)
-              }}
-            >
-              <X />
-            </button>
-          </form>
-        ) : (
-          <Link to={`/libraries/${library.id}`} className="library-link">
-            {library.name}
-          </Link>
-        )}
+        <div className="library-name-cell">
+          <IconPicker library={library} contents={contents} onChoose={onIcon} />
+          {editing ? (
+            <form className="inline-form" onSubmit={save}>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+              <button className="btn btn-primary btn-sm btn-icon" type="submit" title="Guardar">
+                <Check />
+              </button>
+              <button
+                className="btn btn-sm btn-icon"
+                type="button"
+                title="Cancelar"
+                onClick={() => {
+                  setName(library.name)
+                  setEditing(false)
+                }}
+              >
+                <X />
+              </button>
+            </form>
+          ) : (
+            <Link to={`/libraries/${library.id}`} className="library-link">
+              {library.name}
+            </Link>
+          )}
+        </div>
       </td>
       <td className="secondary">{titles === undefined ? '…' : titles === 1 ? '1 título' : `${titles} títulos`}</td>
       <td>

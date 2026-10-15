@@ -5,7 +5,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
-import { Clapperboard, House, LibraryBig, Search, Tv, type LucideIcon } from 'lucide-react'
+import { House, Search, type LucideIcon } from 'lucide-react'
+import { libraryIcon } from '../shared/libraryIcons'
 import { useApi } from '../shared/useApi'
 import type { Content } from '../shared/types/Content'
 import type { Library } from '../shared/types/Library'
@@ -168,18 +169,6 @@ function ProfileItem({ onPress, children }: { onPress: () => void; children: Rea
       {children}
     </button>
   )
-}
-
-/**
- * El ícono de una biblioteca, según lo que tiene: series o películas (lo que más haya).
- * Vacía, o mientras carga, un ícono genérico.
- */
-function libraryIcon(library: Library, contents: Content[] | undefined): LucideIcon {
-  const own = contents?.filter((c) => c.library_id === library.id) ?? []
-  const shows = own.filter((c) => c.kind === 'show').length
-  const movies = own.filter((c) => c.kind === 'movie').length
-  if (shows + movies === 0) return LibraryBig
-  return shows > movies ? Tv : Clapperboard
 }
 
 /**

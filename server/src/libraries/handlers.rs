@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 use serde::Deserialize;
 use ts_rs::TS;
 
-use super::{Library, repo};
+use super::{Library, LibraryIcon, repo};
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
 use crate::naming::safe_name;
@@ -90,6 +90,32 @@ pub async fn rename(
             Err(err)
         }
     }
+}
+
+/// PUT /api/admin/libraries/{id}/icon
+/// El ícono del menú: un nombre de los que conoce el Player ("tv", "popcorn"), o `null` para que
+/// se elija solo. Acá solo se controla la forma: si el Player no lo conoce, usa el automático.
+pub async fn set_icon(
+    State(state): State<AppState>,
+    UrlPath(id): UrlPath<i64>,
+    Json(body): Json<LibraryIcon>,
+) -> AppResult<Json<Library>> {
+    let icon = body
+        .icon
+        .as_deref()
+        .map(str::trim)
+        .filter(|icon| !icon.is_empty());
+    if let Some(icon) = icon
+        && (icon.len() > 40
+            || !icon
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
+    {
+        return Err(AppError::BadRequest(format!(
+            "\"{icon}\" no es un ícono válido"
+        )));
+    }
+    Ok(Json(repo::set_icon(&state.db, id, icon).await?))
 }
 
 /// DELETE /api/admin/libraries/{id}

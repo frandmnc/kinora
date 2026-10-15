@@ -4,4 +4,9 @@ export type Library = { id: number, name: string,
 /**
  * Nombre de la carpeta dentro de `media_dir`.
  */
-dir: string, };
+dir: string, 
+/**
+ * El ícono elegido para el menú del Player ("clapperboard", "tv"…). `null`: se elige solo,
+ * según si tiene más películas o series.
+ */
+icon: string | null, };
