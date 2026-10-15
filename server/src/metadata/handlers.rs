@@ -75,13 +75,22 @@ pub async fn search(
     }
     let candidates = results
         .into_iter()
-        .map(|r| MetadataCandidate {
-            tmdb_id: r.id,
-            year: tmdb::year_of(&r.release_date),
-            original_title: r.original_title.filter(|original| *original != r.title),
-            title: r.title,
-            overview: r.overview.filter(|o| !o.trim().is_empty()),
-            thumbnail: r.poster_path.as_deref().map(tmdb::thumbnail_url),
+        .map(|r| {
+            let title = r.preferred_title().to_string();
+            // Debajo va el otro título (el traducido, o el original en su alfabeto).
+            let other = if title == r.title {
+                r.original_title.clone()
+            } else {
+                Some(r.title.clone())
+            };
+            MetadataCandidate {
+                tmdb_id: r.id,
+                year: tmdb::year_of(&r.release_date),
+                original_title: other.filter(|other| *other != title),
+                title,
+                overview: r.overview.filter(|o| !o.trim().is_empty()),
+                thumbnail: r.poster_path.as_deref().map(tmdb::thumbnail_url),
+            }
         })
         .collect();
     Ok(Json(candidates))

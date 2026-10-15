@@ -15,7 +15,8 @@ use crate::error::AppError;
 const API: &str = "https://api.themoviedb.org/3";
 const IMAGES: &str = "https://image.tmdb.org/t/p";
 
-/// Español latino. Si algo no está traducido, se completa con el inglés.
+/// Español latino para sinopsis y episodios. Si algo no está traducido, se completa con el inglés.
+/// Los títulos de películas y series van en su idioma original (ver `preferred_title`).
 pub const LANGUAGE: &str = "es-MX";
 const FALLBACK_LANGUAGE: &str = "en-US";
 
@@ -45,12 +46,26 @@ struct SearchPage {
     results: Vec<SearchResult>,
 }
 
+impl SearchResult {
+    /// El título a mostrar: el original si está en nuestro alfabeto; si no, el traducido.
+    pub fn preferred_title(&self) -> &str {
+        match &self.original_title {
+            Some(original) if is_latin(original) => original,
+            _ => &self.title,
+        }
+    }
+}
+
 /// El detalle de una película o una serie. Tiene la misma forma que un resultado de búsqueda,
 /// más la imagen de fondo.
 #[derive(Debug, Deserialize)]
 pub struct Details {
     #[serde(alias = "name")]
     pub title: String,
+    #[serde(alias = "original_name")]
+    pub original_title: Option<String>,
+    /// Código ISO 639-1: "en", "ja".
+    pub original_language: Option<String>,
     #[serde(alias = "first_air_date")]
     pub release_date: Option<String>,
     pub overview: Option<String>,
@@ -139,10 +154,30 @@ impl Tmdb {
         Ok(page.results)
     }
 
-    /// El detalle en español; la sinopsis, en inglés si no está traducida.
+    /// El detalle, con la sinopsis en español (o en inglés si no está traducida) y el título
+    /// original. Si el original está en otro alfabeto ("葬送のフリーレン"), el título en inglés: los
+    /// títulos traducidos al español suelen cambiar demasiado ("Proyecto Fin del Mundo"). La
+    /// carátula y el fondo van en el mismo idioma que el título (las carátulas tienen texto).
     pub async fn details(&self, kind: Kind, id: i64) -> Result<Details, AppError> {
         let path = format!("/{}/{id}", kind.path());
         let mut details: Details = self.get(&path, &[("language", LANGUAGE)]).await?;
+        let original = details.original_title.clone().filter(|t| is_latin(t));
+        let title_language = match (&original, details.original_language.as_deref()) {
+            (Some(_), Some(language)) => language.to_string(),
+            _ => FALLBACK_LANGUAGE.to_string(),
+        };
+
+        if !title_language.starts_with("es") {
+            let other: Details = self.get(&path, &[("language", &title_language)]).await?;
+            if original.is_none() {
+                details.title = other.title;
+            }
+            details.poster_path = other.poster_path.or(details.poster_path);
+            details.backdrop_path = other.backdrop_path.or(details.backdrop_path);
+        }
+        if let Some(original) = original {
+            details.title = original;
+        }
         if is_blank(&details.overview) {
             let english: Details = self.get(&path, &[("language", FALLBACK_LANGUAGE)]).await?;
             details.overview = english.overview;
@@ -285,6 +320,13 @@ pub fn is_blank(text: &Option<String>) -> bool {
     text.as_deref().is_none_or(|t| t.trim().is_empty())
 }
 
+/// Si un texto está escrito con letras latinas (con acentos y todo): "Amélie" sí, "葬送のフリーレン" no.
+fn is_latin(text: &str) -> bool {
+    text.chars()
+        .filter(|c| c.is_alphabetic())
+        .all(|c| (c as u32) <= 0x024F || ('\u{1E00}'..='\u{1EFF}').contains(&c))
+}
+
 /// "Episodio 5", "Episode 5": lo que pone TMDB cuando no hay título traducido.
 fn is_generic_title(name: &Option<String>, number: i64) -> bool {
     match name.as_deref().map(str::trim) {
@@ -311,6 +353,35 @@ mod tests {
         assert_eq!(year_of(&Some("2023-09-29".to_string())), Some(2023));
         assert_eq!(year_of(&Some(String::new())), None);
         assert_eq!(year_of(&None), None);
+    }
+
+    #[test]
+    fn latin_titles_are_kept_and_other_scripts_are_not() {
+        assert!(is_latin("Project Hail Mary"));
+        assert!(is_latin("Le Fabuleux Destin d'Amélie Poulain"));
+        assert!(is_latin("Ðoàn"));
+        assert!(!is_latin("葬送のフリーレン"));
+        assert!(!is_latin("Брат"));
+    }
+
+    #[test]
+    fn search_prefers_the_original_title_when_it_is_latin() {
+        let result = |title: &str, original: &str| SearchResult {
+            id: 1,
+            title: title.to_string(),
+            original_title: Some(original.to_string()),
+            release_date: None,
+            overview: None,
+            poster_path: None,
+        };
+        assert_eq!(
+            result("Proyecto Fin del Mundo", "Project Hail Mary").preferred_title(),
+            "Project Hail Mary"
+        );
+        assert_eq!(
+            result("Frieren", "葬送のフリーレン").preferred_title(),
+            "Frieren"
+        );
     }
 
     #[test]

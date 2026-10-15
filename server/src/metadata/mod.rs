@@ -53,8 +53,9 @@ pub struct TmdbKey {
 #[ts(export)]
 pub struct MetadataCandidate {
     pub tmdb_id: i64,
+    /// El original si está en nuestro alfabeto; si no, el traducido.
     pub title: String,
-    /// El título en su idioma original, si es distinto.
+    /// El otro título (el traducido, o el original en su alfabeto), si es distinto.
     pub original_title: Option<String>,
     pub year: Option<i64>,
     pub overview: Option<String>,

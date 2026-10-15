@@ -3,9 +3,13 @@
 /**
  * Un resultado de buscar en TMDB.
  */
-export type MetadataCandidate = { tmdb_id: number, title: string, 
+export type MetadataCandidate = { tmdb_id: number, 
 /**
- * El título en su idioma original, si es distinto.
+ * El original si está en nuestro alfabeto; si no, el traducido.
+ */
+title: string, 
+/**
+ * El otro título (el traducido, o el original en su alfabeto), si es distinto.
  */
 original_title: string | null, year: number | null, overview: string | null, 
 /**
