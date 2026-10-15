@@ -151,11 +151,15 @@ export function niceMax(value: number) {
   return [1, 2, 2.5, 5, 10].map((m) => m * power).find((m) => m >= value) ?? 10 * power
 }
 
-/** El tono y la opacidad de la rampa para un valor (0..1): cuanto más alto, más intenso. */
+/**
+ * El tono y la opacidad de la rampa para un valor (0..1): cuanto más alto, más coral. El tono
+ * hace casi todo el trabajo; la opacidad solo suaviza un poco lo más bajo (si bajara mucho, en
+ * oscuro las barras chicas se perderían en el fondo).
+ */
 export function ramp(share: number) {
   const clamped = Math.max(0, Math.min(1, share))
   const step = Math.min(RAMP_STEPS, 1 + Math.floor(clamped * RAMP_STEPS))
-  return { color: `var(--seq-${step})`, opacity: 0.45 + 0.55 * clamped }
+  return { color: `var(--seq-${step})`, opacity: 0.8 + 0.2 * clamped }
 }
 
 function rampFill(share: number) {

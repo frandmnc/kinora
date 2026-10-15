@@ -43,12 +43,13 @@
   --shadow: none;
   --shadow-hover: 0 6px 16px rgb(0 0 0 / 0.1);
   --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--text);
-  /* Rampa secuencial coral, el color de la marca (de poco a mucho), para tendencias. */
-  --seq-1: #ffc2cc;
-  --seq-2: #ff8fa3;
-  --seq-3: #ff5a78;
-  --seq-4: #e31c5f;
-  --seq-5: #b3124b;
+  /* Rampa secuencial para tendencias (de poco a mucho): de un coral pálido al coral de la marca.
+     Cuanto más alto o más lleno, más coral. */
+  --seq-1: #fbd5dc;
+  --seq-2: #f9a9b8;
+  --seq-3: #f97c94;
+  --seq-4: #fb5a77;
+  --seq-5: #ff385c;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
@@ -81,12 +82,12 @@
     --critical-text: #f08080;
     --critical-soft: #351a17;
     --shadow-hover: 0 6px 16px rgb(0 0 0 / 0.5);
-    /* En oscuro la rampa se da vuelta: lo poco se pierde en el fondo, lo mucho brilla. */
-    --seq-1: #5c1a2b;
-    --seq-2: #8f2440;
-    --seq-3: #d42d55;
-    --seq-4: #ff5a78;
-    --seq-5: #ff8fa3;
+    /* En oscuro, de un coral apagado (casi el fondo) al coral de la marca. */
+    --seq-1: #4d2730;
+    --seq-2: #7a2c3f;
+    --seq-3: #b3304f;
+    --seq-4: #e33459;
+    --seq-5: #ff385c;
   }
 }
 
@@ -118,11 +119,11 @@
   --critical-text: #f08080;
   --critical-soft: #351a17;
   --shadow-hover: 0 6px 16px rgb(0 0 0 / 0.5);
-  --seq-1: #5c1a2b;
-  --seq-2: #8f2440;
-  --seq-3: #d42d55;
-  --seq-4: #ff5a78;
-  --seq-5: #ff8fa3;
+  --seq-1: #4d2730;
+  --seq-2: #7a2c3f;
+  --seq-3: #b3304f;
+  --seq-4: #e33459;
+  --seq-5: #ff385c;
 }
 
 body {
