@@ -366,40 +366,51 @@ button:focus-visible {
 .episode {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 18px 20px;
-  border-radius: 8px;
-  background: var(--player-surface);
-  margin-bottom: 10px;
+  gap: 28px;
+  padding: 14px;
+  border-radius: 12px;
+  margin-bottom: 8px;
 }
 
 a.episode:hover,
 a.episode.is-focused {
-  background: var(--player-surface-2);
+  background: var(--player-surface);
 }
 
 .episode.unavailable {
   opacity: 0.5;
 }
 
-.episode-number {
-  font-size: 28px;
-  font-weight: 700;
-  width: 48px;
-  text-align: center;
+/* El cuadro del episodio, con la barra de avance encima, abajo. */
+.episode-still {
+  position: relative;
+  width: 256px;
+  flex-shrink: 0;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--player-surface-2);
   color: var(--player-muted);
+  font-size: 40px;
+  font-weight: 800;
 }
 
-.episode-title {
-  flex: 1;
-  font-weight: 600;
+.episode-still img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .episode-progress {
-  width: 120px;
-  height: 6px;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  height: 5px;
   border-radius: 3px;
-  background: var(--player-surface-2);
+  background: rgb(255 255 255 / 0.3);
   overflow: hidden;
 }
 
@@ -408,8 +419,60 @@ a.episode.is-focused {
   background: var(--brand);
 }
 
-.watched {
+.episode-watched {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.65);
+  color: var(--player-text);
+}
+
+.episode-watched svg {
+  width: 20px;
+  height: 20px;
+}
+
+.episode-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.episode-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.episode-number {
+  font-weight: 700;
   color: var(--player-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.episode-title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.episode-overview {
+  color: var(--player-muted);
+  font-size: 18px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.episode-info .meta {
   font-size: 17px;
 }
 
@@ -628,17 +691,40 @@ a.episode.is-focused {
   }
 
   .episode {
-    gap: 12px;
-    padding: 14px 12px;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 10px;
   }
 
-  .episode-number {
-    font-size: 20px;
-    width: 28px;
+  .episode-still {
+    width: 132px;
+    font-size: 24px;
   }
 
   .episode-progress {
-    width: 60px;
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+    height: 4px;
+  }
+
+  .episode-watched {
+    width: 24px;
+    height: 24px;
+  }
+
+  .episode-watched svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .episode-title {
+    font-size: 16px;
+  }
+
+  .episode-overview,
+  .episode-info .meta {
+    font-size: 13px;
   }
 
   .player-top,

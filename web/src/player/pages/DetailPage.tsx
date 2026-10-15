@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { Play } from 'lucide-react'
+import { Check, Play } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
 import { formatDuration } from '../../shared/format'
 import type { ContentDetail } from '../../shared/types/ContentDetail'
@@ -95,17 +95,20 @@ export function DetailPage() {
                 <li key={episode.content.id}>
                   {episode.files.length > 0 ? (
                     <FocusableLink to={`/play/${episode.content.id}`} state={{ title }} className="episode">
-                      <span className="episode-number">{episode.content.number}</span>
-                      <span className="episode-title">{episode.content.title}</span>
-                      <ProgressMark detail={episode} />
-                      {episode.files.length > 1 && <span className="meta">{episode.files.length} versiones</span>}
-                      <span className="meta">{duration(episode)}</span>
+                      <EpisodeStill episode={episode} />
+                      <EpisodeInfo
+                        episode={episode}
+                        meta={[
+                          duration(episode),
+                          episode.files.length > 1 && `${episode.files.length} versiones`,
+                          episode.progress?.watched && 'Visto',
+                        ]}
+                      />
                     </FocusableLink>
                   ) : (
                     <div className="episode unavailable">
-                      <span className="episode-number">{episode.content.number}</span>
-                      <span className="episode-title">{episode.content.title}</span>
-                      <span className="meta">sin archivo</span>
+                      <EpisodeStill episode={episode} />
+                      <EpisodeInfo episode={episode} meta={['sin archivo']} />
                     </div>
                   )}
                 </li>
@@ -137,16 +140,46 @@ function playLabel(playable: ContentDetail, episodeLabel?: string) {
   return `${action}${what}${at}`
 }
 
-/** "✓ Visto", una barra con el avance, o nada si no se empezó. */
-function ProgressMark({ detail }: { detail: ContentDetail }) {
-  const progress = detail.progress
-  if (!progress) return null
-  if (progress.watched) return <span className="watched">✓ Visto</span>
-  const percent = progress.duration ? Math.min(100, (progress.position / progress.duration) * 100) : 0
+/**
+ * Un cuadro del episodio (o su número, si no hay), con una barra abajo si se empezó a ver y una
+ * marca si ya se vio.
+ */
+function EpisodeStill({ episode }: { episode: ContentDetail }) {
+  const { content, progress } = episode
+  const still = artUrl(content.id, 'still', content.still_at)
+  const percent =
+    progress && !progress.watched && progress.duration
+      ? Math.min(100, (progress.position / progress.duration) * 100)
+      : 0
   return (
-    <span className="episode-progress" title={formatDuration(progress.position)}>
-      <div style={{ width: `${percent}%` }} />
-    </span>
+    <div className="episode-still">
+      {still ? <img src={still} alt="" loading="lazy" /> : <span>{content.number}</span>}
+      {percent > 0 && (
+        <div className="episode-progress" title={formatDuration(progress!.position)}>
+          <div style={{ width: `${percent}%` }} />
+        </div>
+      )}
+      {progress?.watched && (
+        <span className="episode-watched" aria-label="Visto">
+          <Check />
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Número y título; debajo, la sinopsis (dos líneas) y la duración. */
+function EpisodeInfo({ episode, meta }: { episode: ContentDetail; meta: (string | false | null | undefined)[] }) {
+  const { content } = episode
+  return (
+    <div className="episode-info">
+      <span className="episode-heading">
+        <span className="episode-number">{content.number}</span>
+        <span className="episode-title">{content.title}</span>
+      </span>
+      {content.overview && <span className="episode-overview">{content.overview}</span>}
+      <span className="meta">{meta.filter(Boolean).join(' · ')}</span>
+    </div>
   )
 }
 
