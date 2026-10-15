@@ -4,7 +4,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { ExternalLink, ImageOff, LoaderCircle, Pencil, RefreshCw, Search } from 'lucide-react'
-import { api, mediaUrl } from '../shared/api'
+import { api, artUrl } from '../shared/api'
 import { useApi } from '../shared/useApi'
 import type { ApplyMetadata } from '../shared/types/ApplyMetadata'
 import type { Content } from '../shared/types/Content'
@@ -126,7 +126,7 @@ function Artwork({ content }: { content: Content }) {
   return (
     <div className="metadata-art">
       {content.poster_at ? (
-        <img src={mediaUrl(`/api/contents/${content.id}/poster?v=${content.poster_at}`)} alt="" />
+        <img src={artUrl(content.id, 'poster', content.poster_at)} alt="" />
       ) : (
         <div className="metadata-no-art">
           <ImageOff />

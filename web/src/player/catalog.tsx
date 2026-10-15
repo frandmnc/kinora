@@ -1,21 +1,11 @@
-// Piezas para recorrer el catálogo: la carátula con su título y la búsqueda por título.
+// Piezas para recorrer el catálogo: la carátula con su título y el campo de búsqueda.
 
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { Search } from 'lucide-react'
 import type { Content } from '../shared/types/Content'
-import { Poster, artUrl } from './Poster'
+import { artUrl } from '../shared/api'
+import { Poster } from './Poster'
 import { FocusableLink } from './focus'
-
-/** Para buscar sin que importen los acentos ni las mayúsculas: "Pokémon" encuentra "pokemon". */
-function normalize(text: string) {
-  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
-}
-
-/** Los contenidos cuyo título tiene todas las palabras buscadas, en cualquier orden. */
-export function searchTitles(contents: Content[], query: string) {
-  const words = normalize(query).split(/\s+/).filter(Boolean)
-  return contents.filter((c) => words.every((word) => normalize(c.title).includes(word)))
-}
 
 /** "1 título", "12 títulos". */
 export function titleCount(count: number) {

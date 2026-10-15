@@ -1,13 +1,4 @@
 import { useState } from 'react'
-import { mediaUrl } from '../shared/api'
-
-/**
- * La URL de la carátula o el fondo de un contenido; `undefined` si no tiene. `at` (cuándo se
- * guardó) va en la URL: si la imagen cambia, el navegador no muestra la vieja.
- */
-export function artUrl(contentId: number, kind: 'poster' | 'backdrop', at: number | null) {
-  return at === null ? undefined : mediaUrl(`/api/contents/${contentId}/${kind}?v=${at}`)
-}
 
 /**
  * La carátula. Si no hay (o no carga), un degradé con la inicial: el color sale del título,

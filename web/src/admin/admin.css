@@ -1768,19 +1768,53 @@ a:has(> .badge) {
   background: var(--surface-2);
 }
 
-/* Biblioteca: una tarjeta por película o serie */
+/* Biblioteca: búsqueda y orden, y una tarjeta por película o serie */
+
+.library-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 16px;
+}
+
+.search-field {
+  position: relative;
+  flex: 1;
+  max-width: 420px;
+  min-width: 220px;
+}
+
+.search-field svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.search-field .input {
+  width: 100%;
+  padding-left: 36px;
+}
+
+.library-toolbar .row {
+  white-space: nowrap;
+}
 
 .content-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 14px;
 }
 
 .content-card {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: 16px;
+  padding: 12px;
   color: inherit;
   text-decoration: none;
   transition: box-shadow 0.15s, border-color 0.15s;
@@ -1796,18 +1830,44 @@ a:has(> .badge) {
   box-shadow: var(--ring);
 }
 
+/* La carátula, o el ícono de película o serie si todavía no tiene. */
+.content-card-art {
+  width: 84px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.content-card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.content-card-art svg {
+  width: 24px;
+  height: 24px;
+}
+
+.content-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 0;
+}
+
 .content-card-head {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-}
-
-.content-card-icon {
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
-  color: var(--text-3);
-  flex-shrink: 0;
 }
 
 .content-card-title {
@@ -1971,6 +2031,12 @@ a:has(> .badge) {
   gap: 4px 0;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
+}
+
+/* En la tarjeta de la biblioteca, lo técnico es lo último y lo más discreto: al pie, chico. */
+.content-card-tech {
+  margin-top: auto;
+  font-size: 12px;
 }
 
 /* Separadores "·" entre datos, sin repetirlos a mano en cada lugar. */
