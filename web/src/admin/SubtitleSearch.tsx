@@ -14,7 +14,12 @@ import type { SubtitleSearch as SearchResult } from '../shared/types/SubtitleSea
 import { Alert } from './ui'
 
 /** Los idiomas que se ofrecen para buscar, en este orden (si OpenSubtitles los tiene). */
-const OFFERED = ['es', 'ea', 'en', 'pt-br']
+const OFFERED: [code: string, name: string][] = [
+  ['es', 'Español'],
+  ['ea', 'Español latino'],
+  ['en', 'Inglés'],
+  ['pt-br', 'Portugués (Brasil)'],
+]
 /** Los que se buscan si nunca se eligió otra cosa. */
 const DEFAULT = ['es', 'ea']
 /** Dónde se recuerdan los idiomas elegidos, para la próxima búsqueda. */
@@ -61,8 +66,8 @@ export function SubtitleSearch({
   const [adding, setAdding] = useState<number>()
   const [added, setAdded] = useState<number[]>([])
 
-  const offered = OFFERED.map((code) => languages?.find((l) => l.code === code)).filter(
-    (l): l is SubtitleLanguage => Boolean(l),
+  const offered: SubtitleLanguage[] = OFFERED.filter(([code]) => languages?.some((l) => l.code === code)).map(
+    ([code, name]) => ({ code, name }),
   )
   const query = chosen.filter((code) => offered.some((l) => l.code === code)).join(',')
 

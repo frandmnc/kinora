@@ -45,22 +45,33 @@ pub struct SearchItem {
 pub struct Attributes {
     pub language: Option<String>,
     pub release: Option<String>,
-    #[serde(default)]
+    // OpenSubtitles a veces manda `null` en lugar de 0 o false: `nullable` lo toma como el valor
+    // por defecto.
+    #[serde(default, deserialize_with = "nullable")]
     pub download_count: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     pub hearing_impaired: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     pub foreign_parts_only: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     pub ai_translated: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     pub machine_translated: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     pub from_trusted: bool,
     pub uploader: Option<Uploader>,
     pub feature_details: Option<FeatureDetails>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     pub files: Vec<SubFile>,
+}
+
+/// Un campo que puede faltar o venir `null`: en los dos casos, el valor por defecto.
+fn nullable<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Default + Deserialize<'de>,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,7 +93,7 @@ pub struct SubFile {
 
 #[derive(Deserialize)]
 struct SearchPage {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     data: Vec<SearchItem>,
 }
 
@@ -295,7 +306,10 @@ impl OpenSubtitles {
             .send()
             .await
             .map_err(|err| {
-                AppError::Upstream(format!("no se pudo conectar con OpenSubtitles: {err}"))
+                AppError::Upstream(format!(
+                    "no se pudo conectar con OpenSubtitles: {}",
+                    err.without_url()
+                ))
             })?;
         if response.status() == StatusCode::FORBIDDEN {
             return Err(AppError::BadRequest(
@@ -330,10 +344,18 @@ async fn read<T: DeserializeOwned>(response: Response) -> Result<T, AppError> {
             "OpenSubtitles respondió: {message}"
         )));
     }
-    response
-        .json()
-        .await
-        .map_err(|err| AppError::Upstream(format!("respuesta inesperada de OpenSubtitles: {err}")))
+    let text = response.text().await.map_err(|err| {
+        AppError::Upstream(format!(
+            "no se pudo leer la respuesta de OpenSubtitles: {}",
+            err.without_url()
+        ))
+    })?;
+    serde_json::from_str(&text).map_err(|err| {
+        // El detalle (qué campo no encajó) va a la terminal; en la pantalla, algo corto.
+        let start: String = text.chars().take(300).collect();
+        tracing::warn!("unexpected OpenSubtitles response: {err} · {start}");
+        AppError::Upstream("respuesta inesperada de OpenSubtitles".to_string())
+    })
 }
 
 #[cfg(test)]
@@ -353,6 +375,14 @@ mod tests {
         )
         .unwrap();
         let item = &page.data[0].attributes;
+        let with_nulls: SearchPage = serde_json::from_str(
+            r#"{"data": [{"attributes": {"language": "es", "release": null, "download_count": null,
+                "hearing_impaired": null, "foreign_parts_only": null, "ai_translated": null,
+                "machine_translated": null, "from_trusted": null, "uploader": null,
+                "feature_details": null, "files": [{"file_id": 1, "file_name": null}]}}]}"#,
+        )
+        .unwrap();
+        assert!(!with_nulls.data[0].attributes.hearing_impaired);
         assert_eq!(item.language.as_deref(), Some("es"));
         assert_eq!(item.files[0].file_id, 99);
         assert_eq!(

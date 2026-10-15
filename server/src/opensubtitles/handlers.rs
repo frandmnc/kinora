@@ -193,16 +193,17 @@ pub async fn search(
                 .find(|(code, _)| *code == language)
                 .map(|(_, n)| n.as_str());
             let (_, label) = language_and_label(&language, os_name);
+            let release = a
+                .release
+                .clone()
+                .filter(|r| !r.trim().is_empty())
+                .or_else(|| file.file_name.clone())
+                .unwrap_or_else(|| "Sin nombre".to_string());
             Some(SubtitleCandidate {
                 file_id: file.file_id,
-                label: full_label(&label, a.hearing_impaired, a.foreign_parts_only),
+                label: full_label(&label, &release, a.hearing_impaired, a.foreign_parts_only),
                 language,
-                release: a
-                    .release
-                    .clone()
-                    .filter(|r| !r.trim().is_empty())
-                    .or_else(|| file.file_name.clone())
-                    .unwrap_or_else(|| "Sin nombre".to_string()),
+                release,
                 download_count: a.download_count,
                 hearing_impaired: a.hearing_impaired,
                 forced: a.foreign_parts_only,
@@ -254,7 +255,12 @@ pub async fn download(
             ),
             language: Some(language),
             forced: body.forced,
-            label: Some(full_label(&label, body.hearing_impaired, body.forced)),
+            label: Some(full_label(
+                &label,
+                &body.release,
+                body.hearing_impaired,
+                body.forced,
+            )),
         },
         &downloaded.bytes,
     )

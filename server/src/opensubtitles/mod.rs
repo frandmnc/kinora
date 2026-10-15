@@ -166,9 +166,45 @@ fn language_and_label(code: &str, os_name: Option<&str>) -> (String, String) {
     }
 }
 
-/// "Español (Latinoamérica)", más "(SDH)" o "(forzados)" si corresponde.
-fn full_label(label: &str, hearing_impaired: bool, forced: bool) -> String {
+/// "Español (Latinoamérica)", más "(SDH)" o "(forzados)" si corresponde. Muchos subtítulos en
+/// español se suben como "es" aunque sean latinos: si el nombre del release dice la región
+/// ("Español Latino", "Castellano"), se usa esa.
+fn full_label(label: &str, release: &str, hearing_impaired: bool, forced: bool) -> String {
     let mut label = label.to_string();
+    if label == "Español" || label == "Español (Latinoamérica)" {
+        let release = release.to_lowercase();
+        let has = |words: &[&str]| {
+            release
+                .split(|c: char| !c.is_alphanumeric())
+                .any(|word| words.contains(&word))
+        };
+        // "LA" solo cuenta entre paréntesis o junto al idioma: suelta es un artículo ("La casa…").
+        let la = [
+            "(la)",
+            "[la]",
+            "español la",
+            "spanish la",
+            "es-la",
+            "es.la",
+            "es_la",
+        ]
+        .iter()
+        .any(|tag| release.contains(tag));
+        if la
+            || has(&[
+                "latino",
+                "latinoamérica",
+                "latinoamerica",
+                "latam",
+                "lat",
+                "mx",
+            ])
+        {
+            label = "Español (Latinoamérica)".to_string();
+        } else if has(&["españa", "espana", "castellano", "spain", "castilian"]) {
+            label = "Español (España)".to_string();
+        }
+    }
     if forced {
         label.push_str(" (forzados)");
     } else if hearing_impaired {
@@ -192,7 +228,37 @@ mod tests {
             language_and_label("sv", Some("Swedish")),
             ("sv".into(), "Swedish".into())
         );
-        assert_eq!(full_label("Inglés", true, false), "Inglés (SDH)");
-        assert_eq!(full_label("Inglés", true, true), "Inglés (forzados)");
+        assert_eq!(full_label("Inglés", "x", true, false), "Inglés (SDH)");
+        assert_eq!(full_label("Inglés", "x", true, true), "Inglés (forzados)");
+        assert_eq!(
+            full_label("Español", "Frieren S01E01 (Español Latino)", false, false),
+            "Español (Latinoamérica)"
+        );
+        assert_eq!(
+            full_label(
+                "Español",
+                "Frieren Season 1 Episode 1.Español (España)",
+                false,
+                false
+            ),
+            "Español (España)"
+        );
+        assert_eq!(
+            full_label("Español", "Frieren.S01E01.WEBDL1080p-Owl", false, false),
+            "Español"
+        );
+        assert_eq!(
+            full_label(
+                "Español",
+                "Frieren Season 1 Episode 2.Español (LA)",
+                false,
+                false
+            ),
+            "Español (Latinoamérica)"
+        );
+        assert_eq!(
+            full_label("Español", "La.Casa.de.Papel.S01E01", false, false),
+            "Español"
+        );
     }
 }
