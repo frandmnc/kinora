@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Trash } from 'lucide-react'
+import { artUrl } from '../../shared/api'
 import { useApi } from '../../shared/useApi'
 import { formatSize } from '../../shared/format'
 import type { ContentDetail } from '../../shared/types/ContentDetail'
@@ -109,15 +110,23 @@ function SeasonCard({ season, onChange }: { season: ContentDetail; onChange: () 
         .filter(Boolean)
         .join(' · ')}
     >
-      {season.children.map((episode) => (
-        <div key={episode.content.id} className="episode-row">
-          <div className="episode-row-title">
-            <span className="episode-row-number">E{String(episode.content.number ?? 0).padStart(2, '0')}</span>
-            {episode.content.title}
+      {season.children.map((episode) => {
+        const number = `E${String(episode.content.number ?? 0).padStart(2, '0')}`
+        const still = artUrl(episode.content.id, 'still', episode.content.still_at)
+        return (
+          <div key={episode.content.id} className="episode-row">
+            <div className="episode-still">{still ? <img src={still} alt="" loading="lazy" /> : number}</div>
+            <div className="episode-row-main">
+              <div className="episode-row-title">
+                <span className="episode-row-number">{number}</span>
+                {episode.content.title}
+              </div>
+              {episode.content.overview && <p className="episode-row-overview">{episode.content.overview}</p>}
+              <Files node={episode} onChange={onChange} />
+            </div>
           </div>
-          <Files node={episode} onChange={onChange} />
-        </div>
-      ))}
+        )
+      })}
     </Card>
   )
 }

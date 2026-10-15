@@ -76,9 +76,9 @@ export function mediaUrl(path: string): string {
 }
 
 /**
- * La URL de la carátula o el fondo de un contenido; `undefined` si no tiene. `at` (cuándo se
+ * La URL de la carátula, el fondo o el cuadro (de un episodio) de un contenido; `undefined` si no tiene. `at` (cuándo se
  * guardó) va en la URL: si la imagen cambia, el navegador no muestra la vieja.
  */
-export function artUrl(contentId: number, kind: 'poster' | 'backdrop', at: number | null) {
+export function artUrl(contentId: number, kind: 'poster' | 'backdrop' | 'still', at: number | null) {
   return at === null ? undefined : mediaUrl(`/api/contents/${contentId}/${kind}?v=${at}`)
 }

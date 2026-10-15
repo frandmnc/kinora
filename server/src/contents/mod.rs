@@ -45,6 +45,8 @@ pub struct Content {
     pub poster_at: Option<i64>,
     /// Cuándo se guardó la imagen de fondo (`/api/contents/{id}/backdrop`); `null` si no tiene.
     pub backdrop_at: Option<i64>,
+    /// Solo episodios: cuándo se guardó un cuadro del episodio (`/api/contents/{id}/still`).
+    pub still_at: Option<i64>,
 }
 
 /// Un archivo reproducible. No incluye `probe_json` porque es grande.

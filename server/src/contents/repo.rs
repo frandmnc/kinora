@@ -9,7 +9,7 @@ use super::{Content, ContentKind, MediaFile, Progress};
 use crate::db::now;
 
 pub const CONTENT_COLUMNS: &str = "id, library_id, kind, parent_id, number, title, year, overview, dir, created_at, \
-     tmdb_id, metadata_at, poster_at, backdrop_at";
+     tmdb_id, metadata_at, poster_at, backdrop_at, still_at";
 
 /// Películas y series, opcionalmente filtradas por biblioteca y tipo.
 pub async fn list_top_level(

@@ -10,6 +10,7 @@ mod handlers;
 mod repo;
 pub mod tmdb;
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use axum::Router;
@@ -32,6 +33,12 @@ const TMDB_KEY: &str = "tmdb_key";
 
 pub const POSTER_FILE: &str = "poster.jpg";
 pub const BACKDROP_FILE: &str = "backdrop.jpg";
+/// Los cuadros de los episodios, dentro de la carpeta de la serie: "stills/S01E05.jpg".
+const STILLS_DIR: &str = "stills";
+
+fn still_file(season: i64, episode: i64) -> String {
+    format!("{STILLS_DIR}/S{season:02}E{episode:02}.jpg")
+}
 
 /// Si hay una clave de TMDB cargada. La clave nunca sale del servidor.
 #[derive(Serialize, TS)]
@@ -85,6 +92,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/contents/{id}/poster", get(handlers::poster))
         .route("/contents/{id}/backdrop", get(handlers::backdrop))
+        .route("/contents/{id}/still", get(handlers::still))
 }
 
 /// Rutas del Admin. Se montan bajo /api/admin.
@@ -122,7 +130,7 @@ fn tmdb_kind(content: &Content) -> AppResult<tmdb::Kind> {
 }
 
 /// Trae de TMDB la película o serie `tmdb_id` y la guarda en `content`: título, año, sinopsis,
-/// carátula, fondo y, en una serie, los nombres y sinopsis de sus temporadas y episodios.
+/// carátula, fondo y, en una serie, los nombres, sinopsis y cuadros de sus temporadas y episodios.
 /// Solo completa lo que ya existe: no agrega episodios que no se importaron.
 async fn apply(
     db: &SqlitePool,
@@ -138,7 +146,7 @@ async fn apply(
     if content.kind == ContentKind::Show {
         for (season_id, number) in repo::seasons_of(db, content.id).await? {
             if let Some(season) = tmdb.season(tmdb_id, number).await? {
-                seasons.push((season_id, season));
+                seasons.push((season_id, number, season));
             }
         }
     }
@@ -172,6 +180,37 @@ async fn apply(
         }
     }
 
+    // Un cuadro por episodio (de los que existen acá), en stills/.
+    let mut stills = HashMap::new();
+    let mut conn = db.acquire().await?;
+    for (season_id, number, season) in &seasons {
+        for episode in &season.episodes {
+            let Some(still_path) = &episode.still_path else {
+                continue;
+            };
+            let Some(id) =
+                repo::child_with_number(&mut conn, *season_id, episode.episode_number).await?
+            else {
+                continue;
+            };
+            let to = folder.join(still_file(*number, episode.episode_number));
+            if let Some(parent) = to.parent() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
+            match tmdb.download_image(still_path, "w300", &to).await {
+                Ok(()) => {
+                    stills.insert(id, now());
+                }
+                Err(err) => warn!(
+                    "could not download {} for \"{}\": {err:#}",
+                    to.display(),
+                    content.title
+                ),
+            }
+        }
+    }
+    drop(conn);
+
     let mut tx = db.begin().await?;
     repo::save_top(
         &mut tx,
@@ -186,7 +225,7 @@ async fn apply(
         },
     )
     .await?;
-    for (season_id, season) in seasons {
+    for (season_id, _, season) in seasons {
         // TMDB a veces nombra las temporadas "Temporada 1" y otras con su título ("Arco final").
         if let Some(name) = non_blank(season.name) {
             repo::save_text(
@@ -205,6 +244,9 @@ async fn apply(
             };
             if let Some(name) = non_blank(episode.name) {
                 repo::save_text(&mut tx, id, &name, non_blank(episode.overview).as_deref()).await?;
+            }
+            if let Some(at) = stills.get(&id) {
+                repo::save_still(&mut tx, id, *at).await?;
             }
         }
     }

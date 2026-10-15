@@ -9,7 +9,7 @@ use tracing::info;
 
 use super::{
     ApplyMetadata, BACKDROP_FILE, ContentChanges, MetadataCandidate, POSTER_FILE, TMDB_KEY,
-    TmdbKey, TmdbSetting, content_folder, exists, repo, tmdb, tmdb_kind,
+    TmdbKey, TmdbSetting, content_folder, exists, repo, still_file, tmdb, tmdb_kind,
 };
 use crate::app::AppState;
 use crate::contents::{self, Content};
@@ -165,6 +165,25 @@ pub async fn backdrop(
     image(state, id, request, BACKDROP_FILE).await
 }
 
+/// GET /api/contents/{id}/still
+/// El cuadro de un episodio, que vive en la carpeta de su serie.
+pub async fn still(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    request: Request,
+) -> AppResult<Response> {
+    let place = repo::episode_place(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("el contenido {id} no es un episodio")))?;
+    let show = find(&state, place.show_id).await?;
+    let folder = content_folder(&state.db, &state.settings, &show).await?;
+    serve(
+        folder.join(still_file(place.season, place.episode)),
+        request,
+    )
+    .await
+}
+
 /// Una imagen de la carpeta del contenido. La URL lleva `?v=` con la fecha en que se guardó:
 /// si cambia la imagen cambia la URL, así que el navegador puede guardarla sin preguntar.
 async fn image(
@@ -181,7 +200,19 @@ async fn image(
             content.title
         )));
     }
-    let mut response = ServeFile::new(folder.join(file))
+    serve(folder.join(file), request).await
+}
+
+/// Entrega una imagen. La URL lleva `?v=`: si la imagen cambia, cambia la URL, así que el
+/// navegador puede guardarla sin volver a preguntar.
+async fn serve(path: std::path::PathBuf, request: Request) -> AppResult<Response> {
+    if !path.is_file() {
+        return Err(AppError::NotFound(format!(
+            "no está la imagen {}",
+            path.display()
+        )));
+    }
+    let mut response = ServeFile::new(path)
         .oneshot(request)
         .await?
         .map(axum::body::Body::new);

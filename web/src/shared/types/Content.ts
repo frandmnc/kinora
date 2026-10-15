@@ -17,4 +17,8 @@ poster_at: number | null,
 /**
  * Cuándo se guardó la imagen de fondo (`/api/contents/{id}/backdrop`); `null` si no tiene.
  */
-backdrop_at: number | null, };
+backdrop_at: number | null, 
+/**
+ * Solo episodios: cuándo se guardó un cuadro del episodio (`/api/contents/{id}/still`).
+ */
+still_at: number | null, };

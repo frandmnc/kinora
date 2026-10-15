@@ -86,6 +86,8 @@ pub struct Episode {
     pub episode_number: i64,
     pub name: Option<String>,
     pub overview: Option<String>,
+    /// Un cuadro del episodio, elegido en TMDB.
+    pub still_path: Option<String>,
 }
 
 #[derive(Clone, Copy)]

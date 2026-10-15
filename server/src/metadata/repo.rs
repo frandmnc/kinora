@@ -55,6 +55,34 @@ pub async fn save_text(
     Ok(())
 }
 
+pub async fn save_still(conn: &mut SqliteConnection, id: i64, at: i64) -> sqlx::Result<()> {
+    sqlx::query("UPDATE contents SET still_at = ? WHERE id = ?")
+        .bind(at)
+        .bind(id)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
+/// La temporada y el número de un episodio, y su serie.
+#[derive(sqlx::FromRow)]
+pub struct EpisodePlace {
+    pub season: i64,
+    pub episode: i64,
+    pub show_id: i64,
+}
+
+pub async fn episode_place(db: &SqlitePool, id: i64) -> sqlx::Result<Option<EpisodePlace>> {
+    sqlx::query_as(
+        "SELECT season.number AS season, e.number AS episode, season.parent_id AS show_id \
+         FROM contents e JOIN contents season ON season.id = e.parent_id \
+         WHERE e.id = ? AND e.kind = 'episode' AND e.number IS NOT NULL AND season.number IS NOT NULL",
+    )
+    .bind(id)
+    .fetch_optional(db)
+    .await
+}
+
 /// Corrección a mano: título, año y sinopsis.
 pub async fn edit(
     db: &SqlitePool,

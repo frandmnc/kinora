@@ -39,8 +39,10 @@ function FileRow({
   onChange: () => void
 }) {
   const [adding, setAdding] = useState(false)
+  const [managing, setManaging] = useState(false)
   const [error, setError] = useState<string>()
   const name = file.rel_path.split('/').pop()
+  const labels = subtitles.map((s) => s.label).join(', ')
 
   async function removeFile() {
     if (!confirm(`¿Quitar ${name}? El video y sus subtítulos van a la papelera de la biblioteca.`)) return
@@ -66,7 +68,8 @@ function FileRow({
 
   return (
     <div className="file-row">
-      {/* Nombre y datos técnicos juntos, como un solo elemento; los subtítulos van aparte. */}
+      {/* Nombre y datos técnicos juntos, como un solo elemento; los subtítulos van aparte, en una
+          línea con sus nombres. Los chips para renombrar y quitar aparecen al tocar "Editar". */}
       <div className="file-row-head">
         <div className="file-row-main">
           <FilePlay className="icon" />
@@ -87,31 +90,56 @@ function FileRow({
         </div>
         {file.tech && <TechLine file={file} />}
       </div>
-      <div className="file-subtitles">
-        {subtitles.map((track) => (
-          <SubtitleChip
-            key={track.id}
-            track={track}
-            onRemove={() => remove(track)}
-            onRename={async (label) => {
-              setError(undefined)
-              try {
-                await api(`/api/admin/subtitles/${track.id}`, { method: 'PATCH', body: { label } })
-                onChange()
-                return true
-              } catch (err) {
-                setError((err as Error).message)
-                return false
-              }
-            }}
-          />
-        ))}
-        {!adding && (
-          <button className="btn btn-ghost btn-sm" onClick={() => setAdding(true)}>
-            <Plus /> Agregar subtítulo
-          </button>
-        )}
-      </div>
+      {!managing && !adding ? (
+        <div className="file-subtitles-summary small">
+          <Captions className="icon" />
+          {subtitles.length > 0 ? (
+            <>
+              <span className="truncate" title={labels}>
+                {labels}
+              </span>
+              <button className="link-button" onClick={() => setManaging(true)}>
+                Editar
+              </button>
+            </>
+          ) : (
+            <button className="link-button" onClick={() => setAdding(true)}>
+              Agregar subtítulo
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="file-subtitles">
+          {subtitles.map((track) => (
+            <SubtitleChip
+              key={track.id}
+              track={track}
+              onRemove={() => remove(track)}
+              onRename={async (label) => {
+                setError(undefined)
+                try {
+                  await api(`/api/admin/subtitles/${track.id}`, { method: 'PATCH', body: { label } })
+                  onChange()
+                  return true
+                } catch (err) {
+                  setError((err as Error).message)
+                  return false
+                }
+              }}
+            />
+          ))}
+          {!adding && (
+            <>
+              <button className="btn btn-ghost btn-sm" onClick={() => setAdding(true)}>
+                <Plus /> Agregar subtítulo
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setManaging(false)}>
+                Listo
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {error && <Alert>{error}</Alert>}
       {adding && (
         <AddSubtitleForm

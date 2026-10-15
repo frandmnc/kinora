@@ -18,6 +18,8 @@ CREATE TABLE contents (
   -- Sirven también de versión para que el navegador no muestre una imagen vieja.
   poster_at INTEGER,
   backdrop_at INTEGER,
+  -- Solo episodios: un cuadro del episodio en stills/S01E05.jpg, en la carpeta de la serie.
+  still_at INTEGER,
   UNIQUE (parent_id, number)
 );
 
