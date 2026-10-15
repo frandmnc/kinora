@@ -157,41 +157,33 @@ button:focus-visible {
   background: var(--brand);
 }
 
-/* "Ver todo" al final de cada fila del inicio */
-
-.see-all-poster {
-  flex-direction: column;
-  gap: 10px;
-  background: var(--player-surface);
-  box-shadow: none;
-  border: 2px dashed var(--player-surface-2);
-  color: var(--player-muted);
-}
-
-.see-all-poster svg {
-  width: 44px;
-  height: 44px;
-}
-
-.see-all-poster strong {
-  color: var(--player-text);
-  font-size: 22px;
-}
-
-.see-all-poster span {
-  font-size: 17px;
-  font-weight: 400;
-  color: var(--player-muted);
-}
-
 /* Biblioteca */
 
 .library-header {
   display: flex;
+  align-items: flex-end;
+  gap: 20px 32px;
+  flex-wrap: wrap;
+  margin-bottom: 36px;
+}
+
+.library-title {
+  display: flex;
   align-items: baseline;
   gap: 20px;
+}
+
+.library-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
   flex-wrap: wrap;
-  margin-bottom: 28px;
+}
+
+.chips {
+  display: flex;
+  gap: 10px;
 }
 
 .library-header h1 {
@@ -202,7 +194,6 @@ button:focus-visible {
 }
 
 .search {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -242,17 +233,28 @@ button:focus-visible {
   gap: 36px 28px;
 }
 
-/* Detalle */
+/* Buscar: el campo grande arriba y los resultados en grilla */
 
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--player-muted);
-  margin-bottom: 28px;
-  padding: 6px 10px;
-  border-radius: 8px;
+.search.search-large {
+  width: min(900px, 100%);
+  padding: 18px 24px;
+  gap: 16px;
 }
+
+.search-large svg {
+  width: 30px;
+  height: 30px;
+}
+
+.search-large input {
+  font-size: 30px;
+}
+
+.search-hint {
+  margin: 28px 0 24px;
+}
+
+/* Detalle */
 
 .detail-header {
   display: flex;
@@ -305,7 +307,7 @@ button:focus-visible {
   margin-top: 20px;
 }
 
-.version-chip {
+.chip {
   border: 2px solid var(--player-surface-2);
   background: none;
   color: var(--player-muted);
@@ -316,7 +318,7 @@ button:focus-visible {
   cursor: pointer;
 }
 
-.version-chip.selected {
+.chip.selected {
   border-color: var(--player-text);
   color: var(--player-text);
   font-weight: 700;
@@ -464,15 +466,11 @@ a.episode.is-focused {
 }
 
 .player-time {
+  margin-right: auto;
   font-variant-numeric: tabular-nums;
   font-size: 18px;
 }
 
-.player-hint {
-  margin-left: auto;
-  font-size: 15px;
-  color: var(--player-muted);
-}
 
 .player-icon {
   display: grid;
@@ -563,13 +561,17 @@ a.episode.is-focused {
     font-size: 32px;
   }
 
-  .search {
+  .library-tools {
     margin-left: 0;
     width: 100%;
   }
 
-  .see-all-poster strong {
-    font-size: 17px;
+  .search {
+    width: 100%;
+  }
+
+  .search-large input {
+    font-size: 20px;
   }
 
   .card-sub {
@@ -625,13 +627,8 @@ a.episode.is-focused {
     font-size: 17px;
   }
 
-  .player-hint {
-    display: none;
-  }
-
   .player-time {
     font-size: 15px;
-    margin-right: auto;
   }
 }
 
@@ -990,33 +987,6 @@ a.episode.is-focused {
   margin-top: 18px;
 }
 
-/* Inicio: la marca y el perfil elegido */
-
-.home-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 28px;
-}
-
-.home-header .brand-bar {
-  margin: 0;
-}
-
-.profile-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 14px 6px 6px;
-  border: none;
-  border-radius: 10px;
-  background: var(--player-surface);
-  color: var(--player-text);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
 @media (max-width: 700px) {
   .profiles-screen h1 {
     font-size: 30px;
@@ -1034,5 +1004,282 @@ a.episode.is-focused {
 
   .profile-row {
     flex-wrap: wrap;
+  }
+}
+
+/* Menú lateral. Cerrado es una franja de íconos; abierto (con el foco adentro, o con el mouse
+   encima) muestra los nombres por encima de la pantalla, sin moverla. */
+
+:root {
+  --rail: 112px;
+  --rail-open: 340px;
+}
+
+.browse-main {
+  margin-left: var(--rail);
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: fixed;
+  z-index: 10;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--rail);
+  display: flex;
+  flex-direction: column;
+  padding: 36px 20px 32px;
+  background: var(--player-bg);
+  overflow: hidden;
+  transition:
+    width 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.sidebar.open {
+  width: var(--rail-open);
+  box-shadow: 40px 0 120px 60px rgb(0 0 0 / 0.75);
+}
+
+@media (hover: hover) {
+  .sidebar:hover {
+    width: var(--rail-open);
+    box-shadow: 40px 0 120px 60px rgb(0 0 0 / 0.75);
+  }
+}
+
+/* "K" sola en la franja; al abrir aparece "inora" al lado. */
+.menu-brand {
+  display: flex;
+  align-items: baseline;
+  padding-left: 23px;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--brand);
+  white-space: nowrap;
+}
+
+.menu-items {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 24px -20px;
+  padding: 0 20px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* Centrados en la altura, pero si no entran arrancan arriba (y se desplazan). */
+.menu-items > :first-child {
+  margin-top: auto;
+}
+
+.menu-items > :last-child {
+  margin-bottom: auto;
+}
+
+.menu-item {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 60px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--player-muted);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.menu-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.menu-label {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.sidebar.open .menu-label {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .sidebar:hover .menu-label {
+    opacity: 1;
+  }
+}
+
+/* Dónde se está: el texto en blanco, el ícono y una marca en coral. */
+.menu-item.active {
+  color: var(--player-text);
+}
+
+.menu-item.active .menu-icon {
+  color: var(--brand);
+}
+
+.menu-item.active::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 16px;
+  bottom: 16px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--brand);
+}
+
+/* Con las flechas, el elegido se rellena de blanco: se ve desde el sillón. */
+.menu-item.is-focused {
+  outline: none;
+  background: var(--player-text);
+  color: var(--player-bg);
+}
+
+/* Con el mouse, algo más suave. */
+.sidebar.pointer .menu-item.is-focused {
+  background: var(--player-surface-2);
+  color: var(--player-text);
+}
+
+.menu-divider {
+  flex-shrink: 0;
+  width: auto;
+  height: 1px;
+  margin: 12px 16px;
+  border: none;
+  background: var(--player-surface-2);
+}
+
+.profile-item {
+  padding-left: 16px;
+  gap: 16px;
+}
+
+.menu-profile {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.menu-profile small {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--player-muted);
+}
+
+.menu-item.is-focused .menu-profile small {
+  color: inherit;
+  opacity: 0.7;
+}
+
+/* En el celular, el menú es una barra abajo con íconos y nombres cortos. */
+@media (max-width: 700px) {
+  .browse-main {
+    margin-left: 0;
+    padding-bottom: 76px;
+  }
+
+  .sidebar,
+  .sidebar.open,
+  .sidebar:hover {
+    top: auto;
+    right: 0;
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: rgb(14 14 14 / 0.94);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--player-surface-2);
+    box-shadow: none;
+  }
+
+  .menu-brand,
+  .menu-divider {
+    display: none;
+  }
+
+  .menu-items {
+    flex-direction: row;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+  }
+
+  .menu-items > :first-child,
+  .menu-items > :last-child {
+    margin: 0;
+  }
+
+  .menu-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 68px;
+    height: 56px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+
+  .menu-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .menu-label,
+  .sidebar .menu-label {
+    opacity: 1;
+    max-width: 84px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .menu-item.active::before {
+    left: 50%;
+    top: 0;
+    bottom: auto;
+    width: 24px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    transform: translateX(-50%);
+  }
+
+  .menu-item.is-focused,
+  .sidebar.pointer .menu-item.is-focused {
+    background: none;
+    color: var(--player-text);
+  }
+
+  .profile-item {
+    padding: 0 8px;
+  }
+
+  .profile-item .avatar-small {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+
+  .menu-profile small {
+    display: none;
   }
 }

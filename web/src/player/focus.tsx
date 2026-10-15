@@ -77,18 +77,23 @@ export function FocusGroup({
   )
 }
 
-/** Un botón que se puede enfocar con las flechas. Enter lo activa, como un clic. */
+/**
+ * Un botón que se puede enfocar con las flechas. Enter lo activa, como un clic.
+ * `pressed` lo marca como elegido, para los que funcionan como opción (un orden, una versión).
+ */
 export function FocusableButton({
   onPress,
   className = '',
   focusKey,
   title,
+  pressed,
   children,
 }: {
   onPress: () => void
   className?: string
   focusKey?: string
   title?: string
+  pressed?: boolean
   children: ReactNode
 }) {
   const { ref, focused, focusSelf } = useFocusable<object, HTMLButtonElement>({
@@ -100,6 +105,7 @@ export function FocusableButton({
       ref={ref}
       type="button"
       title={title}
+      aria-pressed={pressed}
       className={`${className} ${focused ? 'is-focused' : ''}`}
       onClick={onPress}
       onMouseEnter={() => focusSelf()}

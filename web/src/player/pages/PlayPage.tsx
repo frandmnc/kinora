@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { pickFile } from '../../shared/versions'
 import { pause as pauseNavigation, resume as resumeNavigation } from '@noriginmedia/norigin-spatial-navigation'
-import { ArrowLeft, Captions, Check, LoaderCircle, Maximize, Minimize, Pause, Play } from 'lucide-react'
+import { ArrowLeft, Captions, Check, LoaderCircle, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { api, mediaUrl } from '../../shared/api'
 import { useApi } from '../../shared/useApi'
 import { formatDuration } from '../../shared/format'
@@ -114,6 +114,7 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
   const [duration, setDuration] = useState(0)
   const [controlsVisible, setControlsVisible] = useState(true)
   const [fullscreen, setFullscreen] = useState(false)
+  const [muted, setMuted] = useState(false)
   const [flash, setFlash] = useState<string>()
   const [buffering, setBuffering] = useState(true)
   const [showSpinner, setShowSpinner] = useState(false)
@@ -196,6 +197,14 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
     },
     [showControls, showFlash],
   )
+
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.muted = !video.muted
+    showFlash(video.muted ? 'Sin sonido' : 'Con sonido')
+    showControls()
+  }, [showControls, showFlash])
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen()
@@ -291,6 +300,8 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
         showControls()
       } else if (key === 'f') {
         toggleFullscreen()
+      } else if (key === 'm') {
+        toggleMute()
       } else {
         return
       }
@@ -299,7 +310,7 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
     // En fase de captura: así este manejador corre antes que el de "Atrás" de la aplicación.
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [togglePlay, seekBy, showControls, toggleFullscreen, menu, tracks, chooseSubtitle, openMenu])
+  }, [togglePlay, seekBy, showControls, toggleFullscreen, toggleMute, menu, tracks, chooseSubtitle, openMenu])
 
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement !== null)
@@ -340,6 +351,7 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
         onClick={togglePlay}
         onLoadedMetadata={(e) => onLoaded(e.currentTarget)}
         onDurationChange={(e) => setDuration(e.currentTarget.duration)}
+        onVolumeChange={(e) => setMuted(e.currentTarget.muted)}
         // Cargando: al empezar, al adelantar o atrasar, o si la red no alcanza.
         onWaiting={() => setBuffering(true)}
         onSeeking={() => setBuffering(true)}
@@ -436,9 +448,14 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
           <span className="player-time">
             {formatDuration(time)} / {formatDuration(duration || null)}
           </span>
-          <span className="player-hint">
-            ← → {SEEK_SECONDS} s · Enter pausa{tracks.length > 0 ? ' · ↓ subtítulos' : ''} · Esc volver
-          </span>
+          <button
+            className="player-icon"
+            onClick={toggleMute}
+            title={muted ? 'Activar el sonido (M)' : 'Silenciar (M)'}
+            tabIndex={-1}
+          >
+            {muted ? <VolumeX /> : <Volume2 />}
+          </button>
           {tracks.length > 0 && (
             <button
               className={`player-icon ${subtitle !== null ? 'active' : ''}`}

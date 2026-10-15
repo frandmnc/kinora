@@ -1,12 +1,14 @@
 import { useEffect } from 'react'
 import { Route, Routes, useLocation, useNavigate } from 'react-router'
-import { pause, resume } from '@noriginmedia/norigin-spatial-navigation'
+import { doesFocusableExist, pause, resume, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import { AuthGate } from '../shared/auth'
 import { ProfileGate } from './profiles'
+import { BrowseLayout, MENU } from './Sidebar'
 import { HomePage } from './pages/HomePage'
 import { DetailPage } from './pages/DetailPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PlayPage } from './pages/PlayPage'
+import { SearchPage } from './pages/SearchPage'
 
 /** Teclas de "Atrás": Escape y Backspace en la compu; 10009 es la tecla Atrás del control de Samsung. */
 export function isBackKey(event: KeyboardEvent) {
@@ -23,8 +25,14 @@ export function App() {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       // En pantalla completa, Escape primero sale de pantalla completa (lo hace el navegador).
-      if (!isBackKey(event) || document.fullscreenElement || location.pathname === '/') return
+      if (!isBackKey(event) || document.fullscreenElement) return
       event.preventDefault()
+      // En el inicio no hay adónde volver: Atrás abre el menú, como en las apps de la TV.
+      // (Eligiendo perfil todavía no hay menú.)
+      if (location.pathname === '/') {
+        if (doesFocusableExist(MENU)) setFocus(MENU)
+        return
+      }
       // Si se entró directo a esta pantalla no hay historial: se vuelve al inicio.
       const hasHistory = (window.history.state?.idx ?? 0) > 0
       if (hasHistory) navigate(-1)
@@ -60,9 +68,12 @@ function PlayerBrand() {
 function PlayerRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/library/:id" element={<LibraryPage />} />
-      <Route path="/content/:id" element={<DetailPage />} />
+      <Route element={<BrowseLayout />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/library/:id" element={<LibraryPage />} />
+        <Route path="/content/:id" element={<DetailPage />} />
+      </Route>
       <Route path="/play/:id" element={<PlayPage />} />
     </Routes>
   )

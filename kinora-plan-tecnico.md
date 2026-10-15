@@ -490,12 +490,15 @@ No hay sesiones de reproducción. Se agregarán si en el futuro el servidor tran
 
 Pantallas:
 
+Un menú lateral lleva a Inicio, Buscar, cada biblioteca y el cambio de perfil. En la TV es una franja de íconos que se abre con la flecha izquierda (o con Atrás desde el inicio); en el celular, una barra abajo.
+
 | Pantalla | Función |
 |---|---|
-| Inicio | Seguir viendo, agregados recientemente, bibliotecas |
-| Biblioteca | Grilla de carátulas y búsqueda |
+| Inicio | Seguir viendo y agregados recientemente |
+| Buscar | Por título, en todas las bibliotecas |
+| Biblioteca | Grilla de carátulas, búsqueda y orden (A–Z, recientes, año) |
 | Detalle | Descripción, temporadas, episodios y botón de reproducción |
-| Reproductor | `<video>` con controles propios para el control remoto y subtítulos |
+| Reproductor | `<video>` con controles propios para el control remoto, subtítulos y silenciar |
 
 Si falta una carátula, el Player muestra una presentación alternativa con el título.
 

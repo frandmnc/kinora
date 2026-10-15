@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
-import { ArrowLeft, Play } from 'lucide-react'
+import { Play } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
 import { formatDuration } from '../../shared/format'
 import type { ContentDetail } from '../../shared/types/ContentDetail'
-import type { MediaFile } from '../../shared/types/MediaFile'
 import { pickFile, versionLabel } from '../../shared/versions'
 import { Poster } from '../Poster'
-import { FocusGroup, FocusableLink } from '../focus'
+import { FocusGroup, FocusableButton, FocusableLink } from '../focus'
+import { useHighlightLibrary } from '../Sidebar'
 import { Message } from './HomePage'
 
 /** Detalle de una película o una serie. En una serie lista temporadas y episodios. */
@@ -18,6 +17,7 @@ export function DetailPage() {
   // La versión elegida (si hay varias); si no se eligió, la de mayor resolución.
   // Los hooks van antes de cualquier `return`: React los identifica por el orden en que se llaman.
   const [chosen, setChosen] = useState<number>()
+  useHighlightLibrary(detail?.content.library_id)
 
   if (error) return <Message title="No se pudo cargar" detail={error} />
   if (!detail) return <Message title="Cargando…" />
@@ -32,10 +32,6 @@ export function DetailPage() {
   return (
     // El foco arranca en el botón de reproducir.
     <FocusGroup className="screen" autoFocus preferredChildFocusKey={playable ? 'PLAY' : undefined}>
-      <FocusableLink to="/" className="back">
-        <ArrowLeft size={20} /> Inicio
-      </FocusableLink>
-
       <div className="detail-header">
         <Poster title={content.title} />
         <div>
@@ -61,12 +57,14 @@ export function DetailPage() {
                 <FocusGroup className="versions">
                   <span className="meta">Versión</span>
                   {playable.files.map((file) => (
-                    <VersionChip
+                    <FocusableButton
                       key={file.id}
-                      file={file}
-                      selected={file.id === version.id}
-                      onSelect={() => setChosen(file.id)}
-                    />
+                      className={`chip ${file.id === version.id ? 'selected' : ''}`}
+                      pressed={file.id === version.id}
+                      onPress={() => setChosen(file.id)}
+                    >
+                      {versionLabel(file)}
+                    </FocusableButton>
                   ))}
                 </FocusGroup>
               )}
@@ -140,22 +138,6 @@ function ProgressMark({ detail }: { detail: ContentDetail }) {
     <span className="episode-progress" title={formatDuration(progress.position)}>
       <div style={{ width: `${percent}%` }} />
     </span>
-  )
-}
-
-/** Una versión para elegir: Enter (o un clic) la deja elegida para el botón de reproducir. */
-function VersionChip({ file, selected, onSelect }: { file: MediaFile; selected: boolean; onSelect: () => void }) {
-  const { ref, focused, focusSelf } = useFocusable<object, HTMLButtonElement>({ onEnterPress: onSelect })
-  return (
-    <button
-      ref={ref}
-      className={`version-chip ${selected ? 'selected' : ''} ${focused ? 'is-focused' : ''}`}
-      onClick={onSelect}
-      onMouseEnter={() => focusSelf()}
-      aria-pressed={selected}
-    >
-      {versionLabel(file)}
-    </button>
   )
 }
 
