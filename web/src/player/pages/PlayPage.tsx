@@ -246,6 +246,15 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
     }
   }, [controlsShown])
   useEffect(placeCues, [placeCues, subtitle])
+  // Las líneas llegan cuando termina de bajar el .vtt: recién ahí se pueden ubicar. React no
+  // escucha `load` en <track>, así que se engancha a mano.
+  useEffect(() => {
+    const elements = [...(videoRef.current?.querySelectorAll('track') ?? [])]
+    for (const element of elements) element.addEventListener('load', placeCues)
+    return () => {
+      for (const element of elements) element.removeEventListener('load', placeCues)
+    }
+  }, [placeCues, tracks])
 
   const chooseSubtitle = useCallback(
     (id: number | null) => {
@@ -388,8 +397,6 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
             src={mediaUrl(`/api/subtitles/${track.id}`)}
             srcLang={track.srclang ?? undefined}
             label={track.label}
-            // Las líneas llegan cuando termina de bajar el .vtt: recién ahí se pueden ubicar.
-            onLoad={placeCues}
           />
         ))}
       </video>
