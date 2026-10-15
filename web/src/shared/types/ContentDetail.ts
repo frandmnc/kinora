@@ -3,6 +3,7 @@ import type { Content } from "./Content";
 import type { MediaFile } from "./MediaFile";
 import type { Progress } from "./Progress";
 import type { SubtitleTrack } from "./SubtitleTrack";
+import type { WatchStats } from "./WatchStats";
 
 /**
  * Un contenido con sus archivos y sus hijos (una serie con temporadas, y estas con episodios).
@@ -12,6 +13,11 @@ export type ContentDetail = { content: Content, files: Array<MediaFile>,
  * Solo en películas y episodios que ya se empezaron a ver.
  */
 progress: Progress | null, 
+/**
+ * Cuánto se vio en total y cuándo fue la última vez: solo en películas y episodios que el
+ * perfil ya vio alguna vez.
+ */
+watch: WatchStats | null, 
 /**
  * Los subtítulos de sus archivos.
  */

@@ -90,6 +90,19 @@ pub struct Session {
     pub completed: bool,
 }
 
+/// Cuánto vio un perfil un contenido, sumando todas sus visualizaciones.
+#[derive(Debug, Serialize, sqlx::FromRow, TS)]
+#[ts(export)]
+pub struct WatchStats {
+    pub content_id: i64,
+    /// Segundos reproducidos en total.
+    pub seconds: f64,
+    /// A cuántas visualizaciones completas equivale lo reproducido (`null` sin duración conocida).
+    pub times: Option<f64>,
+    /// Cuándo terminó la última visualización de al menos 30 segundos (segundos desde 1970).
+    pub last_watched_at: Option<i64>,
+}
+
 #[derive(Serialize, TS)]
 #[ts(export)]
 pub struct DayTotal {
@@ -117,6 +130,9 @@ pub fn admin_routes() -> Router<AppState> {
         .route("/metrics/viewing", get(handlers::viewing))
         .route("/metrics/sessions", get(handlers::sessions))
 }
+
+/// Las visualizaciones más cortas no cuentan: abrir algo y cerrarlo enseguida no es verlo.
+pub const MIN_SESSION: f64 = 30.0;
 
 /// Fecha local de hoy (o de hace `days_ago` días) en formato AAAA-MM-DD.
 pub fn local_day(days_ago: i64) -> String {

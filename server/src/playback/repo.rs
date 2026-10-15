@@ -1,10 +1,10 @@
 //! Consultas de reproducción: tiempo visto por día y lo que quedó a medias.
 
-use sqlx::SqlitePool;
+use sqlx::{AssertSqlSafe, SqlitePool};
 
 use crate::profiles::Profile;
 
-use super::{DayTotal, TitleTotal};
+use super::{DayTotal, MIN_SESSION, TitleTotal, WatchStats};
 
 /// Suma segundos al día y contenido indicados.
 pub async fn add_seconds(
@@ -246,6 +246,33 @@ pub async fn recent_sessions(
     .bind(limit)
     .fetch_all(db)
     .await
+}
+
+/// Lo que un perfil vio de cada contenido, desde el historial. Cada visualización aporta lo
+/// reproducido sobre su propia duración: así cuenta bien aunque se hayan visto versiones distintas.
+pub async fn watch_stats(
+    db: &SqlitePool,
+    profile_id: i64,
+    content_ids: &[i64],
+) -> sqlx::Result<Vec<WatchStats>> {
+    if content_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = vec!["?"; content_ids.len()].join(", ");
+    let sql = format!(
+        "SELECT content_id, SUM(seconds_watched) AS seconds, \
+                SUM(CASE WHEN duration > 0 THEN seconds_watched / duration END) AS times, \
+                MAX(CASE WHEN seconds_watched >= ? THEN ended_at END) AS last_watched_at \
+         FROM playback_sessions WHERE profile_id = ? AND content_id IN ({placeholders}) \
+         GROUP BY content_id"
+    );
+    let mut query = sqlx::query_as(AssertSqlSafe(sql))
+        .bind(MIN_SESSION)
+        .bind(profile_id);
+    for id in content_ids {
+        query = query.bind(id);
+    }
+    query.fetch_all(db).await
 }
 
 /// Cuántas visualizaciones de al menos `min_seconds` empezaron desde `since`, y cuántas de

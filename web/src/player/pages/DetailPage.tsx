@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useParams } from 'react-router'
 import { Check, Play } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
-import { formatDuration } from '../../shared/format'
+import { formatDuration, formatWatchTime } from '../../shared/format'
 import type { ContentDetail } from '../../shared/types/ContentDetail'
+import type { WatchStats } from '../../shared/types/WatchStats'
 import { pickFile, versionLabel } from '../../shared/versions'
 import { artUrl } from '../../shared/api'
 import { Poster } from '../Poster'
@@ -50,6 +51,7 @@ export function DetailPage() {
               .filter(Boolean)
               .join(' · ')}
           </p>
+          <WatchSummary detail={detail} />
           {content.overview && <p className="overview">{content.overview}</p>}
           {playable ? (
             <>
@@ -101,7 +103,7 @@ export function DetailPage() {
                         meta={[
                           duration(episode),
                           episode.files.length > 1 && `${episode.files.length} versiones`,
-                          episode.progress?.watched && 'Visto',
+                          ...watchedMeta(episode),
                         ]}
                       />
                     </FocusableLink>
@@ -181,6 +183,75 @@ function EpisodeInfo({ episode, meta }: { episode: ContentDetail; meta: (string 
       <span className="meta">{meta.filter(Boolean).join(' · ')}</span>
     </div>
   )
+}
+
+/**
+ * Lo visto de la película o de la serie entera, debajo del título: cuántas veces, cuánto tiempo
+ * en total y cuándo fue la última. En una serie, lo último que se vio y cuántas veces se vio
+ * completa (la menor cantidad de veces entre sus episodios).
+ */
+function WatchSummary({ detail }: { detail: ContentDetail }) {
+  let parts: (string | undefined)[]
+  if (detail.content.kind === 'movie') {
+    const { watch } = detail
+    if (!watch || watch.seconds < 60) return null
+    parts = [
+      timesLabel(watch),
+      `${formatWatchTime(watch.seconds)} en total`,
+      watch.last_watched_at !== null ? `la última, ${whenLabel(watch.last_watched_at)}` : undefined,
+    ]
+  } else {
+    const episodes = detail.children.flatMap((season) =>
+      season.children.map((episode) => ({ episode, label: `T${season.content.number} E${episode.content.number}` })),
+    )
+    const total = episodes.reduce((sum, { episode }) => sum + (episode.watch?.seconds ?? 0), 0)
+    if (total < 60) return null
+    const last = episodes
+      .filter(({ episode }) => episode.watch?.last_watched_at != null)
+      .sort((a, b) => b.episode.watch!.last_watched_at! - a.episode.watch!.last_watched_at!)[0]
+    const available = episodes.filter(({ episode }) => episode.files.length > 0)
+    const complete = available.length > 0 ? Math.min(...available.map(({ episode }) => wholeTimes(episode.watch))) : 0
+    parts = [
+      complete === 1 ? 'Vista completa 1 vez' : complete > 1 ? `Vista completa ${complete} veces` : undefined,
+      `${formatWatchTime(total)} vistos en total`,
+      last ? `lo último: ${last.label}, ${whenLabel(last.episode.watch!.last_watched_at!)}` : undefined,
+    ]
+  }
+  return <p className="meta watch-summary">{parts.filter(Boolean).join(' · ')}</p>
+}
+
+/** "Visto 12 veces · la última, hace 3 días"; si no llega a una vez completa, solo "Visto" si se terminó. */
+function watchedMeta(episode: ContentDetail) {
+  const { watch, progress } = episode
+  const times = timesLabel(watch) ?? (progress?.watched ? 'Visto' : undefined)
+  if (!times) return []
+  return [times, watch?.last_watched_at != null ? `la última, ${whenLabel(watch.last_watched_at)}` : undefined]
+}
+
+/** Las visualizaciones completas a las que equivale lo reproducido, redondeadas (de 0,9 en adelante, una). */
+function wholeTimes(watch: WatchStats | null) {
+  const times = watch?.times ?? 0
+  return times < 0.9 ? 0 : Math.max(1, Math.round(times))
+}
+
+/** "Visto 1 vez", "Visto 12 veces", o nada si todavía no equivale a una vez completa. */
+function timesLabel(watch: WatchStats | null) {
+  const times = wholeTimes(watch)
+  if (times === 0) return undefined
+  return times === 1 ? 'Visto 1 vez' : `Visto ${times} veces`
+}
+
+/** "hoy", "ayer", "hace 3 días", "el 12 de marzo" o, si no es de este año, "el 12 de marzo de 2024". */
+function whenLabel(seconds: number) {
+  const date = new Date(seconds * 1000)
+  const now = new Date()
+  const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((midnight(now) - midnight(date)) / 86_400_000)
+  if (days === 0) return 'hoy'
+  if (days === 1) return 'ayer'
+  if (days < 7) return `hace ${days} días`
+  const year = date.getFullYear() === now.getFullYear() ? undefined : 'numeric'
+  return `el ${date.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year })}`
 }
 
 function duration(detail: ContentDetail) {

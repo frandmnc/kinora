@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::app::AppState;
+use crate::playback::WatchStats;
 use crate::probe::TechInfo;
 use crate::subtitles::SubtitleTrack;
 
@@ -77,6 +78,9 @@ pub struct ContentDetail {
     pub files: Vec<MediaFile>,
     /// Solo en películas y episodios que ya se empezaron a ver.
     pub progress: Option<Progress>,
+    /// Cuánto se vio en total y cuándo fue la última vez: solo en películas y episodios que el
+    /// perfil ya vio alguna vez.
+    pub watch: Option<WatchStats>,
     /// Los subtítulos de sus archivos.
     pub subtitles: Vec<SubtitleTrack>,
     pub children: Vec<ContentDetail>,

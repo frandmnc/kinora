@@ -6,7 +6,8 @@ use chrono::{Datelike, Days, Local, Months, NaiveDate, NaiveTime};
 use serde::Deserialize;
 
 use super::{
-    ContinueItem, DayTotal, PlaybackSummary, Session, ViewingRange, ViewingStats, local_day, repo,
+    ContinueItem, DayTotal, MIN_SESSION, PlaybackSummary, Session, ViewingRange, ViewingStats,
+    local_day, repo,
 };
 use crate::app::AppState;
 use crate::contents::repo::display_title;
@@ -163,8 +164,6 @@ pub async fn viewing(
 }
 
 const DAY: &str = "%Y-%m-%d";
-/// Las visualizaciones más cortas no cuentan: abrir algo y cerrarlo enseguida no es verlo.
-const MIN_SESSION: f64 = 30.0;
 
 /// Desde qué día va el período y si conviene contarlo por mes (más de un mes) o por día.
 fn period(range: ViewingRange, today: NaiveDate, first: Option<NaiveDate>) -> (NaiveDate, bool) {
@@ -239,6 +238,34 @@ mod tests {
         assert_eq!(top[0].title, "Frieren");
         assert_eq!(top[0].seconds, 930.0);
         assert_eq!(top[1].title, "Interstellar");
+    }
+
+    #[tokio::test]
+    async fn adds_up_each_profiles_viewings_of_a_content() {
+        let db = connect_in_memory().await;
+        sqlx::query(
+            "INSERT INTO libraries (id, name, dir) VALUES (1, 'Películas', 'Películas'); \
+             INSERT INTO contents (id, library_id, kind, title, created_at) VALUES \
+               (1, 1, 'movie', 'Interstellar', 0); \
+             INSERT INTO profiles (id, name, created_at) VALUES (2, 'Otra', 0); \
+             INSERT INTO playback_sessions (content_id, title, profile_id, client, started_at, \
+               ended_at, seconds_watched, start_position, end_position, duration) VALUES \
+               (1, 'Interstellar', 1, 'tv', 100, 1100, 1000, 0, 1000, 1000), \
+               (1, 'Interstellar', 1, 'tv', 2000, 2500, 500, 0, 500, 1000), \
+               (1, 'Interstellar', 1, 'tv', 3000, 3010, 10, 500, 510, NULL), \
+               (1, 'Interstellar', 2, 'tv', 4000, 5000, 1000, 0, 1000, 1000);",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        let stats = repo::watch_stats(&db, 1, &[1, 2]).await.unwrap();
+        assert_eq!(stats.len(), 1);
+        assert_eq!(stats[0].seconds, 1510.0);
+        // Una vez y media; la de 10 segundos no tiene duración y no suma veces.
+        assert_eq!(stats[0].times, Some(1.5));
+        // La última "de verdad": la de 10 segundos no cuenta.
+        assert_eq!(stats[0].last_watched_at, Some(2500));
     }
 
     #[test]

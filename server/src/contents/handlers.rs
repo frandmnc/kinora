@@ -19,6 +19,7 @@ use super::{
 use crate::app::AppState;
 use crate::error::{AppError, AppResult};
 use crate::monitor::SessionStep;
+use crate::playback::WatchStats;
 use crate::probe::{Probe, TechInfo};
 use crate::profiles::Profile;
 use crate::subtitles::{self, SubtitleTrack};
@@ -126,10 +127,13 @@ pub async fn detail(
         file.tech = tech.get(&file.id).cloned();
         parts.files.entry(file.content_id).or_default().push(file);
     }
-    // El progreso es de cada perfil; el Admin (sin perfil) no lo ve.
+    // El progreso y lo visto son de cada perfil; el Admin (sin perfil) no los ve.
     if let Some(profile) = &profile {
         for progress in repo::progress_of(&state.db, profile.id, &ids).await? {
             parts.progress.insert(progress.content_id, progress);
+        }
+        for watch in playback::repo::watch_stats(&state.db, profile.id, &ids).await? {
+            parts.watch.insert(watch.content_id, watch);
         }
     }
     let mut root = None;
@@ -152,6 +156,7 @@ struct TreeParts {
     children: HashMap<i64, Vec<Content>>,
     files: HashMap<i64, Vec<MediaFile>>,
     progress: HashMap<i64, Progress>,
+    watch: HashMap<i64, WatchStats>,
     subtitles: HashMap<i64, Vec<SubtitleTrack>>,
 }
 
@@ -162,6 +167,7 @@ fn build_tree(content: Content, parts: &mut TreeParts) -> ContentDetail {
     ContentDetail {
         files: parts.files.remove(&content.id).unwrap_or_default(),
         progress: parts.progress.remove(&content.id),
+        watch: parts.watch.remove(&content.id),
         subtitles: parts.subtitles.remove(&content.id).unwrap_or_default(),
         children: kids
             .into_iter()
