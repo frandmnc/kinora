@@ -13,6 +13,10 @@ content_id: number,
  */
 top_id: number, top_title: string, 
 /**
+ * Cuándo se guardó la carátula de la película o serie; `null` si no tiene.
+ */
+top_poster_at: number | null, 
+/**
  * "Sousou no Frieren · T1 E2" o el título de la película.
  */
 title: string, position: number, duration: number | null, 

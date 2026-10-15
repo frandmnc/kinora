@@ -2,7 +2,7 @@ import { useApi } from '../../shared/useApi'
 import { formatDuration } from '../../shared/format'
 import type { ContinueItem } from '../../shared/types/ContinueItem'
 import type { RecentItem } from '../../shared/types/RecentItem'
-import { Poster } from '../Poster'
+import { Poster, artUrl } from '../Poster'
 import { ContentCard } from '../catalog'
 import { FocusGroup, FocusableLink } from '../focus'
 
@@ -63,7 +63,10 @@ function ContinueCard({ item }: { item: ContinueItem }) {
   return (
     <FocusableLink to={`/play/${item.content_id}`} state={{ title: item.title }} className="card">
       <div className="poster-wrap">
-        <Poster title={item.top_title} />
+        <Poster
+          title={item.top_title}
+          src={artUrl(item.top_id, 'poster', item.top_poster_at)}
+        />
         {share > 0 && (
           <div className="poster-progress">
             <div style={{ width: `${share * 100}%` }} />

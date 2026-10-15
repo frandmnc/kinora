@@ -513,7 +513,7 @@ Si falta una carátula, el Player muestra una presentación alternativa con el t
 | Configuración | Carpeta media, con un explorador de carpetas del servidor |
 | Cola | Trabajos en curso, pendientes y fallidos; cancelar y reintentar |
 | Bibliotecas | Cada biblioteca muestra una tarjeta por película o serie (números, avisos, eliminar con confirmación); cada una abre su página con temporadas, episodios, archivos, versiones y subtítulos |
-| Contenido | Corregir títulos, años y números |
+| Contenido | Metadata: buscarla en TMDB (título, año, sinopsis, carátula, fondo y títulos de episodios) o corregirla a mano |
 | Mantenimiento | Verificar integridad, reconstruir desde disco, backup |
 
 ## Autenticación

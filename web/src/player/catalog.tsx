@@ -3,7 +3,7 @@
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { Search } from 'lucide-react'
 import type { Content } from '../shared/types/Content'
-import { Poster } from './Poster'
+import { Poster, artUrl } from './Poster'
 import { FocusableLink } from './focus'
 
 /** Para buscar sin que importen los acentos ni las mayúsculas: "Pokémon" encuentra "pokemon". */
@@ -26,7 +26,7 @@ export function titleCount(count: number) {
 export function ContentCard({ content, sub }: { content: Content; sub?: string | number | null }) {
   return (
     <FocusableLink to={`/content/${content.id}`} className="card">
-      <Poster title={content.title} />
+      <Poster title={content.title} src={artUrl(content.id, 'poster', content.poster_at)} />
       <span className="card-title">{content.title}</span>
       {sub && <span className="card-sub">{sub}</span>}
     </FocusableLink>

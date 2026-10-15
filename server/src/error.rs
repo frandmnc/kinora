@@ -15,6 +15,8 @@ pub enum AppError {
     Conflict(String),
     /// Demasiados intentos seguidos (429).
     TooManyRequests(String),
+    /// Falló un servicio de afuera del que depende el pedido, como TMDB (502).
+    Upstream(String),
     Internal(anyhow::Error),
 }
 
@@ -34,6 +36,7 @@ impl IntoResponse for AppError {
             AppError::TooManyRequests(message) => (StatusCode::TOO_MANY_REQUESTS, message),
             AppError::NotFound(message) => (StatusCode::NOT_FOUND, message),
             AppError::Conflict(message) => (StatusCode::CONFLICT, message),
+            AppError::Upstream(message) => (StatusCode::BAD_GATEWAY, message),
             AppError::Internal(err) => {
                 // El detalle va al registro del servidor, no al cliente.
                 tracing::error!("internal error: {err:#}");

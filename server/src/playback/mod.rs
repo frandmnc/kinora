@@ -19,6 +19,8 @@ pub struct ContinueItem {
     /// La película o la serie, para la carátula y el detalle.
     pub top_id: i64,
     pub top_title: String,
+    /// Cuándo se guardó la carátula de la película o serie; `null` si no tiene.
+    pub top_poster_at: Option<i64>,
     /// "Sousou no Frieren · T1 E2" o el título de la película.
     pub title: String,
     pub position: f64,

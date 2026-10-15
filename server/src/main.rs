@@ -11,6 +11,7 @@ mod imports;
 mod jobs;
 mod libraries;
 mod manifest;
+mod metadata;
 mod monitor;
 mod naming;
 mod playback;

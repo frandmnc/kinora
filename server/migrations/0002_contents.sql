@@ -10,6 +10,14 @@ CREATE TABLE contents (
   overview TEXT,
   dir TEXT,                      -- solo movie/show, relativo a la carpeta de la biblioteca
   created_at INTEGER NOT NULL,   -- segundos desde 1970 (UTC)
+  -- Metadata de TMDB (solo movie/show). `metadata_at` dice cuándo se trajo: pasados unos meses
+  -- se vuelve a pedir, para tomar las correcciones.
+  tmdb_id INTEGER,
+  metadata_at INTEGER,
+  -- poster.jpg y backdrop.jpg en la carpeta del contenido: cuándo se guardaron (NULL si no hay).
+  -- Sirven también de versión para que el navegador no muestre una imagen vieja.
+  poster_at INTEGER,
+  backdrop_at INTEGER,
   UNIQUE (parent_id, number)
 );
 

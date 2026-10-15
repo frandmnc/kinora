@@ -9,6 +9,7 @@ import type { Library } from '../../shared/types/Library'
 import { Alert, Card, PageHeader } from '../ui'
 import { Files } from '../ContentFiles'
 import { DeleteContentDialog } from '../DeleteContentDialog'
+import { MetadataCard } from '../MetadataCard'
 import { describe } from './LibraryPage'
 
 /** Una película o serie: sus archivos (o temporadas y episodios), versiones y subtítulos. */
@@ -62,6 +63,8 @@ export function ContentPage() {
               )
             }
           />
+
+          <MetadataCard content={detail.content} onChange={refresh} />
 
           {detail.content.kind === 'movie' ? (
             <Card title="Archivos">

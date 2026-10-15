@@ -32,6 +32,10 @@ pub struct Manifest {
     pub year: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overview: Option<String>,
+    /// De qué película o serie de TMDB salió la metadata. La carátula y el fondo, si hay, son
+    /// `poster.jpg` y `backdrop.jpg` en la misma carpeta.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tmdb_id: Option<i64>,
     /// Solo películas.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<ManifestFile>,
@@ -214,6 +218,7 @@ async fn build(db: &SqlitePool, top_id: i64) -> Result<(String, Manifest, String
         title: top.title.clone(),
         year: top.year,
         overview: top.overview.clone(),
+        tmdb_id: top.tmdb_id,
         files: files.remove(&top_id).unwrap_or_default(),
         seasons,
     };

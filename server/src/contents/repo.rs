@@ -8,8 +8,8 @@ use sqlx::{AssertSqlSafe, SqliteConnection, SqlitePool};
 use super::{Content, ContentKind, MediaFile, Progress};
 use crate::db::now;
 
-const CONTENT_COLUMNS: &str =
-    "id, library_id, kind, parent_id, number, title, year, overview, dir, created_at";
+pub const CONTENT_COLUMNS: &str = "id, library_id, kind, parent_id, number, title, year, overview, dir, created_at, \
+     tmdb_id, metadata_at, poster_at, backdrop_at";
 
 /// Películas y series, opcionalmente filtradas por biblioteca y tipo.
 pub async fn list_top_level(
@@ -18,18 +18,18 @@ pub async fn list_top_level(
     kind: Option<ContentKind>,
 ) -> sqlx::Result<Vec<Content>> {
     // `? IS NULL OR ...`: si el filtro no viene, la condición se cumple siempre.
-    sqlx::query_as(
-        "SELECT id, library_id, kind, parent_id, number, title, year, overview, dir, created_at \
-         FROM contents \
+    let sql = format!(
+        "SELECT {CONTENT_COLUMNS} FROM contents \
          WHERE parent_id IS NULL \
            AND (?1 IS NULL OR library_id = ?1) \
            AND (?2 IS NULL OR kind = ?2) \
-         ORDER BY title COLLATE NOCASE",
-    )
-    .bind(library_id)
-    .bind(kind)
-    .fetch_all(db)
-    .await
+         ORDER BY title COLLATE NOCASE"
+    );
+    sqlx::query_as(AssertSqlSafe(sql))
+        .bind(library_id)
+        .bind(kind)
+        .fetch_all(db)
+        .await
 }
 
 /// Un contenido y todos sus descendientes, con una consulta recursiva.

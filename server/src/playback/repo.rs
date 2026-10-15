@@ -78,6 +78,7 @@ pub struct RecentProgress {
     /// La película misma, o la serie del episodio.
     pub top_id: i64,
     pub top_title: String,
+    pub top_poster_at: Option<i64>,
     pub is_episode: bool,
 }
 
@@ -91,6 +92,7 @@ pub async fn recent_progress(
         "SELECT p.content_id, p.position, p.duration, p.watched, \
                 c.number AS episode_number, season.number AS season_number, \
                 COALESCE(show.id, c.id) AS top_id, COALESCE(show.title, c.title) AS top_title, \
+                CASE WHEN show.id IS NULL THEN c.poster_at ELSE show.poster_at END AS top_poster_at, \
                 c.kind = 'episode' AS is_episode \
          FROM progress p \
          JOIN contents c ON c.id = p.content_id \

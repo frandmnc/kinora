@@ -12,6 +12,7 @@ import type { SetMediaDir } from '../../shared/types/SetMediaDir'
 import type { TransferStatus } from '../../shared/types/TransferStatus'
 import { FolderPicker } from '../FolderPicker'
 import { AccountCard } from '../AccountCard'
+import { TmdbCard } from '../TmdbCard'
 import { Alert, Badge, Card, Meter, PageHeader } from '../ui'
 
 export function SettingsPage() {
@@ -108,6 +109,8 @@ export function SettingsPage() {
 
       {/* `key`: al cambiar la carpeta, el componente se vuelve a crear y mide de nuevo. */}
       {mediaDir?.available && <UsageView key={mediaDir.path} />}
+
+      <TmdbCard />
 
       <AccountCard />
     </>

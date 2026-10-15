@@ -5,7 +5,7 @@ import { useApi } from '../../shared/useApi'
 import { formatDuration } from '../../shared/format'
 import type { ContentDetail } from '../../shared/types/ContentDetail'
 import { pickFile, versionLabel } from '../../shared/versions'
-import { Poster } from '../Poster'
+import { Poster, artUrl } from '../Poster'
 import { FocusGroup, FocusableButton, FocusableLink } from '../focus'
 import { useHighlightLibrary } from '../Sidebar'
 import { Message } from './HomePage'
@@ -31,9 +31,17 @@ export function DetailPage() {
 
   return (
     // El foco arranca en el botón de reproducir.
-    <FocusGroup className="screen" autoFocus preferredChildFocusKey={playable ? 'PLAY' : undefined}>
+    <FocusGroup className="screen detail" autoFocus preferredChildFocusKey={playable ? 'PLAY' : undefined}>
+      {/* El fondo, si hay, detrás del encabezado y fundido con la pantalla. */}
+      {content.backdrop_at && (
+        <div
+          className="detail-backdrop"
+          style={{ backgroundImage: `url(${artUrl(content.id, 'backdrop', content.backdrop_at)})` }}
+          aria-hidden="true"
+        />
+      )}
       <div className="detail-header">
-        <Poster title={content.title} />
+        <Poster title={content.title} src={artUrl(content.id, 'poster', content.poster_at)} />
         <div>
           <h1>{content.title}</h1>
           <p className="meta">

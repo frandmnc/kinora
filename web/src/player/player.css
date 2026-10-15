@@ -126,6 +126,8 @@ button:focus-visible {
 }
 
 .poster {
+  display: block;
+  object-fit: cover;
   aspect-ratio: 2 / 3;
   width: 100%;
   border-radius: 8px;
@@ -256,7 +258,32 @@ button:focus-visible {
 
 /* Detalle */
 
+.detail {
+  position: relative;
+}
+
+.detail > :not(.detail-backdrop) {
+  position: relative;
+}
+
+.detail-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: min(78vh, 760px);
+  background-size: cover;
+  background-position: center 20%;
+  opacity: 0.55;
+  /* Se funde con el fondo hacia abajo y hacia la izquierda, donde va el texto. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent), linear-gradient(to left, #000 40%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, #000 40%, transparent), linear-gradient(to left, #000 30%, transparent 95%);
+  mask-composite: intersect;
+}
+
 .detail-header {
+  padding-top: 40px;
   display: flex;
   gap: 48px;
   align-items: flex-start;

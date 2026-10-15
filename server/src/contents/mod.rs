@@ -37,6 +37,14 @@ pub struct Content {
     pub overview: Option<String>,
     pub dir: Option<String>,
     pub created_at: i64,
+    /// De qué película o serie de TMDB salió la metadata.
+    pub tmdb_id: Option<i64>,
+    /// Cuándo se trajo de TMDB (segundos desde 1970).
+    pub metadata_at: Option<i64>,
+    /// Cuándo se guardó la carátula (`/api/contents/{id}/poster`); `null` si no tiene.
+    pub poster_at: Option<i64>,
+    /// Cuándo se guardó la imagen de fondo (`/api/contents/{id}/backdrop`); `null` si no tiene.
+    pub backdrop_at: Option<i64>,
 }
 
 /// Un archivo reproducible. No incluye `probe_json` porque es grande.
