@@ -7,6 +7,8 @@ mod extract;
 mod handlers;
 pub mod repo;
 
+pub use handlers::{NewSubtitle, attach_bytes};
+
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{delete, get, post};

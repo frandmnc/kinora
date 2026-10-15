@@ -2355,6 +2355,11 @@ a:has(> .badge) {
   margin: 0;
 }
 
+.tmdb-form-row {
+  display: flex;
+  gap: 12px;
+}
+
 /* Contenido: la metadata (carátula, título, sinopsis) y la búsqueda en TMDB */
 
 .metadata {
@@ -2632,4 +2637,92 @@ a:has(> .badge) {
   background: var(--surface-2);
   border-color: var(--text);
   color: var(--text);
+}
+
+/* Buscar subtítulos en OpenSubtitles, dentro de un archivo */
+
+.subtitle-search {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.subtitle-search p {
+  margin: 0;
+}
+
+.subtitle-search-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lang-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lang-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lang-chip svg {
+  width: 13px;
+  height: 13px;
+}
+
+.lang-chip.selected {
+  border-color: var(--text);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.subtitle-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.subtitle-result {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+}
+
+.subtitle-result + .subtitle-result {
+  border-top: 1px solid var(--border);
+}
+
+.subtitle-result-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.subtitle-result-text .mono {
+  color: var(--text-2);
 }

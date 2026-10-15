@@ -2,7 +2,7 @@
 // agregar, renombrar y quitar subtítulos.
 
 import { useState, type FormEvent } from 'react'
-import { AudioLines, Captions, Check, FilePlay, Film, Plus, Trash, X } from 'lucide-react'
+import { AudioLines, Captions, Check, FilePlay, Film, Plus, Search, Trash, X } from 'lucide-react'
 import { api } from '../shared/api'
 import { formatDuration, formatSize } from '../shared/format'
 import { isSubtitle } from '../shared/upload'
@@ -12,6 +12,7 @@ import type { ContentDetail } from '../shared/types/ContentDetail'
 import type { MediaFile } from '../shared/types/MediaFile'
 import type { SubtitleTrack } from '../shared/types/SubtitleTrack'
 import { Alert } from './ui'
+import { SubtitleSearch } from './SubtitleSearch'
 
 export function Files({ node, onChange }: { node: ContentDetail; onChange: () => void }) {
   if (node.files.length === 0) return <p className="tree-note muted">Sin archivo todavía.</p>
@@ -40,6 +41,7 @@ function FileRow({
 }) {
   const [adding, setAdding] = useState(false)
   const [managing, setManaging] = useState(false)
+  const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string>()
   const name = file.rel_path.split('/').pop()
   const labels = subtitles.map((s) => s.label).join(', ')
@@ -107,6 +109,11 @@ function FileRow({
               Agregar subtítulo
             </button>
           )}
+          {!searching && (
+            <button className="link-button" onClick={() => setSearching(true)}>
+              Buscar
+            </button>
+          )}
         </div>
       ) : (
         <div className="file-subtitles">
@@ -133,6 +140,11 @@ function FileRow({
               <button className="btn btn-ghost btn-sm" onClick={() => setAdding(true)}>
                 <Plus /> Agregar subtítulo
               </button>
+              {!searching && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setSearching(true)}>
+                  <Search /> Buscar en OpenSubtitles
+                </button>
+              )}
               <button className="btn btn-ghost btn-sm" onClick={() => setManaging(false)}>
                 Listo
               </button>
@@ -141,6 +153,7 @@ function FileRow({
         </div>
       )}
       {error && <Alert>{error}</Alert>}
+      {searching && <SubtitleSearch fileId={file.id} onAdded={onChange} onClose={() => setSearching(false)} />}
       {adding && (
         <AddSubtitleForm
           fileId={file.id}

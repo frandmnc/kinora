@@ -178,10 +178,11 @@ La UN43RU7100 no admite Dolby Vision. Admite HDR10, HDR10+ y HLG.
 
 ### Subtítulos
 
-Todos los subtítulos se guardan como `.vtt` al lado del video (`… - S01E01.spa.vtt`), que es lo que entienden los navegadores y la TV. Los ASS conservan además su original en `.ass`, para dibujar sus estilos más adelante. Llegan por dos caminos:
+Todos los subtítulos se guardan como `.vtt` al lado del video (`… - S01E01.spa.vtt`), que es lo que entienden los navegadores y la TV. Los ASS conservan además su original en `.ass`, para dibujar sus estilos más adelante. Llegan por tres caminos:
 
 - **Al importar**, los de texto que vienen dentro del video (SRT, ASS, MP4) se extraen solos. Los de imagen (PGS de Blu-ray) se avisan en el análisis y por ahora no se usan.
 - **Después**, desde Bibliotecas: cada archivo tiene "Agregar subtítulo", que acepta un `.srt`, `.ass`, `.ssa` o `.vtt`, con su idioma (sugerido por el nombre) y si es forzado. Los archivos que no están en UTF-8 se leen como Windows-1252, que es como suelen venir los `.srt` viejos en castellano. La bandeja de importación es solo para videos.
+- **Desde OpenSubtitles**, también desde Bibliotecas: "Buscar" en cada archivo usa el `tmdb_id` de la película (o el de la serie con temporada y episodio; sin metadata de TMDB, el título) y los idiomas elegidos (español, español latino, inglés, portugués). Los traducidos a máquina van al final. El elegido se baja en SRT y entra como uno subido a mano. Hace falta una cuenta de OpenSubtitles y su clave de API, cargadas en Configuración; la cuenta gratis permite unas 20 descargas por día.
 
 ## Modelo de datos
 

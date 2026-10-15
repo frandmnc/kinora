@@ -13,6 +13,7 @@ import type { TransferStatus } from '../../shared/types/TransferStatus'
 import { FolderPicker } from '../FolderPicker'
 import { AccountCard } from '../AccountCard'
 import { TmdbCard } from '../TmdbCard'
+import { OpenSubtitlesCard } from '../OpenSubtitlesCard'
 import { Alert, Badge, Card, Meter, PageHeader } from '../ui'
 
 export function SettingsPage() {
@@ -111,6 +112,8 @@ export function SettingsPage() {
       {mediaDir?.available && <UsageView key={mediaDir.path} />}
 
       <TmdbCard />
+
+      <OpenSubtitlesCard />
 
       <AccountCard />
     </>

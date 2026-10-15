@@ -14,6 +14,7 @@ mod manifest;
 mod metadata;
 mod monitor;
 mod naming;
+mod opensubtitles;
 mod playback;
 mod probe;
 mod profiles;

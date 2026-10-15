@@ -64,17 +64,52 @@ pub async fn add(
     Query(params): Query<AddParams>,
     body: Bytes,
 ) -> AppResult<(StatusCode, Json<SubtitleTrack>)> {
-    let extension = std::path::Path::new(&params.name)
+    let track = attach_bytes(
+        &state,
+        file_id,
+        NewSubtitle {
+            name: params.name,
+            language: params.language,
+            forced: params.forced,
+            label: params.label,
+        },
+        &body,
+    )
+    .await?;
+    Ok((StatusCode::CREATED, Json(track)))
+}
+
+/// Un subtítulo para agregarle a un video.
+pub struct NewSubtitle {
+    /// Nombre del archivo: de ahí sale el formato (.srt, .ass, .ssa, .vtt). Queda como su origen.
+    pub name: String,
+    /// Código ISO 639 ("spa", "en"…). Sin idioma queda como "Subtítulos".
+    pub language: Option<String>,
+    pub forced: bool,
+    /// Nombre para mostrar ("Español (Latinoamérica)"). Sin nombre, se arma con el idioma.
+    pub label: Option<String>,
+}
+
+/// Agrega un subtítulo (el archivo entero en `body`) al video `file_id`: lo convierte a WebVTT,
+/// lo guarda al lado del video y pone al día su `kinora.json`. Lo usan la subida a mano y la
+/// descarga de OpenSubtitles.
+pub async fn attach_bytes(
+    state: &AppState,
+    file_id: i64,
+    new: NewSubtitle,
+    body: &[u8],
+) -> AppResult<SubtitleTrack> {
+    let extension = std::path::Path::new(&new.name)
         .extension()
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default();
     if !SUBTITLE_EXTENSIONS.contains(&extension.as_str()) {
         return Err(AppError::BadRequest(format!(
             "{} no es un subtítulo (se aceptan SRT, ASS, SSA y VTT)",
-            params.name
+            new.name
         )));
     }
-    let language = params
+    let language = new
         .language
         .map(|l| l.trim().to_lowercase())
         .filter(|l| !l.is_empty() && l != "und");
@@ -86,7 +121,7 @@ pub async fn add(
         )));
     }
     if body.is_empty() {
-        return Err(AppError::BadRequest(format!("{} está vacío", params.name)));
+        return Err(AppError::BadRequest(format!("{} está vacío", new.name)));
     }
 
     let (library_dir, video_rel) = contents::repo::file_location(&state.db, file_id)
@@ -106,7 +141,7 @@ pub async fn add(
         .unwrap_or_default()
         .as_nanos();
     let temp = std::env::temp_dir().join(format!("kinora-subtitle-{file_id}-{nanos}.{extension}"));
-    tokio::fs::write(&temp, &body).await?;
+    tokio::fs::write(&temp, body).await?;
     let result = extract::attach_file(
         &state.db,
         &root,
@@ -115,12 +150,12 @@ pub async fn add(
         temp.clone(),
         extract::Upload {
             language,
-            forced: params.forced,
-            label: params
+            forced: new.forced,
+            label: new
                 .label
                 .map(|l| l.trim().to_string())
                 .filter(|l| !l.is_empty()),
-            source_name: params.name.clone(),
+            source_name: new.name.clone(),
         },
     )
     .await;
@@ -128,15 +163,15 @@ pub async fn add(
     let _ = tokio::fs::remove_file(&temp).await;
     // El detalle de ffmpeg va a la terminal; en la pantalla, algo que se entienda.
     let track = result.map_err(|err| {
-        warn!("could not add subtitle {}: {err:#}", params.name);
+        warn!("could not add subtitle {}: {err:#}", new.name);
         AppError::BadRequest(format!(
             "No se pudo leer {}: no parece un archivo de subtítulos válido.",
-            params.name
+            new.name
         ))
     })?;
     info!("subtitle added to {video_rel}: {}", track.label);
     manifest::refresh_for_file(&state.db, &media_dir, file_id).await;
-    Ok((StatusCode::CREATED, Json(track)))
+    Ok(track)
 }
 
 /// DELETE /api/admin/subtitles/{id}
