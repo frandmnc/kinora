@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
   ArrowUpRight,
+  ChartColumn,
   CircleCheck,
   Clock,
   Cpu,
@@ -15,7 +16,6 @@ import {
   Power,
   Send,
   Server,
-  Trophy,
 } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
 import { formatDuration, formatSize, formatWatchTime } from '../../shared/format'
@@ -186,19 +186,16 @@ export function StatusPage() {
         )}
       </Card>
 
-      {playback && playback.top.length > 0 && (
-        <div className="two-columns">
-          <Card title="Lo más visto" description="últimos 30 días">
-            <RankTable items={playback.top} trophy />
-          </Card>
-          <Card title="Por biblioteca" description="últimos 30 días">
-            <RankTable items={playback.libraries} />
-          </Card>
-        </div>
-      )}
-
       {sessions && sessions.length > 0 && (
-        <Card title="Historial" description="las últimas visualizaciones (de más de 30 segundos)">
+        <Card
+          title="Historial"
+          description="las últimas visualizaciones (de más de 30 segundos)"
+          actions={
+            <Link to="/viewing" className="btn btn-ghost btn-sm">
+              <ChartColumn /> Lo más visto
+            </Link>
+          }
+        >
           <div className="table-scroll">
             <table className="table">
               <thead>
@@ -303,32 +300,6 @@ function ViewerRow({ viewer }: { viewer: Viewer }) {
         </div>
       </div>
     </div>
-  )
-}
-
-function RankTable({ items, trophy = false }: { items: { title: string; seconds: number }[]; trophy?: boolean }) {
-  const top = items[0]?.seconds ?? 0
-  return (
-    <table className="table">
-      <tbody>
-        {items.map((item, i) => (
-          <tr key={item.title}>
-            <td style={{ width: 36 }} className="muted">
-              {trophy && i === 0 ? <Trophy size={16} /> : i + 1}
-            </td>
-            <td>
-              <strong>{item.title}</strong>
-            </td>
-            <td>
-              <div className="size-cell">
-                <span>{formatWatchTime(item.seconds)}</span>
-                <Meter value={top > 0 ? item.seconds / top : 0} small label={item.title} />
-              </div>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   )
 }
 

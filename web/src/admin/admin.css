@@ -1340,6 +1340,13 @@ a:has(> .badge) {
   }
 }
 
+/* Varias tarjetas una debajo de la otra, dentro de una columna. */
+.column-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 /* Biblioteca por dentro: contenidos → temporadas → episodios → archivos y sus subtítulos. */
 
 .back-link {
@@ -1743,6 +1750,10 @@ a:has(> .badge) {
 .history-hit {
   fill: transparent;
   cursor: crosshair;
+}
+
+.column-bar {
+  transition: opacity 0.1s;
 }
 
 /* Copia de las bibliotecas a otro disco */

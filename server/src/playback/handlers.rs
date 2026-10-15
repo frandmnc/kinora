@@ -1,9 +1,13 @@
 use std::collections::HashSet;
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Query, State};
+use chrono::{Datelike, Days, Local, Months, NaiveDate, NaiveTime};
+use serde::Deserialize;
 
-use super::{ContinueItem, DayTotal, PlaybackSummary, Session, local_day, repo};
+use super::{
+    ContinueItem, DayTotal, PlaybackSummary, Session, ViewingRange, ViewingStats, local_day, repo,
+};
 use crate::app::AppState;
 use crate::contents::repo::display_title;
 use crate::error::AppResult;
@@ -101,15 +105,103 @@ pub async fn summary(State(state): State<AppState>) -> AppResult<Json<PlaybackSu
             .find(|d| d.day == today)
             .map_or(0.0, |d| d.seconds),
         days,
-        top: repo::top_since(&state.db, &local_day(29), 5).await?,
-        libraries: repo::libraries_since(&state.db, crate::db::now() - 30 * 86_400).await?,
     }))
+}
+
+#[derive(Deserialize)]
+pub struct ViewingParams {
+    range: ViewingRange,
+}
+
+/// GET /api/admin/metrics/viewing?range=week|month|year|all
+/// Qué se miró y cuánto en los últimos 7 días, 30 días, 12 meses o desde siempre.
+pub async fn viewing(
+    State(state): State<AppState>,
+    Query(params): Query<ViewingParams>,
+) -> AppResult<Json<ViewingStats>> {
+    let today = Local::now().date_naive();
+    let first = repo::first_day(&state.db)
+        .await?
+        .and_then(|day| NaiveDate::parse_from_str(&day, DAY).ok());
+    let (from, monthly) = period(params.range, today, first);
+    let from_day = from.format(DAY).to_string();
+    // Las sesiones guardan segundos desde 1970: el período empieza a la medianoche local.
+    let since = from
+        .and_time(NaiveTime::MIN)
+        .and_local_timezone(Local)
+        .earliest()
+        .map_or(0, |t| t.timestamp());
+
+    let stored = if monthly {
+        repo::months_since(&state.db, &from_day).await?
+    } else {
+        repo::days_since(&state.db, &from_day).await?
+    };
+    let buckets: Vec<DayTotal> = bucket_keys(from, today, monthly)
+        .into_iter()
+        .map(|day| {
+            let seconds = stored
+                .iter()
+                .find(|d| d.day == day)
+                .map_or(0.0, |d| d.seconds);
+            DayTotal { day, seconds }
+        })
+        .collect();
+    let (sessions, completed) = repo::session_counts(&state.db, since, MIN_SESSION).await?;
+
+    Ok(Json(ViewingStats {
+        from: from_day.clone(),
+        total_seconds: buckets.iter().map(|b| b.seconds).sum(),
+        sessions,
+        completed,
+        monthly,
+        buckets,
+        top: repo::top_since(&state.db, &from_day, 10).await?,
+        libraries: repo::libraries_since(&state.db, since).await?,
+        profiles: repo::profiles_since(&state.db, since).await?,
+    }))
+}
+
+const DAY: &str = "%Y-%m-%d";
+/// Las visualizaciones más cortas no cuentan: abrir algo y cerrarlo enseguida no es verlo.
+const MIN_SESSION: f64 = 30.0;
+
+/// Desde qué día va el período y si conviene contarlo por mes (más de un mes) o por día.
+fn period(range: ViewingRange, today: NaiveDate, first: Option<NaiveDate>) -> (NaiveDate, bool) {
+    let month_start = |day: NaiveDate| day.with_day(1).unwrap_or(day);
+    match range {
+        ViewingRange::Week => (today - Days::new(6), false),
+        ViewingRange::Month => (today - Days::new(29), false),
+        ViewingRange::Year => (month_start(today) - Months::new(11), true),
+        ViewingRange::All => {
+            let from = first.unwrap_or(today).min(today);
+            (from, (today - from).num_days() >= 31)
+        }
+    }
+}
+
+/// Todos los días ("AAAA-MM-DD") o meses ("AAAA-MM") de `from` a `to`, en orden.
+fn bucket_keys(from: NaiveDate, to: NaiveDate, monthly: bool) -> Vec<String> {
+    let mut keys = Vec::new();
+    let mut day = from;
+    while day <= to {
+        if monthly {
+            keys.push(day.format("%Y-%m").to_string());
+            day = day.with_day(1).unwrap_or(day) + Months::new(1);
+        } else {
+            keys.push(day.format(DAY).to_string());
+            day = day + Days::new(1);
+        }
+    }
+    keys
 }
 
 /// GET /api/admin/metrics/sessions
 /// El historial más reciente (las visualizaciones de menos de 30 segundos no se muestran).
 pub async fn sessions(State(state): State<AppState>) -> AppResult<Json<Vec<Session>>> {
-    Ok(Json(repo::recent_sessions(&state.db, 50, 30.0).await?))
+    Ok(Json(
+        repo::recent_sessions(&state.db, 50, MIN_SESSION).await?,
+    ))
 }
 
 #[cfg(test)]
@@ -147,5 +239,36 @@ mod tests {
         assert_eq!(top[0].title, "Frieren");
         assert_eq!(top[0].seconds, 930.0);
         assert_eq!(top[1].title, "Interstellar");
+    }
+
+    #[test]
+    fn periods_count_by_day_up_to_a_month_and_by_month_beyond() {
+        let date = |s: &str| NaiveDate::parse_from_str(s, DAY).unwrap();
+        let today = date("2026-10-14");
+
+        let (from, monthly) = period(ViewingRange::Month, today, None);
+        assert_eq!((from, monthly), (date("2026-09-15"), false));
+        assert_eq!(bucket_keys(from, today, monthly).len(), 30);
+
+        let (from, monthly) = period(ViewingRange::Year, today, None);
+        assert_eq!((from, monthly), (date("2025-11-01"), true));
+        let months = bucket_keys(from, today, monthly);
+        assert_eq!(months.len(), 12);
+        assert_eq!(months.first().unwrap(), "2025-11");
+        assert_eq!(months.last().unwrap(), "2026-10");
+
+        // "Todo" empieza el primer día con algo visto; si es reciente, va por día.
+        assert_eq!(
+            period(ViewingRange::All, today, Some(date("2026-10-01"))),
+            (date("2026-10-01"), false)
+        );
+        assert_eq!(
+            period(ViewingRange::All, today, Some(date("2026-03-20"))),
+            (date("2026-03-20"), true)
+        );
+        assert_eq!(period(ViewingRange::All, today, None), (today, false));
+        let months = bucket_keys(date("2026-03-20"), today, true);
+        assert_eq!(months.len(), 8);
+        assert_eq!(months.first().unwrap(), "2026-03");
     }
 }

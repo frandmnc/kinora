@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router'
 import {
   Activity,
+  ChartColumn,
   Database,
   ExternalLink,
   LibraryBig,
@@ -22,6 +23,7 @@ import { JobsPage } from './pages/JobsPage'
 import { TrashPage } from './pages/TrashPage'
 import { DatabasePage } from './pages/DatabasePage'
 import { StatusPage } from './pages/StatusPage'
+import { ViewingPage } from './pages/ViewingPage'
 import { SettingsPage } from './pages/SettingsPage'
 
 export function App() {
@@ -51,6 +53,7 @@ function Layout({ username, onSignOut }: { username: string | null; onSignOut: (
           <Routes>
             <Route path="/" element={<Navigate to="/status" replace />} />
             <Route path="/status" element={<StatusPage />} />
+            <Route path="/viewing" element={<ViewingPage />} />
             <Route path="/libraries" element={<LibrariesPage />} />
             <Route path="/libraries/:id" element={<LibraryPage />} />
             <Route path="/libraries/:libraryId/contents/:id" element={<ContentPage />} />
@@ -82,6 +85,9 @@ function Sidebar({ username, onSignOut }: { username: string | null; onSignOut: 
       <div className="nav">
         <NavLink to="/status">
           <Activity /> Estado
+        </NavLink>
+        <NavLink to="/viewing">
+          <ChartColumn /> Visualizaciones
         </NavLink>
         <NavLink to="/libraries">
           <LibraryBig /> Bibliotecas

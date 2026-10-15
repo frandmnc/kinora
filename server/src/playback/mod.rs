@@ -5,7 +5,7 @@ pub mod repo;
 
 use axum::Router;
 use axum::routing::get;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::app::AppState;
@@ -29,16 +29,44 @@ pub struct ContinueItem {
     pub next_up: bool,
 }
 
+/// Lo visto hoy y en la semana, para la página Estado.
 #[derive(Serialize, TS)]
 #[ts(export)]
 pub struct PlaybackSummary {
     pub today_seconds: f64,
     /// Los últimos 7 días, del más viejo al de hoy.
     pub days: Vec<DayTotal>,
-    /// Lo más visto en los últimos 30 días.
+}
+
+/// Qué período mostrar en las métricas de visualización.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ViewingRange {
+    Week,
+    Month,
+    Year,
+    All,
+}
+
+/// Qué se miró y cuánto en un período.
+#[derive(Serialize, TS)]
+#[ts(export)]
+pub struct ViewingStats {
+    /// Primer día del período (AAAA-MM-DD).
+    pub from: String,
+    pub total_seconds: f64,
+    /// Visualizaciones de al menos 30 segundos, y cuántas llegaron al final.
+    pub sessions: i64,
+    pub completed: i64,
+    /// `true` si `buckets` va por mes ("AAAA-MM") en lugar de por día ("AAAA-MM-DD").
+    pub monthly: bool,
+    /// Tiempo visto por día o por mes, del más viejo al actual, con cero en los vacíos.
+    pub buckets: Vec<DayTotal>,
+    /// Lo más visto, agrupado por película o serie.
     pub top: Vec<TitleTotal>,
-    /// Tiempo visto por biblioteca en los últimos 30 días.
     pub libraries: Vec<TitleTotal>,
+    pub profiles: Vec<TitleTotal>,
 }
 
 /// Una visualización del historial: quién, qué, cuándo y cuánto.
@@ -86,6 +114,7 @@ pub fn routes() -> Router<AppState> {
 pub fn admin_routes() -> Router<AppState> {
     Router::new()
         .route("/metrics/playback", get(handlers::summary))
+        .route("/metrics/viewing", get(handlers::viewing))
         .route("/metrics/sessions", get(handlers::sessions))
 }
 

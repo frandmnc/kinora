@@ -39,6 +39,28 @@ pub async fn days_since(db: &SqlitePool, from_day: &str) -> sqlx::Result<Vec<Day
         .collect())
 }
 
+/// Total por mes ("AAAA-MM") desde `from_day` (inclusive).
+pub async fn months_since(db: &SqlitePool, from_day: &str) -> sqlx::Result<Vec<DayTotal>> {
+    let rows: Vec<(String, f64)> = sqlx::query_as(
+        "SELECT substr(day, 1, 7) AS month, SUM(seconds) FROM playback_daily WHERE day >= ? \
+         GROUP BY month ORDER BY month",
+    )
+    .bind(from_day)
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(day, seconds)| DayTotal { day, seconds })
+        .collect())
+}
+
+/// El primer día en que se vio algo, si alguna vez se vio algo.
+pub async fn first_day(db: &SqlitePool) -> sqlx::Result<Option<String>> {
+    sqlx::query_scalar("SELECT MIN(day) FROM playback_daily")
+        .fetch_one(db)
+        .await
+}
+
 /// Lo más visto desde `from_day`, agrupado por película o serie.
 pub async fn top_since(
     db: &SqlitePool,
@@ -224,6 +246,39 @@ pub async fn recent_sessions(
     .bind(limit)
     .fetch_all(db)
     .await
+}
+
+/// Cuántas visualizaciones de al menos `min_seconds` empezaron desde `since`, y cuántas de
+/// ellas llegaron al final.
+pub async fn session_counts(
+    db: &SqlitePool,
+    since: i64,
+    min_seconds: f64,
+) -> sqlx::Result<(i64, i64)> {
+    sqlx::query_as(
+        "SELECT COUNT(*), COALESCE(SUM(completed), 0) FROM playback_sessions \
+         WHERE started_at >= ? AND seconds_watched >= ?",
+    )
+    .bind(since)
+    .bind(min_seconds)
+    .fetch_one(db)
+    .await
+}
+
+/// Total visto por perfil desde `since` (segundos desde 1970).
+pub async fn profiles_since(db: &SqlitePool, since: i64) -> sqlx::Result<Vec<TitleTotal>> {
+    let rows: Vec<(String, f64)> = sqlx::query_as(
+        "SELECT COALESCE(profile_name, 'Sin perfil') AS name, SUM(seconds_watched) AS total \
+         FROM playback_sessions WHERE started_at >= ? \
+         GROUP BY COALESCE(profile_id, profile_name) ORDER BY total DESC",
+    )
+    .bind(since)
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(title, seconds)| TitleTotal { title, seconds })
+        .collect())
 }
 
 /// Total visto por biblioteca desde `since` (segundos desde 1970).

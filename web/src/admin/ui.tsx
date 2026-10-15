@@ -109,12 +109,15 @@ export function Meter({
   warnAt,
   criticalAt,
   small,
+  ramp: useRamp,
   label,
 }: {
   value: number
   warnAt?: number
   criticalAt?: number
   small?: boolean
+  /** El relleno con la rampa coral de los gráficos (para comparar cantidades, no estados). */
+  ramp?: boolean
   label?: string
 }) {
   const clamped = Math.max(0, Math.min(1, value))
@@ -133,7 +136,7 @@ export function Meter({
       aria-valuenow={Math.round(clamped * 100)}
       aria-label={label}
     >
-      <span style={{ width: `${clamped * 100}%` }} />
+      <span style={{ width: `${clamped * 100}%`, ...(useRamp && rampFill(clamped)) }} />
     </div>
   )
 }
@@ -148,18 +151,26 @@ export function niceMax(value: number) {
   return [1, 2, 2.5, 5, 10].map((m) => m * power).find((m) => m >= value) ?? 10 * power
 }
 
+/** El tono y la opacidad de la rampa para un valor (0..1): cuanto más alto, más intenso. */
+export function ramp(share: number) {
+  const clamped = Math.max(0, Math.min(1, share))
+  const step = Math.min(RAMP_STEPS, 1 + Math.floor(clamped * RAMP_STEPS))
+  return { color: `var(--seq-${step})`, opacity: 0.45 + 0.55 * clamped }
+}
+
+function rampFill(share: number) {
+  const { color, opacity } = ramp(share)
+  return { background: color, opacity }
+}
+
 /** Una barra de la rampa: la altura (0..1) decide el tono y la opacidad. */
 function rampBar(share: number, minHeight: number, title: string, key: number | string) {
-  const step = Math.min(RAMP_STEPS, 1 + Math.floor(share * RAMP_STEPS))
+  const { color, opacity } = ramp(share)
   return (
     <span
       key={key}
       title={title}
-      style={{
-        height: `${Math.max(share * 100, minHeight)}%`,
-        background: `var(--seq-${step})`,
-        opacity: 0.45 + 0.55 * share,
-      }}
+      style={{ height: `${Math.max(share * 100, minHeight)}%`, background: color, opacity }}
     />
   )
 }
