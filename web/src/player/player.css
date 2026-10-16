@@ -1,5 +1,12 @@
 /* El Player siempre es oscuro y grande: se diseña para la TV (1920×1080, a 3 metros).
-   Mismo lenguaje que el Admin: DM Sans y el coral de la marca para el avance. */
+   Mismo lenguaje que el Admin: DM Sans y el coral de la marca para el avance.
+
+   Tiene que andar en el navegador de la TV con VIDAA, un Chromium entre 74 y 79 (lo controla
+   stylelint al compilar). Lo que más se nota:
+   - Flex no tiene `gap`. Las columnas son grid (que sí lo tiene); en las filas, el espacio va
+     como margen de cada hijo menos el primero (`> * + *`) o del ícono que precede a un texto.
+   - Sin `aspect-ratio` ni `min()`: alto fijo de respaldo y `max-width`.
+   - Sin `:focus-visible`: un selector desconocido anula la regla entera, así que va aparte. */
 :root {
   color-scheme: dark;
   --player-bg: #0e0e0e;
@@ -25,17 +32,19 @@ a {
 }
 
 /* El foco tiene que verse desde el sillón: es lo que reemplaza al mouse.
-   `is-focused` lo pone la navegación con flechas; `:focus-visible`, el teclado. */
+   `is-focused` lo pone la navegación con flechas; `:focus`, el teclado. Donde se conoce
+   `:focus-visible`, el clic no deja el contorno; en la TV, que no lo conoce, se ve siempre. */
+.is-focused,
 a:focus,
 button:focus {
-  outline: none;
-}
-
-.is-focused,
-a:focus-visible,
-button:focus-visible {
   outline: 4px solid var(--focus);
   outline-offset: 4px;
+}
+
+/* stylelint-disable-next-line plugin/no-unsupported-browser-features -- en la TV se ignora a propósito */
+a:focus:not(:focus-visible),
+button:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .screen {
@@ -83,7 +92,6 @@ button:focus-visible {
 
 .shelf-row {
   display: flex;
-  gap: 28px;
   overflow-x: auto;
   scrollbar-width: none;
   padding: 10px 10px 18px;
@@ -92,11 +100,19 @@ button:focus-visible {
   scroll-padding: 0 60px;
 }
 
+.shelf-row::-webkit-scrollbar {
+  display: none;
+}
+
+.shelf-row > * + * {
+  margin-left: 28px;
+}
+
 .card {
   width: 220px;
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  align-content: start;
   gap: 2px;
   border-radius: 8px;
   outline-offset: 6px !important;
@@ -137,6 +153,21 @@ button:focus-visible {
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
 }
 
+/* Sin `aspect-ratio`, el alto de cada carátula según su ancho fijo. */
+@supports not (aspect-ratio: 2 / 3) {
+  .card .poster {
+    height: 330px;
+  }
+
+  .detail-header .poster {
+    height: 390px;
+  }
+
+  .episode-still {
+    height: 144px;
+  }
+}
+
 .poster span {
   font-size: 96px;
   font-weight: 800;
@@ -161,31 +192,46 @@ button:focus-visible {
 
 /* Biblioteca */
 
+/* Si las herramientas no entran al lado del título, bajan: el margen de abajo de cada parte
+   las separa, y el del encabezado lo descuenta. */
 .library-header {
   display: flex;
   align-items: flex-end;
-  gap: 20px 32px;
   flex-wrap: wrap;
-  margin-bottom: 36px;
+  margin-bottom: 16px;
+}
+
+.library-header > * {
+  margin-bottom: 20px;
 }
 
 .library-title {
   display: flex;
   align-items: baseline;
-  gap: 20px;
+  margin-right: 32px;
+}
+
+.library-title > * + * {
+  margin-left: 20px;
 }
 
 .library-tools {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 24px;
   flex-wrap: wrap;
+}
+
+.library-tools > * + * {
+  margin-left: 24px;
 }
 
 .chips {
   display: flex;
-  gap: 10px;
+}
+
+.chips > * + * {
+  margin-left: 10px;
 }
 
 .library-header h1 {
@@ -198,7 +244,6 @@ button:focus-visible {
 .search {
   display: flex;
   align-items: center;
-  gap: 12px;
   width: 420px;
   max-width: 100%;
   padding: 12px 18px;
@@ -211,6 +256,7 @@ button:focus-visible {
   width: 24px;
   height: 24px;
   flex-shrink: 0;
+  margin-right: 12px;
 }
 
 .search input {
@@ -238,14 +284,14 @@ button:focus-visible {
 /* Buscar: el campo grande arriba y los resultados en grilla */
 
 .search.search-large {
-  width: min(900px, 100%);
+  width: 900px;
   padding: 18px 24px;
-  gap: 16px;
 }
 
 .search-large svg {
   width: 30px;
   height: 30px;
+  margin-right: 16px;
 }
 
 .search-large input {
@@ -271,7 +317,8 @@ button:focus-visible {
   top: 0;
   left: 0;
   right: 0;
-  height: min(78vh, 760px);
+  height: 78vh;
+  max-height: 760px;
   background-size: cover;
   background-position: center 20%;
   opacity: 0.55;
@@ -285,9 +332,12 @@ button:focus-visible {
 .detail-header {
   padding-top: 40px;
   display: flex;
-  gap: 48px;
   align-items: flex-start;
   margin-bottom: 40px;
+}
+
+.detail-header > * + * {
+  margin-left: 48px;
 }
 
 .detail-header .poster {
@@ -314,7 +364,6 @@ button:focus-visible {
 .play-button {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
   margin-top: 24px;
   background: var(--player-text);
   color: var(--player-bg);
@@ -326,12 +375,20 @@ button:focus-visible {
   cursor: pointer;
 }
 
+.play-button svg {
+  margin-right: 12px;
+}
+
+/* Puede ocupar varias líneas: el margen de abajo de cada una lo descuenta el contenedor. */
 .versions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 20px;
+  margin: 20px 0 -12px;
+}
+
+.versions > * {
+  margin: 0 12px 12px 0;
 }
 
 .chip {
@@ -366,10 +423,13 @@ button:focus-visible {
 .episode {
   display: flex;
   align-items: center;
-  gap: 28px;
   padding: 14px;
   border-radius: 12px;
   margin-bottom: 8px;
+}
+
+.episode > * + * {
+  margin-left: 28px;
 }
 
 a.episode:hover,
@@ -440,15 +500,17 @@ a.episode.is-focused {
 .episode-info {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 6px;
 }
 
 .episode-heading {
   display: flex;
   align-items: baseline;
-  gap: 14px;
+}
+
+.episode-heading > * + * {
+  margin-left: 14px;
 }
 
 .episode-number {
@@ -480,7 +542,10 @@ a.episode.is-focused {
 
 .player {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: #000;
   cursor: none;
 }
@@ -515,8 +580,11 @@ a.episode.is-focused {
   top: 0;
   display: flex;
   align-items: center;
-  gap: 16px;
   background: linear-gradient(rgb(0 0 0 / 0.7), transparent);
+}
+
+.player-top > * + * {
+  margin-left: 16px;
 }
 
 .player-title {
@@ -552,7 +620,10 @@ a.episode.is-focused {
 .player-bar {
   display: flex;
   align-items: center;
-  gap: 18px;
+}
+
+.player-bar > * + * {
+  margin-left: 18px;
 }
 
 .player-time {
@@ -630,8 +701,8 @@ a.episode.is-focused {
     margin-bottom: 20px;
   }
 
-  .shelf-row {
-    gap: 14px;
+  .shelf-row > * + * {
+    margin-left: 14px;
   }
 
   .card {
@@ -639,6 +710,7 @@ a.episode.is-focused {
   }
 
   .library-grid {
+    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- confunde minmax() (Chrome 57) con min() */
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 24px 14px;
   }
@@ -654,6 +726,12 @@ a.episode.is-focused {
   .library-tools {
     margin-left: 0;
     width: 100%;
+  }
+
+  /* La búsqueda ocupa todo el ancho: siempre baja debajo del orden. */
+  .library-tools > * + * {
+    margin-left: 0;
+    margin-top: 16px;
   }
 
   .search {
@@ -674,7 +752,11 @@ a.episode.is-focused {
 
   .detail-header {
     flex-direction: column;
-    gap: 20px;
+  }
+
+  .detail-header > * + * {
+    margin-left: 0;
+    margin-top: 20px;
   }
 
   .detail-header .poster {
@@ -692,8 +774,11 @@ a.episode.is-focused {
 
   .episode {
     align-items: flex-start;
-    gap: 14px;
     padding: 10px;
+  }
+
+  .episode > * + * {
+    margin-left: 14px;
   }
 
   .episode-still {
@@ -798,7 +883,6 @@ a.episode.is-focused {
 .subtitle-option {
   display: flex;
   align-items: center;
-  gap: 10px;
   width: 100%;
   padding: 12px;
   border: none;
@@ -817,6 +901,7 @@ a.episode.is-focused {
 
 .subtitle-option .check {
   width: 22px;
+  margin-right: 10px;
   display: grid;
   place-items: center;
 }
@@ -831,6 +916,9 @@ a.episode.is-focused {
    pantalla: unos 39 px en la TV, y en un celular vertical lo limita el ancho. */
 .player video::cue {
   font-family: 'Inter Variable', system-ui, sans-serif;
+  /* La TV no conoce `clamp()` ni `min()`: se queda con el primero. */
+  font-size: 3.6vh;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- respaldo en la línea anterior */
   font-size: clamp(15px, min(3.6vh, 4.8vw), 56px);
   font-weight: 600;
   line-height: 1.3;
@@ -864,9 +952,9 @@ a.episode.is-focused {
 }
 
 .auth-card {
-  width: min(560px, 100%);
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  display: grid;
   gap: 18px;
 }
 
@@ -887,15 +975,13 @@ a.episode.is-focused {
 }
 
 .auth-form {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 20px;
   margin-top: 8px;
 }
 
 .auth-field {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 8px;
   color: var(--player-muted);
   font-size: 18px;
@@ -942,11 +1028,6 @@ a.episode.is-focused {
   cursor: pointer;
 }
 
-.auth-button:focus-visible {
-  outline: 4px solid var(--focus);
-  outline-offset: 4px;
-}
-
 .auth-button:disabled {
   opacity: 0.6;
 }
@@ -955,10 +1036,9 @@ a.episode.is-focused {
 
 .profiles-screen {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  justify-items: center;
+  align-content: center;
   gap: 40px;
   padding: 60px 40px;
 }
@@ -970,18 +1050,24 @@ a.episode.is-focused {
   letter-spacing: -0.03em;
 }
 
+/* Cada perfil lleva la mitad del espacio a cada lado; el contenedor descuenta el de arriba y
+   abajo (a los costados no hace falta: está centrado). */
 .profile-grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 36px;
+  margin: -18px 0;
 }
 
+.profile-grid > * {
+  margin: 18px;
+}
+
+/* Un botón: flex en columna, que como contenedor anda en cualquier navegador. */
 .profile-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
   padding: 10px;
   border: none;
   border-radius: 12px;
@@ -989,6 +1075,10 @@ a.episode.is-focused {
   color: var(--player-muted);
   font: inherit;
   cursor: pointer;
+}
+
+.profile-tile > * + * {
+  margin-top: 14px;
 }
 
 .profile-tile.is-focused,
@@ -1041,13 +1131,15 @@ a.episode.is-focused {
 
 .profile-actions {
   display: flex;
-  gap: 16px;
+}
+
+.profile-actions > * + * {
+  margin-left: 16px;
 }
 
 .ghost-button {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   padding: 12px 22px;
   border: 2px solid var(--player-surface-2);
   border-radius: 8px;
@@ -1062,6 +1154,7 @@ a.episode.is-focused {
 .ghost-button svg {
   width: 20px;
   height: 20px;
+  margin-right: 10px;
 }
 
 .ghost-button:hover {
@@ -1074,7 +1167,7 @@ a.episode.is-focused {
 }
 
 .manage {
-  justify-content: flex-start;
+  align-content: start;
   gap: 18px;
 }
 
@@ -1085,8 +1178,12 @@ a.episode.is-focused {
 .profile-row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  width: min(760px, 100%);
+  width: 100%;
+  max-width: 760px;
+}
+
+.profile-row > * + * {
+  margin-left: 16px;
 }
 
 .profile-input {
@@ -1127,6 +1224,11 @@ a.episode.is-focused {
 
   .profile-row {
     flex-wrap: wrap;
+    margin-bottom: -10px;
+  }
+
+  .profile-row > * {
+    margin-bottom: 10px;
   }
 }
 
@@ -1188,11 +1290,18 @@ a.episode.is-focused {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
   margin: 24px -20px;
   padding: 0 20px;
   overflow-y: auto;
   scrollbar-width: none;
+}
+
+.menu-items::-webkit-scrollbar {
+  display: none;
+}
+
+.menu-items > * + * {
+  margin-top: 6px;
 }
 
 /* Centrados en la altura, pero si no entran arrancan arriba (y se desplazan). */
@@ -1209,7 +1318,6 @@ a.episode.is-focused {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 20px;
   height: 60px;
   padding: 0 22px;
   border: none;
@@ -1225,6 +1333,10 @@ a.episode.is-focused {
   transition:
     background 0.15s,
     color 0.15s;
+}
+
+.menu-item > * + * {
+  margin-left: 20px;
 }
 
 .menu-icon {
@@ -1281,18 +1393,22 @@ a.episode.is-focused {
   color: var(--player-text);
 }
 
-.menu-divider {
+/* 18 px de cada lado: los 6 entre ítems más 12. */
+.menu-items > .menu-divider {
   flex-shrink: 0;
   width: auto;
   height: 1px;
-  margin: 12px 16px;
+  margin: 18px 16px 12px;
   border: none;
   background: var(--player-surface-2);
 }
 
 .profile-item {
   padding-left: 16px;
-  gap: 16px;
+}
+
+.profile-item > * + * {
+  margin-left: 16px;
 }
 
 .menu-profile {
@@ -1329,6 +1445,7 @@ a.episode.is-focused {
     align-items: center;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
     background: rgb(14 14 14 / 0.94);
+    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- solo en el celular; sin él, el fondo casi opaco alcanza */
     backdrop-filter: blur(12px);
     border-top: 1px solid var(--player-surface-2);
     box-shadow: none;
@@ -1341,21 +1458,30 @@ a.episode.is-focused {
 
   .menu-items {
     flex-direction: row;
-    gap: 2px;
     margin: 0;
     padding: 0;
     overflow-x: auto;
   }
 
+  .menu-items > * + * {
+    margin-top: 0;
+    margin-left: 2px;
+  }
+
   .menu-items > :first-child,
   .menu-items > :last-child {
-    margin: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .menu-item > * + * {
+    margin-left: 0;
+    margin-top: 4px;
   }
 
   .menu-item {
     flex-direction: column;
     justify-content: center;
-    gap: 4px;
     min-width: 68px;
     height: 56px;
     padding: 0 8px;

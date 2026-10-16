@@ -7,6 +7,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react(), adminTrailingSlash()],
   build: {
+    // El navegador de la TV con VIDAA es un Chromium entre 74 y 79: no entiende `?.` ni `??`.
+    target: 'chrome74',
+    cssTarget: 'chrome74',
     rolldownOptions: {
       input: { player: 'index.html', admin: 'admin/index.html' },
     },
