@@ -1,29 +1,58 @@
+/* Hallmark · redesign: full · shape: app screen · theme: darkroom (sala), Barlow Condensed 300 en minúsculas · scope: app · signature: lo que se está viendo, en grande con su carátula y lo que falta · v2.0.0 */
+/* critique: la carátula es lo único con color; el negro cálido y la tinta la dejan sola, y el ámbar solo marca el foco, el avance y lo elegido */
+
 /* El Player siempre es oscuro y grande: se diseña para la TV (1920×1080, a 3 metros).
-   Mismo lenguaje que el Admin: DM Sans y el coral de la marca para el avance.
+   "Sala": una sala con la luz apagada. Negro cálido, tinta de papel, Barlow para leer y
+   Barlow Condensed fina para los títulos y las cifras, esquinas rectas y una sola luz ámbar.
 
    Tiene que andar en el navegador de la TV con VIDAA, un Chromium entre 74 y 79 (lo controla
    stylelint al compilar). Lo que más se nota:
    - Flex no tiene `gap`. Las columnas son grid (que sí lo tiene); en las filas, el espacio va
      como margen de cada hijo menos el primero (`> * + *`) o del ícono que precede a un texto.
    - Sin `aspect-ratio` ni `min()`: alto fijo de respaldo y `max-width`.
+   - Sin `inset`: top, right, bottom y left por separado.
+   - Colores en hex o `rgb()`: no conoce `oklch()`.
    - Sin `:focus-visible`: un selector desconocido anula la regla entera, así que va aparte. */
 :root {
   color-scheme: dark;
-  --player-bg: #0e0e0e;
-  --player-surface: #1b1b1b;
-  --player-surface-2: #262626;
-  --player-text: #f7f7f7;
-  --player-muted: #a3a3a3;
-  --brand: #ff385c;
-  --brand-gradient: linear-gradient(90deg, #e61e4d 0%, #e31c5f 50%, #d70466 100%);
-  --focus: #ffffff;
+  --player-bg: #0d0a08;
+  --player-surface: #15110e;
+  --player-surface-2: #1f1a16;
+  --player-rule: #2f2a27;
+  --player-text: #e9e4dc;
+  --player-text-2: #c2bdb5;
+  --player-muted: #918b85;
+  /* El ámbar: el foco, el avance y lo elegido. Nunca un fondo grande ni un texto. */
+  --accent: #ec8d38;
+  --accent-deep: #934e1e;
+  --accent-ink: #0d0a08;
+  --danger: #e5735c;
+  --focus: #ec8d38;
+  --track: rgb(233 228 220 / 0.25);
+  --scrim: rgb(13 10 8 / 0.88);
+  --scrim-soft: rgb(13 10 8 / 0.6);
+  --shade: rgb(13 10 8 / 0.75);
+  --video-bg: #000000;
+  --cue-ink: #ffffff;
+  --cue-edge: rgb(0 0 0 / 0.9);
+  --cue-glow: rgb(0 0 0 / 0.8);
+  --cue-drop: rgb(0 0 0 / 0.6);
+  --font-body: 'Barlow', system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --font-cue: 'Inter Variable', system-ui, sans-serif;
 }
 
 body {
   background: var(--player-bg);
   color: var(--player-text);
-  font-family: 'DM Sans Variable', system-ui, sans-serif;
+  font-family: var(--font-body);
   font-size: 20px;
+}
+
+html,
+body {
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- en la TV queda `visible`, y la página no se desborda igual */
+  overflow-x: clip;
 }
 
 a {
@@ -31,14 +60,15 @@ a {
   text-decoration: none;
 }
 
-/* El foco tiene que verse desde el sillón: es lo que reemplaza al mouse.
+/* El foco tiene que verse desde el sillón: es lo que reemplaza al mouse. Un anillo ámbar,
+   separado del control, que aparece al instante.
    `is-focused` lo pone la navegación con flechas; `:focus`, el teclado. Donde se conoce
    `:focus-visible`, el clic no deja el contorno; en la TV, que no lo conoce, se ve siempre. */
 .is-focused,
 a:focus,
 button:focus {
   outline: 4px solid var(--focus);
-  outline-offset: 4px;
+  outline-offset: 6px;
 }
 
 /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- en la TV se ignora a propósito */
@@ -48,14 +78,14 @@ button:focus:not(:focus-visible) {
 }
 
 .screen {
-  padding: 40px 60px 80px;
+  padding: 56px 60px 80px;
 }
 
 .brand-bar {
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--brand);
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 500;
+  color: var(--player-text);
   margin-bottom: 28px;
 }
 
@@ -72,30 +102,31 @@ button:focus:not(:focus-visible) {
 
 .message h1 {
   color: var(--player-text);
-  font-size: 40px;
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 300;
   margin: 0 0 12px;
-  letter-spacing: -0.02em;
 }
 
 /* Inicio */
 
 .shelf {
-  margin-bottom: 36px;
+  margin-bottom: 48px;
 }
 
 .shelf h2 {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 0 0 14px;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--player-muted);
+  margin: 0 0 22px;
 }
 
 .shelf-row {
   display: flex;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 10px 10px 18px;
-  margin: -10px;
+  padding: 12px 12px 18px;
+  margin: -12px;
   /* Al moverse con las flechas, el elemento enfocado no queda pegado al borde. */
   scroll-padding: 0 60px;
 }
@@ -105,36 +136,195 @@ button:focus:not(:focus-visible) {
 }
 
 .shelf-row > * + * {
-  margin-left: 28px;
+  margin-left: 36px;
 }
 
+/* "Seguir viendo": lo último, en grande (carátula, título, sinopsis y lo que falta); lo demás
+   empezado, en una columna a la derecha, después de una línea. */
+.continue {
+  margin-bottom: 64px;
+}
+
+.continue-row {
+  display: grid;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- confunde minmax() (Chrome 57) con min() */
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.continue-row.with-queue {
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- confunde minmax() (Chrome 57) con min() */
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-column-gap: 64px;
+}
+
+.continue-lead {
+  display: grid;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- confunde minmax() (Chrome 57) con min() */
+  grid-template-columns: 350px minmax(0, 1fr);
+  grid-column-gap: 64px;
+  align-items: stretch;
+}
+
+.continue-lead .poster {
+  width: 350px;
+  height: 525px;
+}
+
+/* El anillo va en la carátula, no alrededor de todo el bloque. */
+.continue-lead.is-focused,
+.continue-lead:focus,
+.continue-card.is-focused,
+.continue-card:focus {
+  outline: none;
+}
+
+.continue-lead.is-focused .poster,
+.continue-card.is-focused .continue-still {
+  outline: 4px solid var(--focus);
+  outline-offset: 8px;
+}
+
+.continue-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  height: 525px;
+}
+
+.continue-title {
+  font-family: var(--font-display);
+  font-size: 96px;
+  font-weight: 300;
+  line-height: 1;
+  /* La altura de las mayúsculas queda pareja con el borde de arriba de la carátula. */
+  margin: -14px 0 18px;
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.continue-episode {
+  margin: 0 0 14px;
+  font-size: 24px;
+  color: var(--player-text-2);
+}
+
+.continue-overview {
+  margin: 0;
+  max-width: 780px;
+  font-size: 22px;
+  line-height: 1.55;
+  color: var(--player-text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.continue-left {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+
+.continue-left strong {
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 300;
+  line-height: 1;
+  margin-right: 18px;
+}
+
+.continue-left span {
+  font-size: 20px;
+  color: var(--player-muted);
+}
+
+.continue-progress {
+  display: block;
+  height: 2px;
+  background: var(--player-rule);
+}
+
+.continue-progress > * {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.continue-queue {
+  border-left: 1px solid var(--player-rule);
+  padding: 0 4px 12px 48px;
+  height: 537px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: grid;
+  align-content: start;
+  grid-row-gap: 40px;
+}
+
+.continue-queue::-webkit-scrollbar {
+  display: none;
+}
+
+.continue-card {
+  display: grid;
+  align-content: start;
+  grid-row-gap: 8px;
+  padding-top: 8px;
+}
+
+.continue-still {
+  display: block;
+  height: 160px;
+  background: var(--player-surface-2);
+}
+
+.continue-still img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.continue-card .card-title {
+  margin-top: 10px;
+}
+
+/* Las tarjetas de carátula (agregados, bibliotecas, búsqueda). */
 .card {
   width: 220px;
   flex-shrink: 0;
   display: grid;
   align-content: start;
   gap: 2px;
-  border-radius: 8px;
-  outline-offset: 6px !important;
 }
 
-.card .poster {
-  transition: transform 0.15s;
+.card.is-focused,
+.card:focus {
+  outline: none;
 }
 
-.card.is-focused .poster,
-.card:hover .poster {
-  transform: scale(1.04);
+.card.is-focused .poster {
+  outline: 4px solid var(--focus);
+  outline-offset: 6px;
 }
 
 .card-title {
-  font-weight: 700;
-  margin-top: 8px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.1;
+  margin-top: 12px;
 }
 
 .card-sub {
   color: var(--player-muted);
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .poster-wrap {
@@ -142,15 +332,12 @@ button:focus:not(:focus-visible) {
 }
 
 .poster {
-  display: block;
   object-fit: cover;
   aspect-ratio: 2 / 3;
   width: 100%;
-  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
 }
 
 /* Sin `aspect-ratio`, el alto de cada carátula según su ancho fijo. */
@@ -169,25 +356,24 @@ button:focus:not(:focus-visible) {
 }
 
 .poster span {
-  font-size: 96px;
-  font-weight: 800;
-  color: rgb(255 255 255 / 0.85);
+  font-family: var(--font-display);
+  font-size: 120px;
+  font-weight: 300;
+  color: var(--player-text);
 }
 
 .poster-progress {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  height: 5px;
-  border-radius: 3px;
-  background: rgb(255 255 255 / 0.25);
-  overflow: hidden;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: var(--track);
 }
 
 .poster-progress div {
   height: 100%;
-  background: var(--brand);
+  background: var(--accent);
 }
 
 /* Biblioteca */
@@ -198,7 +384,7 @@ button:focus:not(:focus-visible) {
   display: flex;
   align-items: flex-end;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 
 .library-header > * {
@@ -231,13 +417,14 @@ button:focus:not(:focus-visible) {
 }
 
 .chips > * + * {
-  margin-left: 10px;
+  margin-left: 12px;
 }
 
 .library-header h1 {
-  font-size: 48px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 300;
+  line-height: 1;
   margin: 0;
 }
 
@@ -246,9 +433,10 @@ button:focus:not(:focus-visible) {
   align-items: center;
   width: 420px;
   max-width: 100%;
-  padding: 12px 18px;
-  border-radius: 8px;
-  background: var(--player-surface);
+  height: 64px;
+  padding: 0 20px;
+  border: 1px solid var(--player-muted);
+  background: none;
   color: var(--player-muted);
 }
 
@@ -256,7 +444,7 @@ button:focus:not(:focus-visible) {
   width: 24px;
   height: 24px;
   flex-shrink: 0;
-  margin-right: 12px;
+  margin-right: 14px;
 }
 
 .search input {
@@ -270,28 +458,35 @@ button:focus:not(:focus-visible) {
   font-size: 22px;
 }
 
+.search input::placeholder {
+  color: var(--player-muted);
+  opacity: 1;
+}
+
 .search:focus-within {
+  border-color: var(--player-text);
   outline: 4px solid var(--focus);
-  outline-offset: 4px;
+  outline-offset: 6px;
 }
 
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, 220px);
-  gap: 36px 28px;
+  gap: 44px 36px;
 }
 
 /* Buscar: el campo grande arriba y los resultados en grilla */
 
 .search.search-large {
   width: 900px;
-  padding: 18px 24px;
+  height: 80px;
+  padding: 0 26px;
 }
 
 .search-large svg {
   width: 30px;
   height: 30px;
-  margin-right: 16px;
+  margin-right: 18px;
 }
 
 .search-large input {
@@ -321,11 +516,11 @@ button:focus:not(:focus-visible) {
   max-height: 760px;
   background-size: cover;
   background-position: center 20%;
-  opacity: 0.55;
+  opacity: 0.5;
   /* Se funde con el fondo hacia abajo y hacia la izquierda, donde va el texto. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent), linear-gradient(to left, #000 40%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, var(--video-bg) 40%, transparent), linear-gradient(to left, var(--video-bg) 40%, transparent);
   -webkit-mask-composite: source-in;
-  mask-image: linear-gradient(to bottom, #000 40%, transparent), linear-gradient(to left, #000 30%, transparent 95%);
+  mask-image: linear-gradient(to bottom, var(--video-bg) 40%, transparent), linear-gradient(to left, var(--video-bg) 30%, transparent 95%);
   mask-composite: intersect;
 }
 
@@ -333,11 +528,11 @@ button:focus:not(:focus-visible) {
   padding-top: 40px;
   display: flex;
   align-items: flex-start;
-  margin-bottom: 40px;
+  margin-bottom: 48px;
 }
 
 .detail-header > * + * {
-  margin-left: 48px;
+  margin-left: 56px;
 }
 
 .detail-header .poster {
@@ -346,10 +541,11 @@ button:focus:not(:focus-visible) {
 }
 
 .detail-header h1 {
-  font-size: 56px;
-  font-weight: 800;
-  margin: 0 0 8px;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-size: 88px;
+  font-weight: 300;
+  line-height: 1;
+  margin: -10px 0 14px;
 }
 
 .meta {
@@ -358,25 +554,41 @@ button:focus:not(:focus-visible) {
 
 .overview {
   max-width: 900px;
-  line-height: 1.5;
+  line-height: 1.55;
+  color: var(--player-text-2);
 }
 
+/* El botón principal: el único relleno de ámbar en la pantalla. */
 .play-button {
   display: inline-flex;
   align-items: center;
-  margin-top: 24px;
-  background: var(--player-text);
-  color: var(--player-bg);
+  height: 72px;
+  margin-top: 28px;
+  padding: 0 32px;
   border: none;
-  border-radius: 8px;
-  padding: 14px 30px;
-  font-size: 22px;
-  font-weight: 700;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: 24px;
+  font-weight: 500;
   cursor: pointer;
+  transition: transform 0.1s ease-out;
 }
 
 .play-button svg {
   margin-right: 12px;
+}
+
+.play-button:active {
+  background: var(--accent-deep);
+  color: var(--player-text);
+  transform: scale(0.97);
+}
+
+.play-button:disabled {
+  background: var(--player-surface-2);
+  color: var(--player-muted);
+  cursor: not-allowed;
 }
 
 /* Puede ocupar varias líneas: el margen de abajo de cada una lo descuenta el contenedor. */
@@ -384,7 +596,7 @@ button:focus:not(:focus-visible) {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  margin: 20px 0 -12px;
+  margin: 24px 0 -12px;
 }
 
 .versions > * {
@@ -392,25 +604,31 @@ button:focus:not(:focus-visible) {
 }
 
 .chip {
-  border: 2px solid var(--player-surface-2);
+  border: 1px solid var(--player-rule);
   background: none;
-  color: var(--player-muted);
-  border-radius: 8px;
-  padding: 8px 16px;
+  color: var(--player-text-2);
+  padding: 10px 20px;
   font: inherit;
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 500;
   cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--player-muted);
 }
 
 .chip.selected {
   border-color: var(--player-text);
-  color: var(--player-text);
-  font-weight: 700;
+  background: var(--player-text);
+  color: var(--player-bg);
 }
 
 .season h2 {
-  font-size: 28px;
-  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 300;
+  margin: 0 0 16px;
 }
 
 .episodes {
@@ -423,8 +641,7 @@ button:focus:not(:focus-visible) {
 .episode {
   display: flex;
   align-items: center;
-  padding: 14px;
-  border-radius: 12px;
+  padding: 16px;
   margin-bottom: 8px;
 }
 
@@ -437,7 +654,15 @@ a.episode.is-focused {
   background: var(--player-surface);
 }
 
+a.episode.is-focused {
+  outline-offset: 0;
+}
+
 .episode.unavailable {
+  color: var(--player-muted);
+}
+
+.episode.unavailable .episode-still {
   opacity: 0.5;
 }
 
@@ -447,14 +672,14 @@ a.episode.is-focused {
   width: 256px;
   flex-shrink: 0;
   aspect-ratio: 16 / 9;
-  border-radius: 8px;
   overflow: hidden;
   display: grid;
   place-items: center;
   background: var(--player-surface-2);
   color: var(--player-muted);
-  font-size: 40px;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 300;
 }
 
 .episode-still img {
@@ -465,30 +690,27 @@ a.episode.is-focused {
 
 .episode-progress {
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 10px;
-  height: 5px;
-  border-radius: 3px;
-  background: rgb(255 255 255 / 0.3);
-  overflow: hidden;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: var(--track);
 }
 
 .episode-progress div {
   height: 100%;
-  background: var(--brand);
+  background: var(--accent);
 }
 
 .episode-watched {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 0;
+  right: 0;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgb(0 0 0 / 0.65);
+  width: 36px;
+  height: 36px;
+  background: var(--shade);
   color: var(--player-text);
 }
 
@@ -514,20 +736,22 @@ a.episode.is-focused {
 }
 
 .episode-number {
-  font-weight: 700;
+  font-weight: 500;
   color: var(--player-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .episode-title {
-  font-size: 22px;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.1;
 }
 
 .episode-overview {
   color: var(--player-muted);
   font-size: 18px;
-  line-height: 1.45;
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -546,7 +770,7 @@ a.episode.is-focused {
   right: 0;
   bottom: 0;
   left: 0;
-  background: #000;
+  background: var(--video-bg);
   cursor: none;
 }
 
@@ -564,7 +788,7 @@ a.episode.is-focused {
   position: absolute;
   left: 0;
   right: 0;
-  padding: 28px 40px;
+  padding: 32px 48px;
   opacity: 0;
   transition: opacity 0.25s;
   pointer-events: none;
@@ -580,7 +804,7 @@ a.episode.is-focused {
   top: 0;
   display: flex;
   align-items: center;
-  background: linear-gradient(rgb(0 0 0 / 0.7), transparent);
+  background: linear-gradient(var(--scrim-soft), transparent);
 }
 
 .player-top > * + * {
@@ -588,33 +812,35 @@ a.episode.is-focused {
 }
 
 .player-title {
-  font-size: 24px;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 300;
 }
 
 .player-bottom {
   bottom: 0;
-  padding-top: 60px;
-  background: linear-gradient(transparent, rgb(0 0 0 / 0.8));
+  padding-top: 80px;
+  background: linear-gradient(transparent, var(--scrim));
 }
 
+/* Con el mouse encima, la barra engorda: se agranda con una transformación, no con el alto. */
 .player-progress {
   height: 6px;
-  border-radius: 3px;
-  background: rgb(255 255 255 / 0.25);
+  background: var(--track);
   cursor: pointer;
   overflow: hidden;
-  margin-bottom: 14px;
-  transition: height 0.15s;
+  margin-bottom: 18px;
+  transform-origin: center bottom;
+  transition: transform 0.15s;
 }
 
 .player-progress:hover {
-  height: 10px;
+  transform: scaleY(1.6);
 }
 
 .player-progress-fill {
   height: 100%;
-  background: var(--brand-gradient);
+  background: var(--accent);
 }
 
 .player-bar {
@@ -629,29 +855,28 @@ a.episode.is-focused {
 .player-time {
   margin-right: auto;
   font-variant-numeric: tabular-nums;
-  font-size: 18px;
+  font-size: 22px;
+  color: var(--player-text-2);
 }
-
 
 .player-icon {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   border: none;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 0.12);
+  background: none;
   color: var(--player-text);
   cursor: pointer;
 }
 
 .player-icon:hover {
-  background: rgb(255 255 255 / 0.24);
+  background: var(--player-surface-2);
 }
 
 .player-icon svg {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
 }
 
 .player-center,
@@ -666,10 +891,9 @@ a.episode.is-focused {
 .player-center {
   display: grid;
   place-items: center;
-  width: 110px;
-  height: 110px;
-  border-radius: 50%;
-  background: rgb(0 0 0 / 0.5);
+  width: 112px;
+  height: 112px;
+  background: var(--scrim-soft);
 }
 
 .player-center svg {
@@ -679,11 +903,10 @@ a.episode.is-focused {
 }
 
 .player-flash {
-  background: rgb(0 0 0 / 0.65);
-  border-radius: 8px;
-  padding: 12px 22px;
+  background: var(--scrim);
+  padding: 14px 24px;
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 /* Celular y pantallas angostas: el Player se diseña para la TV, esto solo lo hace usable. */
@@ -697,7 +920,7 @@ a.episode.is-focused {
   }
 
   .brand-bar {
-    font-size: 26px;
+    font-size: 30px;
     margin-bottom: 20px;
   }
 
@@ -707,6 +930,69 @@ a.episode.is-focused {
 
   .card {
     width: 130px;
+  }
+
+  .card-title {
+    font-size: 19px;
+  }
+
+  /* "Seguir viendo" en una columna: la carátula chica al lado del título y lo demás abajo. */
+  .continue-row.with-queue {
+    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- confunde minmax() (Chrome 57) con min() */
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .continue-lead {
+    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- confunde minmax() (Chrome 57) con min() */
+    grid-template-columns: 110px minmax(0, 1fr);
+    grid-column-gap: 16px;
+  }
+
+  .continue-lead .poster {
+    width: 110px;
+    height: 165px;
+  }
+
+  .continue-info {
+    height: auto;
+  }
+
+  .continue-title {
+    font-size: 34px;
+    margin: -4px 0 6px;
+  }
+
+  .continue-episode {
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+
+  .continue-overview {
+    display: none;
+  }
+
+  .continue-left strong {
+    font-size: 30px;
+    margin-right: 10px;
+  }
+
+  .continue-left span {
+    font-size: 14px;
+  }
+
+  .continue-queue {
+    height: auto;
+    margin-top: 28px;
+    padding: 24px 0 0;
+    border-left: none;
+    border-top: 1px solid var(--player-rule);
+    grid-template-columns: repeat(auto-fill, 160px);
+    grid-column-gap: 14px;
+    grid-row-gap: 20px;
+  }
+
+  .continue-still {
+    height: 90px;
   }
 
   .library-grid {
@@ -720,7 +1006,7 @@ a.episode.is-focused {
   }
 
   .library-header h1 {
-    font-size: 32px;
+    font-size: 40px;
   }
 
   .library-tools {
@@ -736,6 +1022,11 @@ a.episode.is-focused {
 
   .search {
     width: 100%;
+    height: 52px;
+  }
+
+  .search.search-large {
+    height: 56px;
   }
 
   .search-large input {
@@ -747,7 +1038,7 @@ a.episode.is-focused {
   }
 
   .poster span {
-    font-size: 56px;
+    font-size: 64px;
   }
 
   .detail-header {
@@ -764,12 +1055,14 @@ a.episode.is-focused {
   }
 
   .detail-header h1 {
-    font-size: 32px;
+    font-size: 44px;
+    margin-top: 0;
   }
 
   .play-button {
-    font-size: 18px;
-    padding: 12px 22px;
+    height: 56px;
+    font-size: 19px;
+    padding: 0 22px;
   }
 
   .episode {
@@ -783,19 +1076,12 @@ a.episode.is-focused {
 
   .episode-still {
     width: 132px;
-    font-size: 24px;
-  }
-
-  .episode-progress {
-    left: 6px;
-    right: 6px;
-    bottom: 6px;
-    height: 4px;
+    font-size: 28px;
   }
 
   .episode-watched {
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
   }
 
   .episode-watched svg {
@@ -804,7 +1090,7 @@ a.episode.is-focused {
   }
 
   .episode-title {
-    font-size: 16px;
+    font-size: 19px;
   }
 
   .episode-overview,
@@ -822,7 +1108,7 @@ a.episode.is-focused {
   }
 
   .player-title {
-    font-size: 17px;
+    font-size: 22px;
   }
 
   .player-time {
@@ -846,6 +1132,15 @@ a.episode.is-focused {
   .spin {
     animation: none;
   }
+
+  .play-button,
+  .player-progress,
+  .player-top,
+  .player-bottom,
+  .menu-label,
+  .sidebar {
+    transition: none;
+  }
 }
 
 .player-center .spin {
@@ -858,24 +1153,22 @@ a.episode.is-focused {
   margin-left: 6px;
 }
 
+/* Subtítulos activados: el ícono en ámbar. */
 .player-icon.active {
-  background: var(--player-text);
-  color: var(--player-bg);
+  color: var(--accent);
 }
 
 .subtitle-menu {
   position: absolute;
-  right: 40px;
-  bottom: 130px;
-  min-width: 320px;
-  padding: 10px;
-  border-radius: 8px;
-  background: rgb(20 20 20 / 0.92);
-  box-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+  right: 48px;
+  bottom: 140px;
+  min-width: 340px;
+  padding: 12px;
+  background: var(--player-surface);
 }
 
 .subtitle-menu-title {
-  font-size: 15px;
+  font-size: 17px;
   color: var(--player-muted);
   padding: 6px 12px 10px;
 }
@@ -884,53 +1177,55 @@ a.episode.is-focused {
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 12px;
+  padding: 14px 12px;
   border: none;
-  border-radius: 6px;
   background: none;
   color: var(--player-text);
-  font-size: 19px;
+  font: inherit;
+  font-size: 22px;
   text-align: left;
   cursor: pointer;
 }
 
 .subtitle-option.highlighted {
-  background: var(--player-text);
-  color: var(--player-bg);
+  background: var(--player-surface-2);
+  outline: 4px solid var(--focus);
+  outline-offset: -4px;
 }
 
 .subtitle-option .check {
-  width: 22px;
-  margin-right: 10px;
+  width: 24px;
+  margin-right: 12px;
   display: grid;
   place-items: center;
+  color: var(--accent);
 }
 
 .subtitle-option .check svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 
 /* Los subtítulos, legibles desde el sillón: Inter semibold, grandes y sin caja. Un contorno
    fino y una sombra suave los separan de cualquier imagen, clara u oscura. El tamaño sigue a la
    pantalla: unos 39 px en la TV, y en un celular vertical lo limita el ancho. */
 .player video::cue {
-  font-family: 'Inter Variable', system-ui, sans-serif;
+  font-family: var(--font-cue);
   /* La TV no conoce `clamp()` ni `min()`: se queda con el primero. */
   font-size: 3.6vh;
   /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- respaldo en la línea anterior */
   font-size: clamp(15px, min(3.6vh, 4.8vw), 56px);
   font-weight: 600;
   line-height: 1.3;
-  color: #ffffff;
+  color: var(--cue-ink);
   background: none;
   text-shadow:
-    1px 1px 0 rgb(0 0 0 / 0.9),
-    -1px -1px 0 rgb(0 0 0 / 0.9),
-    1px -1px 0 rgb(0 0 0 / 0.9),
-    -1px 1px 0 rgb(0 0 0 / 0.9),
-    0 0 6px rgb(0 0 0 / 0.8),
-    0 3px 10px rgb(0 0 0 / 0.6);
+    1px 1px 0 var(--cue-edge),
+    -1px -1px 0 var(--cue-edge),
+    1px -1px 0 var(--cue-edge),
+    -1px 1px 0 var(--cue-edge),
+    0 0 6px var(--cue-glow),
+    0 3px 10px var(--cue-drop);
 }
 
 @media (max-width: 700px) {
@@ -955,7 +1250,7 @@ a.episode.is-focused {
   width: 100%;
   max-width: 560px;
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 .auth-brand .brand-bar {
@@ -964,8 +1259,10 @@ a.episode.is-focused {
 
 .auth-card h1 {
   margin: 0;
-  font-size: 40px;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 300;
+  line-height: 1;
 }
 
 .auth-text {
@@ -976,7 +1273,7 @@ a.episode.is-focused {
 
 .auth-form {
   display: grid;
-  gap: 20px;
+  gap: 22px;
   margin-top: 8px;
 }
 
@@ -988,19 +1285,19 @@ a.episode.is-focused {
 }
 
 .auth-field input {
-  height: 60px;
+  height: 64px;
   padding: 0 18px;
-  border: 2px solid var(--player-surface-2);
-  border-radius: 8px;
-  background: var(--player-surface);
+  border: 1px solid var(--player-muted);
+  background: none;
   color: var(--player-text);
   font: inherit;
   font-size: 22px;
 }
 
 .auth-field input:focus {
+  border-color: var(--player-text);
   outline: 4px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: 6px;
 }
 
 .auth-hint {
@@ -1009,7 +1306,7 @@ a.episode.is-focused {
 
 .auth-error {
   margin: 0;
-  color: #ff8fa3;
+  color: var(--danger);
 }
 
 .auth-error::first-letter {
@@ -1017,19 +1314,25 @@ a.episode.is-focused {
 }
 
 .auth-button {
-  height: 64px;
+  height: 72px;
   border: none;
-  border-radius: 8px;
-  background: var(--player-text);
-  color: var(--player-bg);
+  background: var(--accent);
+  color: var(--accent-ink);
   font: inherit;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 500;
   cursor: pointer;
 }
 
+.auth-button:active {
+  background: var(--accent-deep);
+  color: var(--player-text);
+}
+
 .auth-button:disabled {
-  opacity: 0.6;
+  background: var(--player-surface-2);
+  color: var(--player-muted);
+  cursor: not-allowed;
 }
 
 /* Perfiles: "¿Quién está mirando?" y administrar */
@@ -1039,15 +1342,16 @@ a.episode.is-focused {
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 40px;
+  gap: 44px;
   padding: 60px 40px;
 }
 
 .profiles-screen h1 {
   margin: 0;
-  font-size: 48px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 300;
+  line-height: 1;
 }
 
 /* Cada perfil lleva la mitad del espacio a cada lado; el contenedor descuenta el de arriba y
@@ -1056,11 +1360,11 @@ a.episode.is-focused {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  margin: -18px 0;
+  margin: -20px 0;
 }
 
 .profile-grid > * {
-  margin: 18px;
+  margin: 20px;
 }
 
 /* Un botón: flex en columna, que como contenedor anda en cualquier navegador. */
@@ -1068,9 +1372,8 @@ a.episode.is-focused {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px;
+  padding: 0;
   border: none;
-  border-radius: 12px;
   background: none;
   color: var(--player-muted);
   font: inherit;
@@ -1078,7 +1381,18 @@ a.episode.is-focused {
 }
 
 .profile-tile > * + * {
-  margin-top: 14px;
+  margin-top: 16px;
+}
+
+/* El anillo, en el cuadro del perfil. */
+.profile-tile.is-focused,
+.profile-tile:focus {
+  outline: none;
+}
+
+.profile-tile.is-focused .avatar {
+  outline: 4px solid var(--focus);
+  outline-offset: 8px;
 }
 
 .profile-tile.is-focused,
@@ -1086,37 +1400,31 @@ a.episode.is-focused {
   color: var(--player-text);
 }
 
-.profile-tile.is-focused .avatar,
-.profile-tile:hover .avatar {
-  transform: scale(1.06);
-}
-
 .profile-name {
-  font-size: 24px;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 500;
 }
 
 .avatar {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  color: rgb(255 255 255 / 0.95);
-  font-weight: 800;
-  transition: transform 0.15s;
+  color: var(--player-text);
+  font-family: var(--font-display);
+  font-weight: 300;
 }
 
 .avatar-large {
   width: 160px;
   height: 160px;
-  border-radius: 16px;
-  font-size: 72px;
+  font-size: 88px;
 }
 
 .avatar-small {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
-  font-size: 20px;
+  font-size: 24px;
 }
 
 .avatar-new {
@@ -1140,30 +1448,44 @@ a.episode.is-focused {
 .ghost-button {
   display: inline-flex;
   align-items: center;
-  padding: 12px 22px;
-  border: 2px solid var(--player-surface-2);
-  border-radius: 8px;
+  height: 64px;
+  padding: 0 26px;
+  border: 1px solid var(--player-text-2);
   background: none;
   color: var(--player-text);
   font: inherit;
-  font-size: 19px;
+  font-size: 21px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  transition: transform 0.1s ease-out;
 }
 
 .ghost-button svg {
-  width: 20px;
-  height: 20px;
-  margin-right: 10px;
+  width: 22px;
+  height: 22px;
+  margin-right: 12px;
 }
 
-.ghost-button:hover {
-  border-color: var(--player-muted);
+.ghost-button:hover,
+.ghost-button.is-focused {
+  background: var(--player-surface-2);
+}
+
+.ghost-button:active {
+  border-color: var(--player-text);
+  transform: scale(0.97);
+}
+
+.ghost-button:disabled {
+  border-color: var(--player-rule);
+  color: var(--player-muted);
+  cursor: not-allowed;
 }
 
 .ghost-button.danger {
-  border-color: var(--brand);
-  color: #ff8fa3;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .manage {
@@ -1189,11 +1511,10 @@ a.episode.is-focused {
 .profile-input {
   flex: 1;
   min-width: 0;
-  height: 56px;
+  height: 64px;
   padding: 0 16px;
-  border: 2px solid var(--player-surface-2);
-  border-radius: 8px;
-  background: var(--player-surface);
+  border: 1px solid var(--player-muted);
+  background: none;
   color: var(--player-text);
   font: inherit;
   font-size: 22px;
@@ -1203,23 +1524,54 @@ a.episode.is-focused {
   outline: none;
 }
 
+.profile-input.is-focused {
+  border-color: var(--player-text);
+}
+
 .manage .play-button {
   margin-top: 18px;
 }
 
 @media (max-width: 700px) {
+  .profiles-screen {
+    padding: 40px 16px;
+  }
+
   .profiles-screen h1 {
-    font-size: 30px;
+    font-size: 36px;
+    text-align: center;
+  }
+
+  .ghost-button {
+    height: 52px;
+    padding: 0 18px;
+    font-size: 17px;
+  }
+
+  .ghost-button svg {
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+  }
+
+  .profile-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: -12px;
+  }
+
+  .profile-actions > * {
+    margin-bottom: 12px;
   }
 
   .avatar-large {
     width: 96px;
     height: 96px;
-    font-size: 44px;
+    font-size: 52px;
   }
 
   .profile-name {
-    font-size: 18px;
+    font-size: 21px;
   }
 
   .profile-row {
@@ -1233,7 +1585,8 @@ a.episode.is-focused {
 }
 
 /* Menú lateral. Cerrado es una franja de íconos; abierto (con el foco adentro, o con el mouse
-   encima) muestra los nombres por encima de la pantalla, sin moverla. */
+   encima) muestra los nombres por encima de la pantalla, sin moverla. El ancho cambia de una
+   vez; lo que se desvanece son los nombres. */
 
 :root {
   --rail: 112px;
@@ -1254,23 +1607,22 @@ a.episode.is-focused {
   width: var(--rail);
   display: flex;
   flex-direction: column;
-  padding: 36px 20px 32px;
+  padding: 40px 20px 32px;
   background: var(--player-bg);
+  border-right: 1px solid var(--player-rule);
   overflow: hidden;
-  transition:
-    width 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease;
 }
 
 .sidebar.open {
   width: var(--rail-open);
-  box-shadow: 40px 0 120px 60px rgb(0 0 0 / 0.75);
+  box-shadow: 40px 0 120px 60px var(--shade);
 }
 
 @media (hover: hover) {
   .sidebar:hover {
     width: var(--rail-open);
-    box-shadow: 40px 0 120px 60px rgb(0 0 0 / 0.75);
+    box-shadow: 40px 0 120px 60px var(--shade);
   }
 }
 
@@ -1278,11 +1630,11 @@ a.episode.is-focused {
 .menu-brand {
   display: flex;
   align-items: baseline;
-  padding-left: 23px;
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--brand);
+  padding-left: 25px;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 500;
+  color: var(--player-text);
   white-space: nowrap;
 }
 
@@ -1318,20 +1670,19 @@ a.episode.is-focused {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  height: 60px;
+  height: 64px;
   padding: 0 22px;
   border: none;
-  border-radius: 12px;
   background: none;
   color: var(--player-muted);
   font: inherit;
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 500;
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background 0.15s,
+    background-color 0.15s,
     color 0.15s;
 }
 
@@ -1360,13 +1711,13 @@ a.episode.is-focused {
   }
 }
 
-/* Dónde se está: el texto en blanco, el ícono y una marca en coral. */
+/* Dónde se está: el texto en tinta, el ícono y una marca en ámbar. */
 .menu-item.active {
   color: var(--player-text);
 }
 
 .menu-item.active .menu-icon {
-  color: var(--brand);
+  color: var(--accent);
 }
 
 .menu-item.active::before {
@@ -1376,19 +1727,20 @@ a.episode.is-focused {
   top: 16px;
   bottom: 16px;
   width: 4px;
-  border-radius: 0 4px 4px 0;
-  background: var(--brand);
+  background: var(--accent);
 }
 
-/* Con las flechas, el elegido se rellena de blanco: se ve desde el sillón. */
+/* Con las flechas, el elegido se enciende: fondo un paso más claro y el anillo ámbar adentro. */
 .menu-item.is-focused {
-  outline: none;
-  background: var(--player-text);
-  color: var(--player-bg);
+  outline: 4px solid var(--focus);
+  outline-offset: -4px;
+  background: var(--player-surface-2);
+  color: var(--player-text);
 }
 
-/* Con el mouse, algo más suave. */
+/* Con el mouse, algo más suave: sin anillo. */
 .sidebar.pointer .menu-item.is-focused {
+  outline: none;
   background: var(--player-surface-2);
   color: var(--player-text);
 }
@@ -1400,7 +1752,7 @@ a.episode.is-focused {
   height: 1px;
   margin: 18px 16px 12px;
   border: none;
-  background: var(--player-surface-2);
+  background: var(--player-rule);
 }
 
 .profile-item {
@@ -1423,11 +1775,6 @@ a.episode.is-focused {
   color: var(--player-muted);
 }
 
-.menu-item.is-focused .menu-profile small {
-  color: inherit;
-  opacity: 0.7;
-}
-
 /* En el celular, el menú es una barra abajo con íconos y nombres cortos. */
 @media (max-width: 700px) {
   .browse-main {
@@ -1444,10 +1791,9 @@ a.episode.is-focused {
     flex-direction: row;
     align-items: center;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-    background: rgb(14 14 14 / 0.94);
-    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- solo en el celular; sin él, el fondo casi opaco alcanza */
-    backdrop-filter: blur(12px);
-    border-top: 1px solid var(--player-surface-2);
+    background: var(--player-surface);
+    border-right: none;
+    border-top: 1px solid var(--player-rule);
     box-shadow: none;
   }
 
@@ -1485,7 +1831,7 @@ a.episode.is-focused {
     min-width: 68px;
     height: 56px;
     padding: 0 8px;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .menu-icon {
@@ -1507,12 +1853,12 @@ a.episode.is-focused {
     bottom: auto;
     width: 24px;
     height: 3px;
-    border-radius: 0 0 3px 3px;
     transform: translateX(-50%);
   }
 
   .menu-item.is-focused,
   .sidebar.pointer .menu-item.is-focused {
+    outline: none;
     background: none;
     color: var(--player-text);
   }
@@ -1524,8 +1870,7 @@ a.episode.is-focused {
   .profile-item .avatar-small {
     width: 26px;
     height: 26px;
-    border-radius: 6px;
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .menu-profile small {

@@ -55,7 +55,7 @@ export function Avatar({ id, name, size = 'large' }: { id: number; name: string;
   return (
     <span
       className={`avatar avatar-${size}`}
-      style={{ background: `linear-gradient(160deg, hsl(${hue} 70% 55%), hsl(${hue} 65% 35%))` }}
+      style={{ background: `hsl(${hue} 32% 34%)` }}
       aria-hidden="true"
     >
       {name.charAt(0).toUpperCase()}

@@ -116,7 +116,7 @@ export function Meter({
   warnAt?: number
   criticalAt?: number
   small?: boolean
-  /** El relleno con la rampa coral de los gráficos (para comparar cantidades, no estados). */
+  /** El relleno con la rampa de la brasa de los gráficos (para comparar cantidades, no estados). */
   ramp?: boolean
   label?: string
 }) {
@@ -141,7 +141,7 @@ export function Meter({
   )
 }
 
-/** Pasos de la rampa secuencial (coral, de claro a intenso): `--seq-1` … `--seq-5` en admin.css. */
+/** Pasos de la rampa secuencial (brasa, de claro a intenso): `--seq-1` … `--seq-5` en admin.css. */
 const RAMP_STEPS = 5
 
 /** Un tope "redondo" para la escala: 1, 2, 2,5, 5 o 10 por la potencia de 10 que corresponda. */
@@ -152,7 +152,7 @@ export function niceMax(value: number) {
 }
 
 /**
- * El tono y la opacidad de la rampa para un valor (0..1): cuanto más alto, más coral. El tono
+ * El tono y la opacidad de la rampa para un valor (0..1): cuanto más alto, más intenso. El tono
  * hace casi todo el trabajo; la opacidad solo suaviza un poco lo más bajo (si bajara mucho, en
  * oscuro las barras chicas se perderían en el fondo).
  */

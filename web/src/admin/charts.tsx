@@ -245,7 +245,7 @@ export function ColumnChart({
 const COLUMN_HEIGHT = 180
 
 /**
- * Las columnas usan la rampa coral del panel de Estado: cuanto más alta, más intensa. Con el
+ * Las columnas usan la rampa de la brasa del panel de Estado: cuanto más alta, más intensa. Con el
  * mouse encima de una (`active`), las demás se apagan.
  */
 function columnStyle(share: number, active: boolean | null) {

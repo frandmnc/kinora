@@ -285,7 +285,7 @@ function UsageView() {
       )}
       {usage && total > 0 && (
         <div className="card-body">
-          {/* Barra apilada del disco: Kinora · otros archivos · libre, con leyenda. */}
+          {/* Barra apilada del disco: Kinora, otros archivos y libre, con leyenda. */}
           <div className="stack-bar" role="img" aria-label="Uso del disco">
             <span className="seg-kinora" style={{ width: share(usage.size) }} />
             <span className="seg-other" style={{ width: share(other) }} />
@@ -293,13 +293,13 @@ function UsageView() {
           </div>
           <div className="legend">
             <span>
-              <i className="swatch kinora" /> Kinora · {formatSize(usage.size)}
+              <i className="swatch kinora" /> Kinora <b>{formatSize(usage.size)}</b>
             </span>
             <span>
-              <i className="swatch other" /> Otros archivos · {formatSize(other)}
+              <i className="swatch other" /> Otros archivos <b>{formatSize(other)}</b>
             </span>
             <span>
-              <i className="swatch free" /> Libre · {formatSize(free)}
+              <i className="swatch free" /> Libre <b>{formatSize(free)}</b>
             </span>
             <span className="muted">Disco de {formatSize(total)}</span>
           </div>
@@ -336,7 +336,7 @@ function UsageView() {
                 <td>
                   {folder.role === 'library' && folder.library && (
                     <Link to="/libraries">
-                      <Badge tone="accent">Biblioteca «{folder.library.name}»</Badge>
+                      <Badge tone="accent">Biblioteca “{folder.library.name}”</Badge>
                     </Link>
                   )}
                   {folder.role === 'inbox' && (

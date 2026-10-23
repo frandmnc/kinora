@@ -36,7 +36,12 @@ pub async fn continue_watching(
 
         if !recent.watched {
             if recent.position >= MIN_POSITION {
+                let (overview, still_at, top_backdrop_at) =
+                    repo::continue_details(&state.db, recent.content_id, recent.top_id).await?;
                 items.push(ContinueItem {
+                    overview,
+                    still_at,
+                    top_backdrop_at,
                     title: display_title(&state.db, recent.content_id)
                         .await?
                         .unwrap_or_else(|| recent.top_title.clone()),
@@ -63,7 +68,12 @@ pub async fn continue_watching(
             repo::next_episode(&state.db, profile.id, recent.top_id, season, episode).await?
             && next.watched != Some(true)
         {
+            let (overview, still_at, top_backdrop_at) =
+                repo::continue_details(&state.db, next.id, recent.top_id).await?;
             items.push(ContinueItem {
+                overview,
+                still_at,
+                top_backdrop_at,
                 title: format!(
                     "{} · T{} E{}",
                     recent.top_title, next.season_number, next.episode_number

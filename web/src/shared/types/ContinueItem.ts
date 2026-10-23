@@ -23,4 +23,16 @@ title: string, position: number, duration: number | null,
 /**
  * `true` si es el episodio siguiente a uno terminado (todavía no empezado).
  */
-next_up: boolean, };
+next_up: boolean, 
+/**
+ * La sinopsis del episodio o la película; si el episodio no tiene, la de la serie.
+ */
+overview: string | null, 
+/**
+ * Cuándo se guardó el cuadro del episodio; `null` si no tiene (o es una película).
+ */
+still_at: number | null, 
+/**
+ * Cuándo se guardó el fondo de la película o serie; `null` si no tiene.
+ */
+top_backdrop_at: number | null, };

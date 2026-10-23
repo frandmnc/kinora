@@ -25,6 +25,26 @@ pub async fn add_seconds(
     Ok(())
 }
 
+/// Lo que muestra el Player de algo empezado, además del título: la sinopsis del contenido (si no
+/// tiene, como un episodio sin datos de TMDB, la de la película o serie), y cuándo se guardaron
+/// el cuadro del episodio y el fondo de la película o serie.
+pub async fn continue_details(
+    db: &SqlitePool,
+    content_id: i64,
+    top_id: i64,
+) -> sqlx::Result<(Option<String>, Option<i64>, Option<i64>)> {
+    sqlx::query_as(
+        "SELECT COALESCE(NULLIF(TRIM(c.overview), ''), NULLIF(TRIM(top.overview), '')), \
+                c.still_at, top.backdrop_at \
+         FROM contents c, contents top \
+         WHERE c.id = ? AND top.id = ?",
+    )
+    .bind(content_id)
+    .bind(top_id)
+    .fetch_one(db)
+    .await
+}
+
 /// Total por día desde `from_day` (inclusive).
 pub async fn days_since(db: &SqlitePool, from_day: &str) -> sqlx::Result<Vec<DayTotal>> {
     let rows: Vec<(String, f64)> = sqlx::query_as(

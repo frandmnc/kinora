@@ -13,7 +13,7 @@ export function Poster({ title, src }: { title: string; src?: string }) {
   return (
     <div
       className="poster"
-      style={{ background: `linear-gradient(160deg, hsl(${hue} 45% 32%), hsl(${(hue + 40) % 360} 50% 14%))` }}
+      style={{ background: `hsl(${hue} 22% 20%)` }}
     >
       <span>{title.charAt(0).toUpperCase()}</span>
     </div>

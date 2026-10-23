@@ -27,6 +27,12 @@ pub struct ContinueItem {
     pub duration: Option<f64>,
     /// `true` si es el episodio siguiente a uno terminado (todavía no empezado).
     pub next_up: bool,
+    /// La sinopsis del episodio o la película; si el episodio no tiene, la de la serie.
+    pub overview: Option<String>,
+    /// Cuándo se guardó el cuadro del episodio; `null` si no tiene (o es una película).
+    pub still_at: Option<i64>,
+    /// Cuándo se guardó el fondo de la película o serie; `null` si no tiene.
+    pub top_backdrop_at: Option<i64>,
 }
 
 /// Lo visto hoy y en la semana, para la página Estado.
