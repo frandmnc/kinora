@@ -3,3 +3,6 @@ pruebas/
 macos/build/
 .claude/
 .hallmark/
+windows/build/
+windows/tray/target/
+release/

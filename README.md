@@ -48,10 +48,19 @@ Todo lo que entra queda en un único formato (MP4 con HEVC y AAC), así la repro
 | `web/` | React, TypeScript y Vite: dos aplicaciones (Player en `/`, Admin en `/admin/`) que comparten el cliente de la API |
 | `web/src/shared/types/` | Tipos generados desde Rust con [ts-rs](https://github.com/Aleph-Alpha/ts-rs): no se editan a mano |
 | `macos/` | Kinora.app: el servidor en la barra de menú de la Mac, como Plex |
+| `windows/` | La app de la bandeja de Windows (Rust) y el instalador con asistente (NSIS) |
 
 En la compilación de producción, el Player y el Admin quedan dentro del binario del servidor: Kinora es un solo archivo, más ffmpeg.
 
 El diseño completo (formato, importación, base de datos, autenticación, etapas) está en el [plan técnico](kinora-plan-tecnico.md).
+
+## Instalar en Windows
+
+Se baja `Kinora-<versión>-setup.exe` de los [Releases](https://github.com/frandmnc/kinora/releases) y se abre: es un asistente en castellano. Instala ffmpeg con winget si falta, abre el puerto para la tele en el firewall (solo para la red de la casa) y deja Kinora en el menú Inicio. Al abrirlo aparece su ícono en la bandeja, al lado del reloj.
+
+Para actualizar, se baja el nuevo y se abre igual: cierra Kinora, guarda una copia de la base (`kinora.db.antes-de-<versión>`) y reemplaza el programa.
+
+El instalador se arma desde la Mac con `windows/build.sh` (hace falta `brew install rustup mingw-w64 makensis`).
 
 ## Instalar en la Mac
 
@@ -87,6 +96,10 @@ El Player tiene que andar en los navegadores de las teles de la casa, que son m�
 
 Por eso se compila para Chrome 63 y stylelint controla el CSS al compilar. Lo que stylelint no detecta está anotado al principio de `web/src/player/player.css`.
 
+## Versiones
+
+Cada versión tiene su sección en el [CHANGELOG](CHANGELOG.md) y su Release en GitHub, con el instalador de Windows y Kinora.app. Se publica con `scripts/release.sh <versión>`.
+
 ## Estado
 
-En uso en la casa, todavía en desarrollo. Próximo: la versión para Windows, con instalador, y la app para la tele.
+En uso en la casa, todavía en desarrollo. Próximo: la app para la tele.
