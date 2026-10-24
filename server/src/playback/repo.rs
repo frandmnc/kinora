@@ -159,6 +159,22 @@ pub struct NextEpisode {
     pub watched: Option<bool>,
 }
 
+/// Dónde está un episodio: la serie, el número de temporada y el de episodio. `None` si no es
+/// un episodio.
+pub async fn episode_place(
+    db: &SqlitePool,
+    content_id: i64,
+) -> sqlx::Result<Option<(i64, i64, i64)>> {
+    sqlx::query_as(
+        "SELECT s.parent_id, s.number, e.number \
+         FROM contents e JOIN contents s ON s.id = e.parent_id \
+         WHERE e.id = ? AND e.kind = 'episode' AND s.parent_id IS NOT NULL",
+    )
+    .bind(content_id)
+    .fetch_optional(db)
+    .await
+}
+
 /// El episodio con archivo que sigue a (temporada, episodio) dentro de una serie.
 pub async fn next_episode(
     db: &SqlitePool,

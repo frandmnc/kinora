@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
 use axum::Json;
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use chrono::{Datelike, Days, Local, Months, NaiveDate, NaiveTime};
 use serde::Deserialize;
 
 use super::{
-    ContinueItem, DayTotal, MIN_SESSION, PlaybackSummary, Session, ViewingRange, ViewingStats,
-    local_day, repo,
+    ContinueItem, DayTotal, MIN_SESSION, NextUp, PlaybackSummary, Session, ViewingRange,
+    ViewingStats, local_day, repo,
 };
 use crate::app::AppState;
 use crate::contents::repo::display_title;
@@ -90,6 +90,28 @@ pub async fn continue_watching(
     }
 
     Ok(Json(items))
+}
+
+/// GET /api/contents/{id}/next
+/// El episodio con archivo que sigue a este (aunque ya esté visto: lo pide quien quiere seguir).
+/// `null` si no es un episodio o es el último.
+pub async fn next_up(
+    State(state): State<AppState>,
+    profile: Profile,
+    Path(id): Path<i64>,
+) -> AppResult<Json<Option<NextUp>>> {
+    let Some((show_id, season, episode)) = repo::episode_place(&state.db, id).await? else {
+        return Ok(Json(None));
+    };
+    let Some(next) = repo::next_episode(&state.db, profile.id, show_id, season, episode).await?
+    else {
+        return Ok(Json(None));
+    };
+    let title = display_title(&state.db, next.id).await?.unwrap_or_default();
+    Ok(Json(Some(NextUp {
+        content_id: next.id,
+        title,
+    })))
 }
 
 /// GET /api/admin/metrics/playback
@@ -276,6 +298,43 @@ mod tests {
         assert_eq!(stats[0].times, Some(1.5));
         // La última "de verdad": la de 10 segundos no cuenta.
         assert_eq!(stats[0].last_watched_at, Some(2500));
+    }
+
+    #[tokio::test]
+    async fn finds_the_next_episode_with_a_file_across_seasons() {
+        let db = connect_in_memory().await;
+        sqlx::query(
+            "INSERT INTO libraries (id, name, dir) VALUES (1, 'Anime', 'Anime'); \
+             INSERT INTO contents (id, library_id, kind, parent_id, number, title, created_at) VALUES \
+               (1, 1, 'show', NULL, NULL, 'Frieren', 0), \
+               (2, 1, 'season', 1, 1, 'Temporada 1', 0), \
+               (3, 1, 'episode', 2, 1, 'Episodio 1', 0), \
+               (4, 1, 'episode', 2, 2, 'Episodio 2', 0), \
+               (5, 1, 'season', 1, 2, 'Temporada 2', 0), \
+               (6, 1, 'episode', 5, 1, 'Episodio 1', 0), \
+               (7, 1, 'movie', NULL, NULL, 'Interstellar', 0); \
+             INSERT INTO media_files (content_id, rel_path, size, imported_at) VALUES \
+               (3, 'a.mp4', 1, 0), (6, 'b.mp4', 1, 0), (7, 'c.mp4', 1, 0);",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        let next = |id| {
+            let db = db.clone();
+            async move {
+                let (show, season, episode) = repo::episode_place(&db, id).await.unwrap()?;
+                repo::next_episode(&db, 1, show, season, episode)
+                    .await
+                    .unwrap()
+                    .map(|n| n.id)
+            }
+        };
+        // El 2 no tiene archivo: del 1 de la primera temporada se pasa al 1 de la segunda.
+        assert_eq!(next(3).await, Some(6));
+        assert_eq!(next(6).await, None);
+        // Una película no tiene siguiente.
+        assert_eq!(next(7).await, None);
     }
 
     #[test]

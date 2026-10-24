@@ -124,9 +124,20 @@ pub struct TitleTotal {
     pub seconds: f64,
 }
 
+/// El episodio que sigue a otro, para el botón "Siguiente episodio" del reproductor.
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct NextUp {
+    pub content_id: i64,
+    /// "Sousou no Frieren · T1 E3", como lo muestra el reproductor.
+    pub title: String,
+}
+
 /// Rutas del Player. Se montan bajo /api.
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/continue-watching", get(handlers::continue_watching))
+    Router::new()
+        .route("/continue-watching", get(handlers::continue_watching))
+        .route("/contents/{id}/next", get(handlers::next_up))
 }
 
 /// Rutas del Admin. Se montan bajo /api/admin.

@@ -2,12 +2,27 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { pickFile } from '../../shared/versions'
 import { pause as pauseNavigation, resume as resumeNavigation } from '@noriginmedia/norigin-spatial-navigation'
-import { ArrowLeft, Captions, Check, LoaderCircle, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from 'lucide-react'
+import {
+  ArrowLeft,
+  Captions,
+  Check,
+  LoaderCircle,
+  Maximize,
+  Minimize,
+  Pause,
+  Play,
+  RotateCcw,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  type LucideIcon,
+} from 'lucide-react'
 import { api, mediaUrl } from '../../shared/api'
 import { useApi } from '../../shared/useApi'
 import { formatDuration } from '../../shared/format'
 import type { ContentDetail } from '../../shared/types/ContentDetail'
 import type { MediaFile } from '../../shared/types/MediaFile'
+import type { NextUp } from '../../shared/types/NextUp'
 import type { PlaybackState } from '../../shared/types/PlaybackState'
 import type { PlaybackReport } from '../../shared/types/PlaybackReport'
 import type { SubtitleTrack } from '../../shared/types/SubtitleTrack'
@@ -20,6 +35,8 @@ const REPORT_EVERY_MS = 10_000
 const SEEK_SECONDS = 10
 /** Mientras se reproduce, los controles se esconden después de este tiempo sin tocar nada. */
 const HIDE_CONTROLS_MS = 3000
+/** Lo mismo, pero eligiendo un botón de la barra con el control remoto: se da más tiempo. */
+const HIDE_BAR_MS = 8000
 /** Cuánto tiene que tardar una carga para que se muestre el spinner. */
 const SPINNER_DELAY_MS = 150
 /** Dónde se recuerda el idioma de subtítulos elegido (o "off"), para los próximos videos. */
@@ -97,6 +114,9 @@ export function PlayPage() {
   return <Video key={detail.content.id} detail={detail} file={file} title={title} />
 }
 
+/** Un botón de la barra del reproductor. */
+type BarControl = { id: string; icon: LucideIcon; label: string; onPress: () => void; filled?: boolean; active?: boolean }
+
 /** El `<video>` con controles propios, los avisos de progreso al servidor y la reanudación. */
 function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile; title: string }) {
   const navigate = useNavigate()
@@ -133,6 +153,15 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
   const tracks = detail.subtitles.filter((track) => track.media_file_id === file.id)
   const [subtitle, setSubtitle] = useState<number | null>(() => initialTrack(tracks))
   const [menu, setMenu] = useState<number | null>(null)
+  // El botón de la barra elegido con las flechas (Arriba entra a la barra), o null fuera de ella.
+  const [bar, setBar] = useState<number | null>(null)
+  const inBar = useRef(false)
+  inBar.current = bar !== null
+
+  // En un episodio, el que sigue (para "Siguiente episodio"); en una película no se pide.
+  const { data: nextUp } = useApi<NextUp | null>(
+    detail.content.kind === 'episode' ? `/api/contents/${contentId}/next` : '',
+  )
 
   const report = useCallback(
     (state: PlaybackState) => {
@@ -168,9 +197,14 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
   const showControls = useCallback(() => {
     setControlsVisible(true)
     window.clearTimeout(hideTimer.current)
-    hideTimer.current = window.setTimeout(() => {
-      if (!videoRef.current?.paused) setControlsVisible(false)
-    }, HIDE_CONTROLS_MS)
+    hideTimer.current = window.setTimeout(
+      () => {
+        if (videoRef.current?.paused) return
+        setControlsVisible(false)
+        setBar(null)
+      },
+      inBar.current ? HIDE_BAR_MS : HIDE_CONTROLS_MS,
+    )
   }, [])
 
   const showFlash = useCallback((text: string, ms = 900) => {
@@ -205,6 +239,22 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
     showFlash(video.muted ? 'Sin sonido' : 'Con sonido')
     showControls()
   }, [showControls, showFlash])
+
+  /** Vuelve al principio del capítulo o la película, y sigue reproduciendo. */
+  const restart = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.currentTime = 0
+    video.play()
+    showFlash('Desde el principio')
+    showControls()
+  }, [showControls, showFlash])
+
+  /** Pasa al episodio siguiente. Reemplaza al actual en el historial: Atrás vuelve al detalle. */
+  const playNext = useCallback(() => {
+    if (!nextUp) return
+    navigate(`/play/${nextUp.content_id}`, { replace: true, state: { title: nextUp.title } })
+  }, [nextUp, navigate])
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen()
@@ -275,6 +325,35 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
     showControls()
   }, [tracks, subtitle, showControls])
 
+  // Los botones de la barra, en orden: los de la izquierda (volver a empezar, reproducir y el
+  // siguiente episodio, si hay) y los de la derecha. Con el mouse se aprietan; con el control
+  // remoto se llega con Arriba.
+  const controls: BarControl[] = [
+    { id: 'restart', icon: RotateCcw, label: 'Desde el principio (0)', onPress: restart },
+    { id: 'play', icon: playing ? Pause : Play, label: 'Reproducir o pausar (Enter)', onPress: togglePlay, filled: true },
+    ...(nextUp ? [{ id: 'next', icon: SkipForward, label: 'Siguiente episodio (N)', onPress: playNext }] : []),
+    { id: 'mute', icon: muted ? VolumeX : Volume2, label: muted ? 'Activar el sonido (M)' : 'Silenciar (M)', onPress: toggleMute },
+    ...(tracks.length > 0
+      ? [
+          {
+            id: 'subtitles',
+            icon: Captions,
+            label: 'Subtítulos (↓ o C)',
+            onPress: () => (menu === null ? openMenu() : setMenu(null)),
+            active: subtitle !== null,
+          },
+        ]
+      : []),
+    {
+      id: 'fullscreen',
+      icon: fullscreen ? Minimize : Maximize,
+      label: 'Pantalla completa (F)',
+      onPress: toggleFullscreen,
+    },
+  ]
+  // Los de la izquierda llegan hasta el siguiente episodio; después va el tiempo.
+  const leftCount = nextUp ? 3 : 2
+
   // Teclado y control remoto. Los códigos 415/19/417/412 son las teclas de reproducción
   // de los controles de TV (play, pausa, adelantar, retroceder).
   useEffect(() => {
@@ -296,6 +375,24 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
         return
       }
 
+      // En la barra, izquierda y derecha pasan de un botón a otro, Enter lo aprieta, y Abajo o
+      // Atrás salen de la barra (sin salir del reproductor).
+      if (bar !== null) {
+        if (key === 'ArrowLeft') setBar(Math.max(0, bar - 1))
+        else if (key === 'ArrowRight') setBar(Math.min(controls.length - 1, bar + 1))
+        else if (key === 'Enter' || key === ' ') {
+          const control = controls[bar]
+          // Los subtítulos abren su menú: la barra se suelta.
+          if (control.id === 'subtitles') setBar(null)
+          control.onPress()
+        } else if (key === 'ArrowDown' || key === 'ArrowUp' || isBackKey(event)) setBar(null)
+        else return
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        showControls()
+        return
+      }
+
       if (key === 'Enter' || key === ' ' || key === 'MediaPlayPause' || key === 'k' || code === 415 || code === 19) {
         togglePlay()
       } else if (key === 'ArrowRight' || key === 'l' || code === 417) {
@@ -306,7 +403,13 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
         if (tracks.length > 0) openMenu()
         else showControls()
       } else if (key === 'ArrowUp') {
+        setBar(Math.max(0, controls.findIndex((c) => c.id === 'play')))
+        inBar.current = true
         showControls()
+      } else if (key === '0' || key === 'Home' || key === 'MediaTrackPrevious') {
+        restart()
+      } else if ((key === 'n' || key === 'N' || key === 'MediaTrackNext') && nextUp) {
+        playNext()
       } else if (key === 'f') {
         toggleFullscreen()
       } else if (key === 'm') {
@@ -319,7 +422,7 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
     // En fase de captura: así este manejador corre antes que el de "Atrás" de la aplicación.
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [togglePlay, seekBy, showControls, toggleFullscreen, toggleMute, menu, tracks, chooseSubtitle, openMenu])
+  }, [togglePlay, seekBy, showControls, toggleFullscreen, toggleMute, menu, tracks, chooseSubtitle, openMenu, bar, controls, restart, playNext, nextUp])
 
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement !== null)
@@ -448,36 +551,34 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
         <div className="player-progress" onClick={seekTo}>
           <div className="player-progress-fill" style={{ width: `${share * 100}%` }} />
         </div>
+        {bar !== null && <div className="player-hint">{controls[bar].label}</div>}
         <div className="player-bar">
-          <button className="player-icon" onClick={togglePlay} title="Reproducir o pausar (Enter)" tabIndex={-1}>
-            {playing ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
-          </button>
+          {controls.slice(0, leftCount).map((control, i) => (
+            <BarButton key={control.id} control={control} highlighted={bar === i} />
+          ))}
           <span className="player-time">
             {formatDuration(time)} / {formatDuration(duration || null)}
           </span>
-          <button
-            className="player-icon"
-            onClick={toggleMute}
-            title={muted ? 'Activar el sonido (M)' : 'Silenciar (M)'}
-            tabIndex={-1}
-          >
-            {muted ? <VolumeX /> : <Volume2 />}
-          </button>
-          {tracks.length > 0 && (
-            <button
-              className={`player-icon ${subtitle !== null ? 'active' : ''}`}
-              onClick={() => (menu === null ? openMenu() : setMenu(null))}
-              title="Subtítulos (↓ o C)"
-              tabIndex={-1}
-            >
-              <Captions />
-            </button>
-          )}
-          <button className="player-icon" onClick={toggleFullscreen} title="Pantalla completa (F)" tabIndex={-1}>
-            {fullscreen ? <Minimize /> : <Maximize />}
-          </button>
+          {controls.slice(leftCount).map((control, i) => (
+            <BarButton key={control.id} control={control} highlighted={bar === leftCount + i} />
+          ))}
         </div>
       </div>
     </div>
+  )
+}
+
+function BarButton({ control, highlighted }: { control: BarControl; highlighted: boolean }) {
+  const Icon = control.icon
+  return (
+    <button
+      className={`player-icon ${control.active ? 'active' : ''} ${highlighted ? 'is-focused' : ''}`}
+      onClick={control.onPress}
+      title={control.label}
+      aria-label={control.label}
+      tabIndex={-1}
+    >
+      <Icon fill={control.filled ? 'currentColor' : 'none'} />
+    </button>
   )
 }

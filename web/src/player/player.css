@@ -879,6 +879,19 @@ a.episode.is-focused {
   height: 28px;
 }
 
+/* Con el control remoto, Arriba entra a la barra: el botón elegido lleva el anillo y su nombre
+   aparece arriba de la barra. */
+.player-icon.is-focused {
+  outline-offset: 2px;
+  background: var(--player-surface-2);
+}
+
+.player-hint {
+  margin-bottom: 12px;
+  font-size: 20px;
+  color: var(--player-text-2);
+}
+
 .player-center,
 .player-flash {
   position: absolute;
