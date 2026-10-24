@@ -100,21 +100,7 @@ pub fn move_libraries(
     Ok(())
 }
 
-/// Dos rutas están en el mismo disco si su sistema de archivos tiene el mismo identificador.
-#[cfg(unix)]
-pub fn same_disk(a: &Path, b: &Path) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    match (a.metadata(), b.metadata()) {
-        (Ok(a), Ok(b)) => a.dev() == b.dev(),
-        _ => false,
-    }
-}
-
-#[cfg(not(unix))]
-pub fn same_disk(_a: &Path, _b: &Path) -> bool {
-    // Fuera de Unix no hay forma simple de saberlo: se intenta, y si renombrar falla, se avisa.
-    true
-}
+pub use crate::platform::same_disk;
 
 #[cfg(test)]
 mod tests {

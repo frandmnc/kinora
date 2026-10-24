@@ -29,17 +29,20 @@ pub fn shortcuts(home: &Path) -> Vec<Folder> {
         name: "Inicio".to_string(),
         path: home.to_string_lossy().into_owned(),
     }];
-    // macOS monta los discos en /Volumes; Linux, en /media o /mnt.
-    for mounts in ["/Volumes", "/media", "/mnt"] {
-        if let Ok(disks) = subfolders(Path::new(mounts)) {
-            shortcuts.extend(disks);
-        }
-    }
+    // Los discos: en macOS, los de /Volumes; en Linux, /media o /mnt; en Windows, las unidades.
+    shortcuts.extend(
+        crate::platform::drive_roots()
+            .into_iter()
+            .map(|(name, path)| Folder {
+                name,
+                path: path.to_string_lossy().into_owned(),
+            }),
+    );
     shortcuts
 }
 
 pub fn home_dir() -> PathBuf {
-    std::env::var("HOME").map_or_else(|_| PathBuf::from("/"), PathBuf::from)
+    crate::platform::home_dir().unwrap_or_else(|| PathBuf::from("/"))
 }
 
 /// Comprueba que Kinora pueda escribir en la carpeta creando y borrando un archivo de prueba.

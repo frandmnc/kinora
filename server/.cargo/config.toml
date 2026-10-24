@@ -2,3 +2,8 @@
 [env]
 TS_RS_EXPORT_DIR = { value = "../web/src/shared/types", relative = true }
 TS_RS_LARGE_INT = "number"
+
+# Para compilar la versión de Windows desde la Mac: el enlazador de mingw-w64
+# (`brew install mingw-w64`). Lo usa windows/build.sh.
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"

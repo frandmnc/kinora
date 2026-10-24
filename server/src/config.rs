@@ -83,8 +83,9 @@ impl Config {
 pub fn expand_home(path: &Path) -> Result<PathBuf> {
     match path.strip_prefix("~") {
         Ok(rest) => {
-            let home = std::env::var("HOME").context("the HOME environment variable is not set")?;
-            Ok(PathBuf::from(home).join(rest))
+            let home =
+                crate::platform::home_dir().context("could not find the user's home folder")?;
+            Ok(home.join(rest))
         }
         Err(_) => Ok(path.to_path_buf()),
     }
@@ -99,8 +100,8 @@ mod tests {
         let config = Config::parse("").unwrap();
         assert_eq!(config.port, 8090);
         assert_eq!(config.bind.to_string(), "0.0.0.0");
-        let home = std::env::var("HOME").unwrap();
-        assert_eq!(config.data_dir, PathBuf::from(home).join(".kinora"));
+        let home = crate::platform::home_dir().unwrap();
+        assert_eq!(config.data_dir, home.join(".kinora"));
     }
 
     #[test]

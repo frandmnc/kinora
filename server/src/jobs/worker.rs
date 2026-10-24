@@ -422,8 +422,7 @@ async fn ffmpeg(
     mut cancelled: oneshot::Receiver<()>,
 ) -> Result<bool> {
     // Con prioridad baja: la conversión usa todos los núcleos, y ver algo tiene que ir primero.
-    let mut child = tokio::process::Command::new("nice")
-        .args(["-n", "10", "ffmpeg"])
+    let mut child = crate::platform::low_priority_ffmpeg()
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -431,7 +430,7 @@ async fn ffmpeg(
         .kill_on_drop(true)
         .spawn()
         .context("no se pudo ejecutar ffmpeg (¿está instalado?)")?;
-    // `nice` se reemplaza por ffmpeg (no queda como proceso padre): el pid es el de ffmpeg.
+    // El pid es el de ffmpeg (también en macOS y Linux, donde `nice` se reemplaza por él).
     let _pid = WorkerPid::set(&state.monitor, child.id());
     let mut progress = BufReader::new(child.stdout.take().expect("stdout")).lines();
     let mut stderr = child.stderr.take().expect("stderr");

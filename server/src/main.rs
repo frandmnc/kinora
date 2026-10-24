@@ -15,6 +15,7 @@ mod metadata;
 mod monitor;
 mod naming;
 mod opensubtitles;
+mod platform;
 mod playback;
 mod probe;
 mod profiles;
@@ -129,20 +130,10 @@ async fn main() -> Result<()> {
     // si no, sigue solo y al volver a arrancar habría dos escribiendo el mismo archivo.
     tokio::select! {
         result = server => result.context("the server stopped with an error")?,
-        signal = shutdown_signal() => {
+        signal = platform::shutdown_signal() => {
             tracing::info!("{signal}: shutting down");
             jobs::stop_running(&monitor);
         }
     }
     Ok(())
-}
-
-/// Espera Ctrl+C (SIGINT) o SIGTERM. Devuelve cuál llegó.
-async fn shutdown_signal() -> &'static str {
-    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-        .expect("could not listen for SIGTERM");
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => "Ctrl+C",
-        _ = terminate.recv() => "SIGTERM",
-    }
 }
