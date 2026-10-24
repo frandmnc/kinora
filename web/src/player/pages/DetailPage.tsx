@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router'
 import { Check, Play } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
@@ -103,8 +103,8 @@ export function DetailPage() {
                         meta={[
                           duration(episode),
                           episode.files.length > 1 && `${episode.files.length} versiones`,
-                          ...watchedMeta(episode),
                         ]}
+                        watch={<EpisodeWatch episode={episode} />}
                       />
                     </FocusableLink>
                   ) : (
@@ -170,8 +170,16 @@ function EpisodeStill({ episode }: { episode: ContentDetail }) {
   )
 }
 
-/** Número y título; debajo, la sinopsis (dos líneas) y la duración. */
-function EpisodeInfo({ episode, meta }: { episode: ContentDetail; meta: (string | false | null | undefined)[] }) {
+/** Número y título; debajo, la sinopsis (dos líneas), la duración y lo visto. */
+function EpisodeInfo({
+  episode,
+  meta,
+  watch,
+}: {
+  episode: ContentDetail
+  meta: (string | false | null | undefined)[]
+  watch?: ReactNode
+}) {
   const { content } = episode
   return (
     <div className="episode-info">
@@ -181,6 +189,7 @@ function EpisodeInfo({ episode, meta }: { episode: ContentDetail; meta: (string 
       </span>
       {content.overview && <span className="episode-overview">{content.overview}</span>}
       <span className="meta">{meta.filter(Boolean).join(' · ')}</span>
+      {watch}
     </div>
   )
 }
@@ -220,12 +229,24 @@ function WatchSummary({ detail }: { detail: ContentDetail }) {
   return <p className="meta watch-summary">{parts.filter(Boolean).join(' · ')}</p>
 }
 
-/** "Visto 12 veces · la última, hace 3 días"; si no llega a una vez completa, solo "Visto" si se terminó. */
-function watchedMeta(episode: ContentDetail) {
+/**
+ * Lo visto de un episodio, en su propia línea: "Visto 3 veces", el tiempo reproducido en total y
+ * cuándo fue la última. Si todavía no llega a una vez completa, igual dice cuánto se vio
+ * ("Empezado, 4 min vistos"); con menos de un minuto, nada (abrirlo y cerrarlo no es verlo).
+ */
+function EpisodeWatch({ episode }: { episode: ContentDetail }) {
   const { watch, progress } = episode
-  const times = timesLabel(watch) ?? (progress?.watched ? 'Visto' : undefined)
-  if (!times) return []
-  return [times, watch?.last_watched_at != null ? `la última, ${whenLabel(watch.last_watched_at)}` : undefined]
+  const seconds = watch?.seconds ?? 0
+  const times = timesLabel(watch) ?? (progress?.watched ? 'Visto' : seconds >= 60 ? 'Empezado' : undefined)
+  if (!times) return null
+  const total = seconds >= 60 ? `${formatWatchTime(seconds)} ${times === 'Empezado' ? 'vistos' : 'en total'}` : undefined
+  const last = watch?.last_watched_at != null ? `la última, ${whenLabel(watch.last_watched_at)}` : undefined
+  return (
+    <span className="episode-watch">
+      <strong>{times}</strong>
+      {[total, last].filter(Boolean).join(', ')}
+    </span>
+  )
 }
 
 /** Las visualizaciones completas a las que equivale lo reproducido, redondeadas (de 0,9 en adelante, una). */

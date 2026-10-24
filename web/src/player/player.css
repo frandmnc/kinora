@@ -762,6 +762,23 @@ a.episode.is-focused {
   font-size: 17px;
 }
 
+/* Lo visto del episodio: cuántas veces en la letra de los títulos, y el resto al lado. */
+.episode-watch {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 15px;
+  color: var(--player-muted);
+}
+
+.episode-watch strong {
+  margin-right: 8px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--player-text);
+}
+
 /* Reproductor */
 
 .player {
@@ -1107,8 +1124,14 @@ a.episode.is-focused {
   }
 
   .episode-overview,
-  .episode-info .meta {
+  .episode-info .meta,
+  .episode-watch {
     font-size: 13px;
+  }
+
+  .episode-watch strong {
+    font-size: 15px;
+    margin-right: 6px;
   }
 
   .player-top,
