@@ -1,6 +1,6 @@
 [package]
 name = "kinora-tray"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Kinora en la bandeja de Windows: arranca el servidor, lo vuelve a levantar si se cae y lo apaga al salir"
 
