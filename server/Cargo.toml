@@ -13,6 +13,7 @@ http-body-util = "0.1.5"
 local-ip-address = "0.6.13"
 regex = "1.13.1"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls"] }
+rust-embed = { version = "8.13.0", features = ["mime-guess"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"

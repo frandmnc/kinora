@@ -30,6 +30,18 @@ fn default_data_dir() -> PathBuf {
     PathBuf::from("~/.kinora")
 }
 
+/// Dónde está la configuración si no se indica: `config.toml` en la carpeta actual o, si no,
+/// `~/.kinora/config.toml`. `None` si no hay ninguna (Kinora.app arranca así, con los valores
+/// por defecto).
+pub fn find() -> Option<PathBuf> {
+    let here = PathBuf::from("config.toml");
+    if here.is_file() {
+        return Some(here);
+    }
+    let home = expand_home(Path::new("~/.kinora/config.toml")).ok()?;
+    home.is_file().then_some(home)
+}
+
 impl Config {
     /// Lee el archivo y crea la carpeta de datos.
     pub fn load(path: &Path) -> Result<Config> {
@@ -37,7 +49,16 @@ impl Config {
             .with_context(|| format!("could not read {}", path.display()))?;
         let config =
             Config::parse(&text).with_context(|| format!("{} is not valid", path.display()))?;
+        config.create_data_dir()
+    }
 
+    /// Todo por defecto, sin archivo. Crea la carpeta de datos.
+    pub fn defaults() -> Result<Config> {
+        Config::parse("")?.create_data_dir()
+    }
+
+    fn create_data_dir(self) -> Result<Config> {
+        let config = self;
         fs::create_dir_all(&config.data_dir).with_context(|| {
             format!(
                 "could not create the data folder {}",

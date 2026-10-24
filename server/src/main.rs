@@ -47,14 +47,20 @@ async fn main() -> Result<()> {
         )
         .with_timer(ChronoLocal::new("%H:%M:%S".to_string()))
         .with_target(false)
+        // Sin colores cuando no es una terminal (Kinora.app lo escribe en un archivo).
+        .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stdout()))
         .init();
 
-    // La ruta de la configuración puede pasarse como primer argumento.
+    // La ruta de la configuración puede pasarse como primer argumento; si no, se busca
+    // (`config::find`), y si no hay ninguna, todo va por defecto.
     let config_path = std::env::args()
         .nth(1)
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("config.toml"));
-    let config = Config::load(&config_path)?;
+        .or_else(config::find);
+    let config = match &config_path {
+        Some(path) => Config::load(path)?,
+        None => Config::defaults()?,
+    };
 
     let db = db::connect(&config.data_dir).await?;
     let settings = Settings::load(&db).await?;
@@ -104,10 +110,13 @@ async fn main() -> Result<()> {
         }
     }
     println!("Data:                 {}", config.data_dir.display());
+    match &config_path {
+        Some(path) => println!("Config:               {}", path.display()),
+        None => println!("Config:               (defaults)"),
+    }
     if !web::is_built() {
         tracing::warn!(
-            "web app is not built ({}): run `npm run build` in web/ or use `npm run dev`",
-            web::dist_dir().display()
+            "web app is not built: run `npm run build` in web/ (and rebuild a release binary) or use `npm run dev`"
         );
     }
 

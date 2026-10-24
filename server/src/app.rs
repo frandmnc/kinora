@@ -72,7 +72,7 @@ pub fn router(state: AppState) -> Router {
 
     Router::new()
         .nest("/api", api)
-        .fallback_service(web::service())
+        .fallback(web::serve)
         .with_state(state)
 }
 

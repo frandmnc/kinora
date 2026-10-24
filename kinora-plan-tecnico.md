@@ -97,7 +97,7 @@ kinora/
 
 Los tipos de `web/src/shared/types/` se regeneran con `cargo test`. No se editan a mano.
 
-La distribución será el binario con las dos interfaces embebidas, más `ffmpeg` como dependencia del sistema.
+La distribución es el binario con las dos interfaces embebidas (en la compilación `--release`), más `ffmpeg` como dependencia del sistema. En la Mac va dentro de Kinora.app: una app de la barra de menú que arranca el servidor, lo vuelve a levantar si se cae y lo apaga al salir. `macos/install.sh` la arma y la instala en `/Applications`.
 
 ## Configuración
 
