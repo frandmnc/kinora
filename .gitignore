@@ -1,3 +1,5 @@
 .DS_Store
 pruebas/
 macos/build/
+.claude/
+.hallmark/
