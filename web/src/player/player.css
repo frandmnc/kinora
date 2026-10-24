@@ -5,13 +5,16 @@
    "Sala": una sala con la luz apagada. Negro cálido, tinta de papel, Barlow para leer y
    Barlow Condensed fina para los títulos y las cifras, esquinas rectas y una sola luz ámbar.
 
-   Tiene que andar en el navegador de la TV con VIDAA, un Chromium entre 74 y 79 (lo controla
-   stylelint al compilar). Lo que más se nota:
-   - Flex no tiene `gap`. Las columnas son grid (que sí lo tiene); en las filas, el espacio va
-     como margen de cada hijo menos el primero (`> * + *`) o del ícono que precede a un texto.
+   Tiene que andar en las TV: la Samsung de 2019 (Tizen 5.0) trae Chromium 63, y la VIDAA, un
+   Chromium entre 74 y 79. stylelint controla al compilar con la más vieja, pero no detecta
+   todo. Lo que más se nota:
+   - Flex no tiene `gap`. Las columnas son grid; en las filas, el espacio va como margen de cada
+     hijo menos el primero (`> * + *`) o del ícono que precede a un texto.
+   - En grid, `grid-gap`, `grid-row-gap` y `grid-column-gap`: el `gap` sin prefijo es de Chrome 66.
+   - Colores en hex, o `rgba()` y `hsl()` con comas: `rgb(0 0 0 / 0.5)` es de Chrome 65, y
+     `oklch()` mucho más nuevo. Un color que la TV no entiende borra la regla entera.
    - Sin `aspect-ratio` ni `min()`: alto fijo de respaldo y `max-width`.
    - Sin `inset`: top, right, bottom y left por separado.
-   - Colores en hex o `rgb()`: no conoce `oklch()`.
    - Sin `:focus-visible`: un selector desconocido anula la regla entera, así que va aparte. */
 :root {
   color-scheme: dark;
@@ -28,15 +31,15 @@
   --accent-ink: #0d0a08;
   --danger: #e5735c;
   --focus: #ec8d38;
-  --track: rgb(233 228 220 / 0.25);
-  --scrim: rgb(13 10 8 / 0.88);
-  --scrim-soft: rgb(13 10 8 / 0.6);
-  --shade: rgb(13 10 8 / 0.75);
+  --track: rgba(233, 228, 220, 0.25);
+  --scrim: rgba(13, 10, 8, 0.88);
+  --scrim-soft: rgba(13, 10, 8, 0.6);
+  --shade: rgba(13, 10, 8, 0.75);
   --video-bg: #000000;
   --cue-ink: #ffffff;
-  --cue-edge: rgb(0 0 0 / 0.9);
-  --cue-glow: rgb(0 0 0 / 0.8);
-  --cue-drop: rgb(0 0 0 / 0.6);
+  --cue-edge: rgba(0, 0, 0, 0.9);
+  --cue-glow: rgba(0, 0, 0, 0.8);
+  --cue-drop: rgba(0, 0, 0, 0.6);
   --font-body: 'Barlow', system-ui, sans-serif;
   --font-display: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
   --font-cue: 'Inter Variable', system-ui, sans-serif;
@@ -127,7 +130,9 @@ button:focus:not(:focus-visible) {
   scrollbar-width: none;
   padding: 12px 12px 18px;
   margin: -12px;
-  /* Al moverse con las flechas, el elemento enfocado no queda pegado al borde. */
+  /* Al moverse con las flechas, el elemento enfocado no queda pegado al borde (en la Samsung,
+     que no lo conoce, queda pegado: no se rompe nada). */
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features */
   scroll-padding: 0 60px;
 }
 
@@ -301,7 +306,7 @@ button:focus:not(:focus-visible) {
   flex-shrink: 0;
   display: grid;
   align-content: start;
-  gap: 2px;
+  grid-gap: 2px;
 }
 
 .card.is-focused,
@@ -472,7 +477,7 @@ button:focus:not(:focus-visible) {
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, 220px);
-  gap: 44px 36px;
+  grid-gap: 44px 36px;
 }
 
 /* Buscar: el campo grande arriba y los resultados en grilla */
@@ -723,7 +728,7 @@ a.episode.is-focused {
   flex: 1;
   min-width: 0;
   display: grid;
-  gap: 6px;
+  grid-gap: 6px;
 }
 
 .episode-heading {
@@ -932,6 +937,34 @@ a.episode.is-focused {
   margin-left: 6px;
 }
 
+/* Si el video no se puede reproducir: el motivo en el centro, en lugar de quedarse quieto. */
+.player-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 760px;
+  max-width: 90%;
+  padding: 40px 48px;
+  transform: translate(-50%, -50%);
+  background: var(--player-surface);
+  border-left: 4px solid var(--danger);
+}
+
+.player-error h1 {
+  margin: 0 0 14px;
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 300;
+  line-height: 1.05;
+}
+
+.player-error p {
+  margin: 0 0 8px;
+  font-size: 22px;
+  line-height: 1.5;
+  color: var(--player-text-2);
+}
+
 .player-flash {
   background: var(--scrim);
   padding: 14px 24px;
@@ -1028,7 +1061,7 @@ a.episode.is-focused {
   .library-grid {
     /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- confunde minmax() (Chrome 57) con min() */
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 24px 14px;
+    grid-gap: 24px 14px;
   }
 
   .library-grid .card {
@@ -1164,6 +1197,7 @@ a.episode.is-focused {
   }
 }
 
+/* stylelint-disable-next-line plugin/no-unsupported-browser-features -- la TV lo ignora: no tiene esa preferencia */
 @media (prefers-reduced-motion: reduce) {
   .spin {
     animation: none;
@@ -1286,7 +1320,7 @@ a.episode.is-focused {
   width: 100%;
   max-width: 560px;
   display: grid;
-  gap: 20px;
+  grid-gap: 20px;
 }
 
 .auth-brand .brand-bar {
@@ -1309,13 +1343,13 @@ a.episode.is-focused {
 
 .auth-form {
   display: grid;
-  gap: 22px;
+  grid-gap: 22px;
   margin-top: 8px;
 }
 
 .auth-field {
   display: grid;
-  gap: 8px;
+  grid-gap: 8px;
   color: var(--player-muted);
   font-size: 18px;
 }
@@ -1378,7 +1412,7 @@ a.episode.is-focused {
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 44px;
+  grid-gap: 44px;
   padding: 60px 40px;
 }
 
@@ -1526,7 +1560,7 @@ a.episode.is-focused {
 
 .manage {
   align-content: start;
-  gap: 18px;
+  grid-gap: 18px;
 }
 
 .manage h1 {
@@ -1826,6 +1860,8 @@ a.episode.is-focused {
     width: auto;
     flex-direction: row;
     align-items: center;
+    padding: 6px 8px;
+    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- solo en el celular; sin él, el respaldo de arriba */
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
     background: var(--player-surface);
     border-right: none;

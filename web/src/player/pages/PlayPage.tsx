@@ -114,6 +114,15 @@ export function PlayPage() {
   return <Video key={detail.content.id} detail={detail} file={file} title={title} />
 }
 
+// Pantalla completa: la Samsung (Chromium 63) solo la conoce con el prefijo `webkit`.
+type WebkitDocument = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => void }
+type WebkitElement = HTMLElement & { webkitRequestFullscreen?: () => void }
+
+function fullscreenElement() {
+  const doc = document as WebkitDocument
+  return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null
+}
+
 /** Un botón de la barra del reproductor. */
 type BarControl = { id: string; icon: LucideIcon; label: string; onPress: () => void; filled?: boolean; active?: boolean }
 
@@ -138,6 +147,8 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
   const [flash, setFlash] = useState<string>()
   const [buffering, setBuffering] = useState(true)
   const [showSpinner, setShowSpinner] = useState(false)
+  // Si el video no se puede reproducir, por qué (se muestra en lugar de quedarse quieto).
+  const [failure, setFailure] = useState<string>()
 
   // El spinner aparece solo si la carga tarda: si es instantánea, mostrarlo sería un parpadeo.
   useEffect(() => {
@@ -257,8 +268,16 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
   }, [nextUp, navigate])
 
   const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) document.exitFullscreen()
-    else containerRef.current?.requestFullscreen()
+    const doc = document as WebkitDocument
+    const element = containerRef.current as WebkitElement | null
+    if (fullscreenElement()) {
+      if (doc.exitFullscreen) doc.exitFullscreen()
+      else doc.webkitExitFullscreen?.()
+    } else if (element?.requestFullscreen) {
+      element.requestFullscreen()
+    } else {
+      element?.webkitRequestFullscreen?.()
+    }
   }, [])
 
   // Muestra la pista elegida y apaga las demás. Los `<track>` del navegador se manejan por su modo.
@@ -425,9 +444,13 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
   }, [togglePlay, seekBy, showControls, toggleFullscreen, toggleMute, menu, tracks, chooseSubtitle, openMenu, bar, controls, restart, playNext, nextUp])
 
   useEffect(() => {
-    const onChange = () => setFullscreen(document.fullscreenElement !== null)
+    const onChange = () => setFullscreen(fullscreenElement() !== null)
     document.addEventListener('fullscreenchange', onChange)
-    return () => document.removeEventListener('fullscreenchange', onChange)
+    document.addEventListener('webkitfullscreenchange', onChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange)
+      document.removeEventListener('webkitfullscreenchange', onChange)
+    }
   }, [])
 
   // Retomar donde quedó, salvo que ya lo haya terminado o esté al principio o al final.
@@ -461,6 +484,10 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
         src={mediaUrl(`/api/files/${file.id}/stream`)}
         autoPlay
         onClick={togglePlay}
+        onError={(e) => {
+          setBuffering(false)
+          setFailure(describeError(e.currentTarget.error))
+        }}
         onLoadedMetadata={(e) => onLoaded(e.currentTarget)}
         onDurationChange={(e) => setDuration(e.currentTarget.duration)}
         onVolumeChange={(e) => setMuted(e.currentTarget.muted)}
@@ -512,6 +539,13 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
       </div>
 
       {flash && <div className="player-flash">{flash}</div>}
+      {failure && (
+        <div className="player-error" role="alert">
+          <h1>No se pudo reproducir el video</h1>
+          <p>{failure}</p>
+          <p className="meta">Atrás para volver.</p>
+        </div>
+      )}
       {showSpinner ? (
         <div className="player-center" role="status" aria-label="Cargando">
           <LoaderCircle className="spin" />
@@ -566,6 +600,22 @@ function Video({ detail, file, title }: { detail: ContentDetail; file: MediaFile
       </div>
     </div>
   )
+}
+
+/** Por qué falló el `<video>`, en palabras: los códigos de `MediaError`. */
+function describeError(error: MediaError | null) {
+  switch (error?.code) {
+    case 1:
+      return 'Se canceló la carga.'
+    case 2:
+      return 'Se cortó la conexión con el servidor mientras bajaba el video.'
+    case 3:
+      return 'El equipo no pudo decodificar el video (el archivo está dañado o el formato no le sirve).'
+    case 4:
+      return 'Este equipo no reproduce este formato, o el servidor no entregó el video.'
+    default:
+      return 'Error desconocido.'
+  }
 }
 
 function BarButton({ control, highlighted }: { control: BarControl; highlighted: boolean }) {

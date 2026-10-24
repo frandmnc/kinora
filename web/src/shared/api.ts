@@ -47,6 +47,10 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
     headers,
     body: options.file ?? (hasBody ? JSON.stringify(options.body) : undefined),
     keepalive: options.keepalive,
+    // La cookie de sesión. Hoy es lo que hace `fetch` por defecto en el mismo sitio, pero en
+    // Chrome 71 y anteriores (la Samsung de 2019 tiene el 63) el defecto era no mandarla ni
+    // guardarla: se entraba bien y la sesión se perdía en el acto.
+    credentials: 'same-origin',
   })
 
   // Sin sesión (o venció): la app vuelve a la pantalla de entrada.

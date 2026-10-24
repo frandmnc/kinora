@@ -1,6 +1,8 @@
 /** Para buscar sin que importen los acentos ni las mayúsculas: "Pokémon" encuentra "pokemon". */
 function normalize(text: string) {
-  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+  // Las marcas combinables (U+0300 a U+036F): los acentos, la diéresis y la tilde de la ñ una
+  // vez separados. `\p{M}` sería más general, pero es de Chrome 64 y la Samsung tiene el 63.
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
 /** Lo que tiene en el título todas las palabras buscadas, en cualquier orden. */

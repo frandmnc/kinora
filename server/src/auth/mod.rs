@@ -114,6 +114,7 @@ pub async fn require_session(
     next: Next,
 ) -> Response {
     let Some(token) = token_of(request.headers()) else {
+        log_rejected(&request, "no session");
         return AppError::Unauthorized("iniciá sesión".to_string()).into_response();
     };
     match repo::touch_session(&state.db, &secret::token_hash(&token)).await {
@@ -121,10 +122,32 @@ pub async fn require_session(
             request.extensions_mut().insert(Session { id });
             next.run(request).await
         }
-        Ok(None) => AppError::Unauthorized("la sesión venció: iniciá sesión de nuevo".to_string())
-            .into_response(),
+        Ok(None) => {
+            log_rejected(&request, "expired session");
+            AppError::Unauthorized("la sesión venció: iniciá sesión de nuevo".to_string())
+                .into_response()
+        }
         Err(err) => AppError::from(err).into_response(),
     }
+}
+
+/// Un pedido rechazado por no tener sesión, en el registro: quién y desde qué navegador. Así se
+/// ve, por ejemplo, un reproductor de TV que pide el video sin la cookie.
+fn log_rejected(request: &Request, reason: &str) {
+    let client = request
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        .map_or_else(|| "?".to_string(), |info| info.0.ip().to_string());
+    let agent = request
+        .headers()
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-");
+    tracing::warn!(
+        "401 {reason}: {} {} from {client} ({agent})",
+        request.method(),
+        request.uri().path()
+    );
 }
 
 /// El token del pedido: la cookie de sesión o el encabezado `Authorization: Bearer`.

@@ -1,3 +1,5 @@
+// Primero: lo que le falta al navegador de la TV, antes de que lo use cualquier otro módulo.
+import '../shared/polyfills'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router'

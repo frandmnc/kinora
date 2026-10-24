@@ -112,11 +112,12 @@ function CredentialsForm({ brand, setup, onDone }: { brand: ReactNode; setup: bo
         className="auth-form"
         onSubmit={submit}
         // En el Player, la navegación con flechas cancela el Enter (aunque esté en pausa) y el
-        // formulario no se enviaría solo: se envía a mano.
+        // formulario no se enviaría solo: se envía a mano. (No con `requestSubmit()`, que es de
+        // Chrome 76: la Samsung de 2019 tiene el 63.)
         onKeyDown={(e) => {
           if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
             e.preventDefault()
-            e.currentTarget.requestSubmit()
+            if (e.currentTarget.reportValidity()) submit(e)
           }
         }}
       >
