@@ -213,6 +213,7 @@ final class Server: ObservableObject {
     fi
     rm -rf "$tmp" "$zip" "$(dirname "$zip")/pending.json"
     open "$app"
+    rm -f "$0"
     """
 
     // MARK: Estado

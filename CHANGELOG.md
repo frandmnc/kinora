@@ -4,6 +4,11 @@ Cada versión de Kinora, de la más nueva a la más vieja. El número sigue [Sem
 
 Para publicar una versión: escribir acá su sección y correr `scripts/release.sh <versión>`.
 
+## 0.3.2 (2026-10-25)
+
+- Admin: al apretar "Actualizar" ya no aparece "Unexpected end of JSON input": muestra que se está actualizando y la página se recarga sola cuando vuelve Kinora. (La actualización ya andaba; el que se confundía era el Admin.)
+- Mac: el script que reemplaza Kinora.app se borra al terminar.
+
 ## 0.3.1 (2026-10-25)
 
 - Admin: la versión de Kinora va en una fila arriba de Configuración. Si hay una nueva, "Qué trae" muestra sus notas ahí mismo y "Actualizar" la instala.

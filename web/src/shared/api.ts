@@ -70,8 +70,10 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
     throw new ApiError(response.status, message)
   }
 
-  if (response.status === 204) return undefined as T
-  return (await response.json()) as T
+  // Sin contenido (204, o un 202 de "ya arranca"): no hay JSON que leer.
+  const text = await response.text()
+  if (!text) return undefined as T
+  return JSON.parse(text) as T
 }
 
 /** URL completa de un recurso del servidor, para usar en `<video src>` o `<img src>`. */
