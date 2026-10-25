@@ -175,6 +175,10 @@ pub fn admin_routes() -> Router<AppState> {
             get(handlers::get_media_dir).put(handlers::set_media_dir),
         )
         .route("/settings/media-dir/usage", get(handlers::media_usage))
+        .route(
+            "/settings/media-dir/reveal",
+            post(handlers::reveal_media_dir),
+        )
         .route("/settings/media-dir/move", get(handlers::move_status))
         .route(
             "/settings/media-dir/move/cancel",

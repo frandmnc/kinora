@@ -97,6 +97,22 @@ pub fn drive_roots() -> Vec<(String, PathBuf)> {
     }
 }
 
+/// Abre una carpeta en el explorador de archivos de esta compu: el Finder en la Mac, el
+/// Explorador en Windows y el que corresponda en Linux. No espera a que se cierre.
+pub fn reveal_folder(path: &Path) -> std::io::Result<()> {
+    let program = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(windows) {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    std::process::Command::new(program)
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+}
+
 /// Si dos rutas están en el mismo disco (y entonces mover es renombrar, instantáneo). En macOS y
 /// Linux, el identificador del sistema de archivos; en Windows, la unidad o la carpeta de red.
 pub fn same_disk(a: &Path, b: &Path) -> bool {

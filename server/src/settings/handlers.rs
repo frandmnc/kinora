@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 
+use std::net::SocketAddr;
+
 use axum::Json;
-use axum::extract::{Query, State};
-use axum::http::StatusCode;
+use axum::extract::{ConnectInfo, Query, State};
+use axum::http::{HeaderMap, StatusCode};
 use serde::Deserialize;
 
 use super::folders::{home_dir, is_writable, shortcuts, subfolders};
@@ -35,6 +37,29 @@ pub async fn media_usage(State(state): State<AppState>) -> AppResult<Json<MediaU
     let libraries = libraries::list_all(&state.db).await?;
     let usage = tokio::task::spawn_blocking(move || usage::measure(&media_dir, &libraries)).await?;
     Ok(Json(usage))
+}
+
+/// POST /api/admin/settings/media-dir/reveal
+/// Abre la carpeta media en el Finder o el Explorador. Se abre en la pantalla de la compu donde
+/// corre Kinora: por eso solo desde esa misma compu.
+pub async fn reveal_media_dir(
+    State(state): State<AppState>,
+    peer: ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> AppResult<StatusCode> {
+    if !crate::auth::same_machine(&headers, &peer) {
+        return Err(AppError::Forbidden(
+            "la carpeta se abre en la compu donde corre Kinora: usá el Admin desde ahí".to_string(),
+        ));
+    }
+    let media_dir = state.settings.require_media_dir()?;
+    crate::platform::reveal_folder(&media_dir).map_err(|error| {
+        AppError::Internal(anyhow::anyhow!(
+            "could not open {}: {error}",
+            media_dir.display()
+        ))
+    })?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// PUT /api/admin/settings/media-dir

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { FolderCheck, FolderInput, FolderOpen, HardDrive, LoaderCircle, RefreshCw } from 'lucide-react'
+import { FolderCheck, FolderInput, FolderOpen, FolderSearch, HardDrive, LoaderCircle, RefreshCw } from 'lucide-react'
 import { api } from '../../shared/api'
 import { formatSize } from '../../shared/format'
 import { useApi } from '../../shared/useApi'
@@ -45,6 +45,16 @@ export function SettingsPage() {
     }
   }
 
+  // Abre la carpeta en el Finder o el Explorador de la compu donde corre Kinora.
+  async function reveal() {
+    setSaveError(undefined)
+    try {
+      await api('/api/admin/settings/media-dir/reveal', { method: 'POST' })
+    } catch (err) {
+      setSaveError((err as Error).message)
+    }
+  }
+
   function choose(path: string) {
     setPicking(false)
     const hasLibraries = (libraries?.length ?? 0) > 0
@@ -84,6 +94,11 @@ export function SettingsPage() {
                   <Badge tone="good">Disponible</Badge>
                 ) : (
                   <Badge tone="critical">No disponible</Badge>
+                )}
+                {mediaDir.available && onServerComputer() && (
+                  <button className="btn btn-sm btn-ghost" onClick={reveal} title="Abrir la carpeta en el Finder o el Explorador">
+                    <FolderSearch /> Explorar
+                  </button>
                 )}
               </div>
             ) : (
@@ -365,4 +380,12 @@ function UsageView() {
       )}
     </Card>
   )
+}
+
+/**
+ * Si el Admin está abierto en la compu donde corre Kinora: "Explorar" abre la carpeta en esa
+ * pantalla, así que desde otro equipo no tiene sentido mostrarlo.
+ */
+function onServerComputer() {
+  return ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
 }

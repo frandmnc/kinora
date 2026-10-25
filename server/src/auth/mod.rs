@@ -211,6 +211,15 @@ fn from_home(headers: &HeaderMap, peer: &ConnectInfo<SocketAddr>) -> bool {
     }
 }
 
+/// Si el pedido viene de la compu donde corre Kinora (no de otro equipo, ni por un proxy de
+/// Tailscale, que también llega desde 127.0.0.1).
+pub fn same_machine(headers: &HeaderMap, peer: &ConnectInfo<SocketAddr>) -> bool {
+    let ip = peer.0.ip();
+    !proxied(headers)
+        && (ip.is_loopback()
+            || matches!(ip, IpAddr::V6(v6) if v6.to_ipv4_mapped().is_some_and(|v4| v4.is_loopback())))
+}
+
 /// "Chrome en macOS", a partir del User-Agent: lo justo para reconocer una sesión en la lista.
 fn device_of(headers: &HeaderMap) -> Option<String> {
     let agent = headers.get(header::USER_AGENT)?.to_str().ok()?;
@@ -274,6 +283,20 @@ mod tests {
 
     fn peer(ip: &str) -> ConnectInfo<SocketAddr> {
         ConnectInfo(format!("{ip}:5000").parse().unwrap())
+    }
+
+    #[test]
+    fn same_machine_is_only_this_computer_without_proxies() {
+        let none = HeaderMap::new();
+        assert!(same_machine(&none, &peer("127.0.0.1")));
+        assert!(same_machine(
+            &none,
+            &ConnectInfo("[::1]:5000".parse().unwrap())
+        ));
+        assert!(!same_machine(&none, &peer("192.168.0.145")));
+        let mut funnel = HeaderMap::new();
+        funnel.insert("tailscale-funnel-request", HeaderValue::from_static("?1"));
+        assert!(!same_machine(&funnel, &peer("127.0.0.1")));
     }
 
     #[test]
