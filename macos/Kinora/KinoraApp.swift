@@ -21,7 +21,7 @@ struct KinoraApp: App {
     private var symbol: String {
         switch server.state {
         case .running, .external: "play.rectangle.fill"
-        case .starting: "play.rectangle"
+        case .starting, .updating: "play.rectangle"
         case .stopped, .failed: "exclamationmark.triangle"
         }
     }
@@ -58,7 +58,7 @@ struct KinoraMenu: View {
         Button(server.ownsProcess || server.state == .starting ? "Reiniciar Kinora" : "Prender Kinora") {
             server.restart()
         }
-        .disabled(server.state == .external)
+        .disabled(server.state == .external || server.isUpdating)
         Button("Ver los registros") {
             NSWorkspace.shared.open(server.logURL)
         }
@@ -79,6 +79,7 @@ struct KinoraMenu: View {
         case .external: "Kinora ya estaba prendido en otro proceso"
         case .starting: "Kinora está arrancando…"
         case .stopped: "Kinora está apagado"
+        case .updating(let version): "Instalando Kinora \(version)…"
         case .failed(let reason): "Kinora no arrancó: \(reason)"
         }
     }

@@ -4,6 +4,14 @@ Cada versión de Kinora, de la más nueva a la más vieja. El número sigue [Sem
 
 Para publicar una versión: escribir acá su sección y correr `scripts/release.sh <versión>`.
 
+## 0.3.0 (2026-10-25)
+
+**Kinora se actualiza solo, desde el Admin.**
+
+- Configuración → Actualizaciones muestra la versión instalada y la última publicada en GitHub, con sus notas. Con un botón, Kinora la baja, la verifica (SHA-256), guarda una copia de la base y se reinicia con la versión nueva; la página se recarga sola. Se pueden incluir o no las versiones de prueba.
+- Funciona con Kinora.app en la Mac y con la bandeja en Windows. Uno arrancado a mano, desde una terminal, se actualiza a mano.
+- Windows: Kinora se instala para el usuario, en `%LOCALAPPDATA%\Programs\Kinora`, sin permisos de administrador. Solo la regla del firewall para la tele pide permiso, una vez. Así las actualizaciones no piden nada aunque se hagan desde la tele o el celular. Si estaba instalada la 0.2.0 (para todos los usuarios), hay que desinstalarla primero: el instalador avisa.
+
 ## 0.2.0 (2026-10-24)
 
 **Kinora se instala en Windows y en la Mac.**

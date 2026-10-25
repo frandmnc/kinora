@@ -16,6 +16,8 @@ final class Server: ObservableObject {
         case external
         case stopped
         case failed(String)
+        /// Bajó una actualización desde el Admin: la app se cierra, se reemplaza y se vuelve a abrir.
+        case updating(String)
     }
 
     @Published private(set) var state: State = .stopped
@@ -25,6 +27,12 @@ final class Server: ObservableObject {
     let port = Server.configuredPort()
     let logURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Logs/Kinora/kinora.log")
+    /// Donde el servidor deja las actualizaciones que baja desde el Admin.
+    let updateDir = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Caches/Kinora/updates")
+
+    /// El código con el que el servidor se apaga para que la app instale una actualización.
+    private static let updateExitCode: Int32 = 75
 
     private var process: Process?
     private var startedAt = Date()
@@ -36,6 +44,10 @@ final class Server: ObservableObject {
 
     var baseURL: URL { URL(string: "http://localhost:\(port)")! }
     var isUp: Bool { state == .running || state == .external }
+    var isUpdating: Bool {
+        if case .updating = state { return true }
+        return false
+    }
     var ownsProcess: Bool { process != nil }
 
     private init() {
@@ -73,6 +85,9 @@ final class Server: ObservableObject {
         // Una app abierta desde el Finder no tiene el PATH de la terminal: sin esto no encuentra
         // ffmpeg ni ffprobe de Homebrew.
         environment["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        // Con esto, el Admin ofrece actualizar: el servidor sabe quién lo instala y dónde dejarlo.
+        environment["KINORA_SUPERVISOR"] = "macos-app"
+        environment["KINORA_UPDATE_DIR"] = updateDir.path
         process.environment = environment
         process.standardOutput = log
         process.standardError = log
@@ -122,6 +137,10 @@ final class Server: ObservableObject {
     private func exited(_ status: Int32) async {
         process = nil
         if quitting { return }
+        if status == Server.updateExitCode {
+            installUpdate()
+            return
+        }
         if restarting {
             restarting = false
             start()
@@ -143,6 +162,58 @@ final class Server: ObservableObject {
         try? await Task.sleep(nanoseconds: 3_000_000_000)
         if process == nil && !quitting { start() }
     }
+
+    // MARK: Actualizar
+
+    /// El servidor bajó una actualización (pending.json dice cuál) y se apagó. Un script la
+    /// instala apenas se cierra la app: guarda una copia de la base, reemplaza Kinora.app (si
+    /// algo falla, deja la de antes) y la vuelve a abrir.
+    private func installUpdate() {
+        guard let data = try? Data(contentsOf: updateDir.appendingPathComponent("pending.json")),
+              let pending = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+              let version = pending["version"], let zip = pending["file"]
+        else {
+            state = .failed("la actualización no dejó pending.json")
+            return
+        }
+        state = .updating(version)
+        let script = updateDir.appendingPathComponent("install.sh")
+        do {
+            try Server.installScript.write(to: script, atomically: true, encoding: .utf8)
+            let installer = Process()
+            installer.executableURL = URL(fileURLWithPath: "/bin/sh")
+            installer.arguments = [
+                script.path, String(ProcessInfo.processInfo.processIdentifier), zip, version,
+                Bundle.main.bundleURL.path,
+            ]
+            try installer.run()
+        } catch {
+            state = .failed("no se pudo instalar la actualización: \(error.localizedDescription)")
+            return
+        }
+        quitting = true
+        NSApp.terminate(nil)
+    }
+
+    private static let installScript = """
+    #!/bin/sh
+    # Instala una actualización de Kinora apenas se cierra la app. Lo escribe Kinora.app.
+    pid="$1"; zip="$2"; version="$3"; app="$4"
+    while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done
+    tmp="$(mktemp -d)"
+    if ditto -x -k "$zip" "$tmp" && [ -d "$tmp/Kinora.app" ]; then
+      data="$HOME/.kinora"
+      [ -f "$data/kinora.db" ] && cp "$data/kinora.db" "$data/kinora.db.antes-de-$version"
+      [ -f "$data/kinora.db-wal" ] && cp "$data/kinora.db-wal" "$data/kinora.db.antes-de-$version-wal"
+      rm -rf "$app.old"
+      if mv "$app" "$app.old"; then
+        if mv "$tmp/Kinora.app" "$app"; then rm -rf "$app.old"; else mv "$app.old" "$app"; fi
+      fi
+      xattr -dr com.apple.quarantine "$app" 2>/dev/null
+    fi
+    rm -rf "$tmp" "$zip" "$(dirname "$zip")/pending.json"
+    open "$app"
+    """
 
     // MARK: Estado
 

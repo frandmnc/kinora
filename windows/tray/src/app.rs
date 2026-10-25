@@ -33,6 +33,8 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const SYNCHRONIZE: u32 = 0x0010_0000;
 const EVENT_MODIFY_STATE: u32 = 0x0002;
 const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+/// El código con el que el servidor se apaga para que esta app instale una actualización.
+const UPDATE_EXIT_CODE: i32 = 75;
 
 pub fn main() {
     if std::env::args().any(|arg| arg == "--quit") {
@@ -201,7 +203,7 @@ impl Items {
         self.player.set_enabled(state.is_up());
         self.admin.set_enabled(state.is_up());
         self.restart
-            .set_enabled(!matches!(state, State::External(_)));
+            .set_enabled(!matches!(state, State::External(_) | State::Updating(_)));
         self.restart.set_text(match state {
             State::Stopped | State::Failed(_) => "Prender Kinora",
             _ => "Reiniciar Kinora",
@@ -219,6 +221,8 @@ enum State {
     External(String),
     Stopped,
     Failed(String),
+    /// Bajó una actualización desde el Admin: corre el instalador y esta app se cierra.
+    Updating(String),
 }
 
 impl State {
@@ -233,6 +237,7 @@ impl State {
             State::External(_) => "Kinora ya estaba prendido en otro proceso".to_string(),
             State::Stopped => "Kinora está apagado".to_string(),
             State::Failed(reason) => format!("Kinora no arrancó: {reason}"),
+            State::Updating(version) => format!("Instalando Kinora {version}…"),
         }
     }
 
@@ -242,6 +247,7 @@ impl State {
             State::Running(_) | State::External(_) => "prendido",
             State::Stopped => "apagado",
             State::Failed(_) => "no arrancó",
+            State::Updating(_) => "actualizando",
         }
     }
 }
@@ -252,6 +258,8 @@ struct Supervisor {
     /// Cuántas veces seguidas se cerró enseguida: a la tercera se deja de insistir.
     quick_exits: u32,
     restart_at: Option<Instant>,
+    /// El instalador que bajó el servidor, para correrlo apenas se apagó.
+    update: Option<PathBuf>,
     state: State,
     quitting: bool,
     /// Si esta app se cierra de golpe, Windows cierra también el servidor (y su ffmpeg).
@@ -268,6 +276,7 @@ impl Supervisor {
             started_at: Instant::now(),
             quick_exits: 0,
             restart_at: None,
+            update: None,
             state: State::Stopped,
             quitting: false,
             job: kill_on_close_job(),
@@ -292,6 +301,10 @@ impl Supervisor {
             // ffmpeg de la cola y cierra la base). Windows no tiene SIGTERM.
             .env("KINORA_STOP_ON_STDIN_EOF", "1")
             .env("PATH", path_with_winget())
+            // Con esto, el Admin ofrece actualizar: el servidor sabe quién lo instala y dónde
+            // dejarlo.
+            .env("KINORA_SUPERVISOR", "windows-tray")
+            .env("KINORA_UPDATE_DIR", updates_dir())
             .current_dir(data_dir().parent().unwrap_or(Path::new("C:\\")))
             .stdin(Stdio::piped())
             .stdout(out)
@@ -352,6 +365,20 @@ impl Supervisor {
         };
         if let Some(code) = exited {
             self.child = None;
+            if code == UPDATE_EXIT_CODE {
+                match pending_update() {
+                    Some((version, installer)) => {
+                        self.state = State::Updating(version);
+                        self.quitting = true;
+                        self.update = Some(installer);
+                    }
+                    None => {
+                        self.state =
+                            State::Failed("la actualización no dejó pending.json".to_string())
+                    }
+                }
+                return;
+            }
             if let Some(version) = &health {
                 // El puerto lo tiene otro Kinora: este no pudo arrancar.
                 self.state = State::External(version.clone());
@@ -417,6 +444,19 @@ fn spawn_monitor(
                     return;
                 }
                 supervisor.tick(health);
+                // Llegó una actualización: el instalador, en silencio, la instala y vuelve a
+                // abrir Kinora (/RESTART). Esta app se cierra para que pueda reemplazarla.
+                if let Some(installer) = supervisor.update.take() {
+                    let _ = proxy.send_event(UserEvent::Status(supervisor.state.clone()));
+                    if let Err(error) = Command::new(&installer).args(["/S", "/RESTART"]).spawn() {
+                        supervisor.quitting = false;
+                        supervisor.state =
+                            State::Failed(format!("no se pudo correr el instalador ({error})"));
+                    } else {
+                        let _ = proxy.send_event(UserEvent::Exit);
+                        return;
+                    }
+                }
                 supervisor.state.clone()
             };
             if open_admin && state.is_up() {
@@ -511,6 +551,25 @@ fn tv_url(port: u16) -> Option<String> {
     local_ip_address::local_ip()
         .ok()
         .map(|ip| format!("http://{ip}:{port}"))
+}
+
+/// %LOCALAPPDATA%\Kinora\updates: donde el servidor deja lo que baja.
+fn updates_dir() -> PathBuf {
+    log_path()
+        .parent()
+        .and_then(Path::parent)
+        .map(|kinora| kinora.join("updates"))
+        .unwrap_or_else(|| data_dir().join("updates"))
+}
+
+/// Lo que dejó el servidor en pending.json: la versión y el instalador.
+fn pending_update() -> Option<(String, PathBuf)> {
+    let text = fs::read_to_string(updates_dir().join("pending.json")).ok()?;
+    let pending: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let version = pending.get("version")?.as_str()?.to_string();
+    let file = PathBuf::from(pending.get("file")?.as_str()?);
+    let _ = fs::remove_file(updates_dir().join("pending.json"));
+    file.is_file().then_some((version, file))
 }
 
 /// %LOCALAPPDATA%\Kinora\logs\kinora.log

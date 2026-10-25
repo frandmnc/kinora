@@ -13,7 +13,7 @@ use crate::monitor::Monitor;
 use crate::settings::Settings;
 use crate::{
     contents, debug, health, imports, jobs, libraries, metadata, monitor, opensubtitles, playback,
-    profiles, settings, subtitles, trash, uploads, web,
+    profiles, settings, subtitles, trash, updates, uploads, web,
 };
 
 /// Lo que comparten todos los handlers. Axum le pasa una copia a cada pedido;
@@ -44,6 +44,7 @@ pub fn router(state: AppState) -> Router {
         .merge(trash::admin_routes())
         .merge(debug::admin_routes())
         .merge(auth::admin_routes())
+        .merge(updates::admin_routes())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             settings::block_while_moving,

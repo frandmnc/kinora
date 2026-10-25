@@ -12,6 +12,7 @@ import type { SetMediaDir } from '../../shared/types/SetMediaDir'
 import type { TransferStatus } from '../../shared/types/TransferStatus'
 import { FolderPicker } from '../FolderPicker'
 import { AccountCard } from '../AccountCard'
+import { UpdatesCard } from '../UpdatesCard'
 import { TmdbCard } from '../TmdbCard'
 import { OpenSubtitlesCard } from '../OpenSubtitlesCard'
 import { Alert, Badge, Card, Meter, PageHeader } from '../ui'
@@ -116,6 +117,8 @@ export function SettingsPage() {
       <OpenSubtitlesCard />
 
       <AccountCard />
+
+      <UpdatesCard />
     </>
   )
 }

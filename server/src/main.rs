@@ -22,6 +22,7 @@ mod profiles;
 mod settings;
 mod subtitles;
 mod trash;
+mod updates;
 mod uploads;
 mod web;
 
@@ -133,6 +134,12 @@ async fn main() -> Result<()> {
         signal = platform::shutdown_signal() => {
             tracing::info!("{signal}: shutting down");
             jobs::stop_running(&monitor);
+        }
+        () = updates::ready() => {
+            // La actualización ya está bajada: la instala la app que supervisa el servidor.
+            tracing::info!("shutting down to install the update");
+            jobs::stop_running(&monitor);
+            std::process::exit(updates::UPDATE_EXIT_CODE);
         }
     }
     Ok(())

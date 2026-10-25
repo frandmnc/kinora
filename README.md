@@ -56,9 +56,7 @@ El diseño completo (formato, importación, base de datos, autenticación, etapa
 
 ## Instalar en Windows
 
-Se baja `Kinora-<versión>-setup.exe` de los [Releases](https://github.com/frandmnc/kinora/releases) y se abre: es un asistente en castellano. Instala ffmpeg con winget si falta, abre el puerto para la tele en el firewall (solo para la red de la casa) y deja Kinora en el menú Inicio. Al abrirlo aparece su ícono en la bandeja, al lado del reloj.
-
-Para actualizar, se baja el nuevo y se abre igual: cierra Kinora, guarda una copia de la base (`kinora.db.antes-de-<versión>`) y reemplaza el programa.
+Se baja `Kinora-<versión>-setup.exe` de los [Releases](https://github.com/frandmnc/kinora/releases) y se abre: es un asistente en castellano. Instala para el usuario, sin permisos de administrador: solo la regla del firewall para la tele (solo para la red de la casa) pide permiso, una vez. Instala ffmpeg con winget si falta y deja Kinora en el menú Inicio. Al abrirlo aparece su ícono en la bandeja, al lado del reloj.
 
 El instalador se arma desde la Mac con `windows/build.sh` (hace falta `brew install rustup mingw-w64 makensis`).
 
@@ -95,6 +93,12 @@ El Player tiene que andar en los navegadores de las teles de la casa, que son m�
 | Hisense con VIDAA | Chromium 74 a 79 |
 
 Por eso se compila para Chrome 63 y stylelint controla el CSS al compilar. Lo que stylelint no detecta está anotado al principio de `web/src/player/player.css`.
+
+## Actualizar
+
+Desde el Admin: Configuración → Actualizaciones. Muestra la última versión publicada y sus notas; con un botón, Kinora la baja, la verifica, guarda una copia de la base (`kinora.db.antes-de-<versión>`) y se reinicia con ella. Funciona con Kinora.app en la Mac y con la bandeja en Windows.
+
+A mano también se puede: en Windows, abrir el instalador nuevo; en la Mac, `macos/install.sh` o la Kinora.app nueva.
 
 ## Versiones
 
