@@ -13,7 +13,6 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use axum::extract::Query;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -63,7 +62,6 @@ pub struct UpdateStatus {
 #[ts(export)]
 pub struct ReleaseInfo {
     pub version: String,
-    pub prerelease: bool,
     /// Cuándo se publicó (AAAA-MM-DD).
     pub published: String,
     /// Las notas de la versión (Markdown, las del CHANGELOG).
@@ -73,23 +71,15 @@ pub struct ReleaseInfo {
 
 #[derive(Deserialize, TS)]
 #[ts(export)]
-pub struct UpdateQuery {
-    /// Contar también las versiones de prueba.
-    #[serde(default)]
-    pub prerelease: bool,
-}
-
-#[derive(Deserialize, TS)]
-#[ts(export)]
 pub struct InstallUpdate {
     pub version: String,
 }
 
-/// GET /api/admin/updates?prerelease=true
-async fn check(Query(query): Query<UpdateQuery>) -> AppResult<Json<UpdateStatus>> {
+/// GET /api/admin/updates
+async fn check() -> AppResult<Json<UpdateStatus>> {
     let current = env!("CARGO_PKG_VERSION");
     let releases = fetch_releases().await?;
-    let latest = latest(&releases, query.prerelease);
+    let latest = latest(&releases);
     let update_available = latest.is_some_and(|release| newer(&release.version(), current));
     Ok(Json(UpdateStatus {
         current: current.to_string(),
@@ -97,7 +87,6 @@ async fn check(Query(query): Query<UpdateQuery>) -> AppResult<Json<UpdateStatus>
         update_available,
         latest: latest.map(|release| ReleaseInfo {
             version: release.version(),
-            prerelease: release.prerelease,
             published: release.published_at.chars().take(10).collect(),
             notes: release.body.clone().unwrap_or_default(),
             url: release.html_url.clone(),
@@ -232,7 +221,6 @@ fn asset_suffix() -> Option<&'static str> {
 struct Release {
     tag_name: String,
     draft: bool,
-    prerelease: bool,
     published_at: String,
     body: Option<String>,
     html_url: String,
@@ -278,11 +266,12 @@ async fn fetch_releases() -> AppResult<Vec<Release>> {
         .map_err(|error| AppError::Upstream(format!("GitHub respondió algo inesperado: {error}")))
 }
 
-/// La versión más alta publicada (sin borradores; las de prueba, solo si se piden).
-fn latest(releases: &[Release], prerelease: bool) -> Option<&Release> {
+/// La versión más alta publicada (sin borradores). Las marcadas en GitHub como "pre-release"
+/// cuentan igual: son las que todavía no se probaron en todos lados, no otra cosa.
+fn latest(releases: &[Release]) -> Option<&Release> {
     releases
         .iter()
-        .filter(|release| !release.draft && (prerelease || !release.prerelease))
+        .filter(|release| !release.draft)
         .filter_map(|release| parse(&release.version()).map(|v| (v, release)))
         .max_by_key(|(version, _)| *version)
         .map(|(_, release)| release)
@@ -303,11 +292,10 @@ fn newer(candidate: &str, current: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn release(tag: &str, prerelease: bool, draft: bool) -> Release {
+    fn release(tag: &str, draft: bool) -> Release {
         Release {
             tag_name: tag.to_string(),
             draft,
-            prerelease,
             published_at: "2026-10-24T12:00:00Z".to_string(),
             body: None,
             html_url: String::new(),
@@ -325,15 +313,14 @@ mod tests {
     }
 
     #[test]
-    fn picks_the_highest_release_skipping_drafts_and_maybe_prereleases() {
+    fn picks_the_highest_release_skipping_drafts() {
         let releases = [
-            release("v0.2.0", false, false),
-            release("v0.4.0", false, true),
-            release("v0.3.0", true, false),
-            release("v0.10.0-rc", false, false),
+            release("v0.2.0", false),
+            release("v0.4.0", true),
+            release("v0.3.0", false),
+            release("v0.10.0-rc", false),
         ];
-        assert_eq!(latest(&releases, false).unwrap().version(), "0.2.0");
-        assert_eq!(latest(&releases, true).unwrap().version(), "0.3.0");
-        assert!(latest(&[], true).is_none());
+        assert_eq!(latest(&releases).unwrap().version(), "0.3.0");
+        assert!(latest(&[]).is_none());
     }
 }

@@ -56,6 +56,8 @@ export function SettingsPage() {
     <>
       <PageHeader title="Configuración" />
 
+      <UpdatesCard />
+
       <Card
         title="Carpeta media"
         description="donde Kinora guarda todo lo importado; cada biblioteca es una subcarpeta"
@@ -117,8 +119,6 @@ export function SettingsPage() {
       <OpenSubtitlesCard />
 
       <AccountCard />
-
-      <UpdatesCard />
     </>
   )
 }
