@@ -4,6 +4,10 @@ Cada versión de Kinora, de la más nueva a la más vieja. El número sigue [Sem
 
 Para publicar una versión: escribir acá su sección y correr `scripts/release.sh <versión>`.
 
+## 0.4.0 (2026-10-25)
+
+- Admin: en Configuración, "Explorar" abre la carpeta media en el Finder (Mac) o el Explorador (Windows). Se abre en la pantalla de la compu donde corre Kinora, así que el botón solo aparece cuando el Admin está abierto en esa misma compu.
+
 ## 0.3.2 (2026-10-25)
 
 - Admin: al apretar "Actualizar" ya no aparece "Unexpected end of JSON input": muestra que se está actualizando y la página se recarga sola cuando vuelve Kinora. (La actualización ya andaba; el que se confundía era el Admin.)
