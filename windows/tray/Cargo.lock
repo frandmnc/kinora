@@ -964,7 +964,7 @@ dependencies = [
 
 [[package]]
 name = "kinora-tray"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clipboard-win",
  "embed-resource",
