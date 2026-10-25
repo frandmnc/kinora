@@ -4,6 +4,11 @@ Cada versión de Kinora, de la más nueva a la más vieja. El número sigue [Sem
 
 Para publicar una versión: escribir acá su sección y correr `scripts/release.sh <versión>`.
 
+## 0.3.1 (2026-10-25)
+
+- Admin: la versión de Kinora va en una fila arriba de Configuración. Si hay una nueva, "Qué trae" muestra sus notas ahí mismo y "Actualizar" la instala.
+- Ya no hay "versiones de prueba" aparte: Kinora tiene en cuenta todas las versiones publicadas.
+
 ## 0.3.0 (2026-10-25)
 
 **Kinora se actualiza solo, desde el Admin.**
