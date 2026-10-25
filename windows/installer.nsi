@@ -1,8 +1,12 @@
 ﻿; El instalador de Kinora para Windows: un asistente en castellano con la estética de Kinora.
-; Instala Kinora.exe (la app de la bandeja) y kinora-server.exe en Archivos de programa, crea
-; el acceso directo en el menú Inicio, abre el puerto en el firewall para la red de la casa e
-; instala ffmpeg con winget si falta. Si Kinora ya está instalado, lo actualiza: lo cierra,
-; guarda una copia de la base de datos y reemplaza el programa.
+; Instala para el usuario, sin permisos de administrador (como VS Code): Kinora.exe (la app de
+; la bandeja) y kinora-server.exe en %LOCALAPPDATA%\Programs\Kinora, el acceso directo en el
+; menú Inicio y ffmpeg con winget si falta. Solo la regla del firewall para la tele necesita
+; administrador: se pide una vez, la primera. Si Kinora ya está instalado, lo actualiza: lo
+; cierra, guarda una copia de la base de datos y reemplaza el programa.
+;
+; En silencio (/S), sin asistente, es como se actualiza Kinora solo desde el Admin; con /RESTART
+; además lo vuelve a abrir al terminar.
 ;
 ; Lo arma windows/build.sh desde la Mac (makensis), con:
 ;   -DVERSION=0.2.0 -DSERVER=<kinora.exe del servidor> -DTRAY=<Kinora.exe> -DOUTFILE=<setup.exe>
@@ -16,11 +20,13 @@ SetCompressor /SOLID lzma
 !include "Sections.nsh"
 !include "x64.nsh"
 
+!define FIREWALL_RULE 'name="Kinora" dir=in action=allow program="$INSTDIR\kinora-server.exe" enable=yes profile=any remoteip=localsubnet'
+
 Name "Kinora"
 OutFile "${OUTFILE}"
-InstallDir "$PROGRAMFILES64\Kinora"
-InstallDirRegKey HKLM "Software\Kinora" "InstallDir"
-RequestExecutionLevel admin
+InstallDir "$LOCALAPPDATA\Programs\Kinora"
+InstallDirRegKey HKCU "Software\Kinora" "InstallDir"
+RequestExecutionLevel user
 BrandingText "Kinora ${VERSION}"
 
 VIProductVersion "${VERSION}.0"
@@ -107,46 +113,40 @@ Section "Kinora" SecKinora
   File "/oname=kinora-server.exe" "${SERVER}"
   WriteUninstaller "$INSTDIR\${UNINSTALLER}"
 
-  ; El acceso directo, en el menú Inicio de todos los usuarios.
-  SetShellVarContext all
   CreateShortcut "$SMPROGRAMS\Kinora.lnk" "$INSTDIR\Kinora.exe" "" "$INSTDIR\Kinora.exe" 0
-  SetShellVarContext current
 
-  ; El puerto para la tele: solo desde la red local, sea cual sea el tipo de red en Windows.
-  DetailPrint "Abriendo el puerto de Kinora en el firewall para la red de la casa…"
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Kinora"'
+  ; El puerto para la tele: solo desde la red local, sea cual sea el tipo de red en Windows. Es
+  ; lo único que necesita administrador: si la regla ya está (las actualizaciones), no se pide.
+  nsExec::ExecToStack 'netsh advfirewall firewall show rule name="Kinora"'
   Pop $0
-  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Kinora" dir=in action=allow program="$INSTDIR\kinora-server.exe" enable=yes profile=any remoteip=localsubnet'
-  Pop $0
+  ${If} $0 != 0
+    DetailPrint "Abriendo el puerto de Kinora en el firewall (Windows pide permiso una vez)…"
+    ExecShellWait "runas" "$SYSDIR\netsh.exe" 'advfirewall firewall add rule ${FIREWALL_RULE}' SW_HIDE
+  ${EndIf}
 
   ; Para "Agregar o quitar programas".
-  WriteRegStr HKLM "Software\Kinora" "InstallDir" "$INSTDIR"
-  WriteRegStr HKLM "Software\Kinora" "Version" "${VERSION}"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "Kinora"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "Kinora"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\Kinora.exe"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\${UNINSTALLER}"'
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "QuietUninstallString" '"$INSTDIR\${UNINSTALLER}" /S'
-  WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
-  WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
+  WriteRegStr HKCU "Software\Kinora" "InstallDir" "$INSTDIR"
+  WriteRegStr HKCU "Software\Kinora" "Version" "${VERSION}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "Kinora"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "Kinora"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\Kinora.exe"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\${UNINSTALLER}"'
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '"$INSTDIR\${UNINSTALLER}" /S'
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   IntFmt $0 "0x%08X" $0
-  WriteRegDWORD HKLM "${UNINSTALL_KEY}" "EstimatedSize" "$0"
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" "$0"
 SectionEnd
 
 Section "ffmpeg (con winget)" SecFfmpeg
   DetailPrint "Instalando ffmpeg con winget (puede tardar unos minutos)…"
-  nsExec::ExecToLog 'winget install --id Gyan.FFmpeg --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity'
+  nsExec::ExecToLog 'winget install --id Gyan.FFmpeg --exact --scope user --silent --accept-source-agreements --accept-package-agreements --disable-interactivity'
   Pop $0
-  ${If} $0 == "error"
-    ; winget no está en el PATH del administrador: se prueba con el del usuario.
-    nsExec::ExecToLog '"$LOCALAPPDATA\Microsoft\WindowsApps\winget.exe" install --id Gyan.FFmpeg --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity'
-    Pop $0
-  ${EndIf}
   ${If} $0 != 0
-    MessageBox MB_ICONINFORMATION "No se pudo instalar ffmpeg con winget (código $0).$\r$\n$\r$\nKinora se instala igual, pero para importar y convertir videos hace falta ffmpeg. Se puede instalar después, en una terminal:$\r$\n$\r$\n    winget install Gyan.FFmpeg"
+    MessageBox MB_ICONINFORMATION "No se pudo instalar ffmpeg con winget (código $0).$\r$\n$\r$\nKinora se instala igual, pero para importar y convertir videos hace falta ffmpeg. Se puede instalar después, en una terminal:$\r$\n$\r$\n    winget install Gyan.FFmpeg" /SD IDOK
   ${EndIf}
 SectionEnd
 
@@ -154,11 +154,17 @@ SectionEnd
 
 Function .onInit
   ${IfNot} ${RunningX64}
-    MessageBox MB_ICONSTOP "Kinora necesita Windows de 64 bits."
+    MessageBox MB_ICONSTOP "Kinora necesita Windows de 64 bits." /SD IDOK
     Abort
   ${EndIf}
   SetRegView 64
-  ReadRegStr $PreviousVersion HKLM "Software\Kinora" "Version"
+  ; La 0.2.0 se instalaba para todos los usuarios, en Archivos de programa: hay que sacarla antes.
+  ReadRegStr $0 HKLM "Software\Kinora" "InstallDir"
+  ${If} $0 != ""
+    MessageBox MB_ICONEXCLAMATION "Hay una versión anterior de Kinora instalada para todos los usuarios, en $0.$\r$\n$\r$\nDesinstalala desde Configuración → Aplicaciones (no toca la base ni las películas) y volvé a abrir este instalador." /SD IDOK
+    Abort
+  ${EndIf}
+  ReadRegStr $PreviousVersion HKCU "Software\Kinora" "Version"
   ; Si ffmpeg ya está, la opción de instalarlo viene destildada.
   nsExec::ExecToStack 'cmd /c where ffmpeg'
   Pop $0
@@ -170,10 +176,18 @@ Function .onInit
   ${EndIf}
 FunctionEnd
 
-; La app se abre como el usuario, no como administrador (el instalador sí lo es): por eso a
-; través del Explorador.
 Function OpenKinora
-  Exec '"$WINDIR\explorer.exe" "$INSTDIR\Kinora.exe"'
+  Exec '"$INSTDIR\Kinora.exe"'
+FunctionEnd
+
+; Al actualizarse desde el Admin (/S /RESTART), Kinora se vuelve a abrir solo al terminar.
+Function .onInstSuccess
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/RESTART" $1
+  ${IfNot} ${Errors}
+    Exec '"$INSTDIR\Kinora.exe"'
+  ${EndIf}
 FunctionEnd
 
 ; --- Desinstalar ---
@@ -189,13 +203,11 @@ Section "Uninstall"
   Delete "$INSTDIR\${UNINSTALLER}"
   RMDir "$INSTDIR"
 
-  SetShellVarContext all
   Delete "$SMPROGRAMS\Kinora.lnk"
-  SetShellVarContext current
 
-  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Kinora"'
-  Pop $0
+  ; La regla del firewall necesita administrador: Windows pide permiso.
+  ExecShellWait "runas" "$SYSDIR\netsh.exe" 'advfirewall firewall delete rule name="Kinora"' SW_HIDE
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Kinora"
-  DeleteRegKey HKLM "${UNINSTALL_KEY}"
-  DeleteRegKey HKLM "Software\Kinora"
+  DeleteRegKey HKCU "${UNINSTALL_KEY}"
+  DeleteRegKey HKCU "Software\Kinora"
 SectionEnd
